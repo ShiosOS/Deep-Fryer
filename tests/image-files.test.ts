@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict'
-import { link, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { link, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { PNG } from 'pngjs'
 import { inspectImage, readImage, writePngExclusive } from '../src/main/image-files'
-import { MAX_FILE_BYTES } from '../src/shared/image'
+import { exportPngInput, MAX_FILE_BYTES } from '../src/shared/image'
 
 function png(): Buffer {
   const image = new PNG({ width: 3, height: 2 })
@@ -67,6 +67,21 @@ test('invalid PNG export never creates a destination file', async () => {
     const path = join(folder, 'invalid.png')
     await assert.rejects(writePngExclusive(path, Buffer.from('not an image')), /PNG or JPEG/)
     await assert.rejects(readFile(path), { code: 'ENOENT' })
+  } finally {
+    await rm(folder, { recursive: true, force: true })
+  }
+})
+
+test('PNG output may exceed the compressed source limit without relaxing imports', async () => {
+  const folder = await mkdtemp(join(tmpdir(), 'deep-fryer-large-output-'))
+  try {
+    const bytes = Buffer.alloc(MAX_FILE_BYTES + 1)
+    png().copy(bytes)
+    const input = exportPngInput.parse({ bytes, suggestedName: 'large.png' })
+    const destination = join(folder, input.suggestedName)
+    await writePngExclusive(destination, input.bytes)
+    assert.equal((await stat(destination)).size, bytes.length)
+    await assert.rejects(readImage(destination), /64 MiB/)
   } finally {
     await rm(folder, { recursive: true, force: true })
   }
