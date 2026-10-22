@@ -1,0 +1,48 @@
+{
+  "name": "deep-fryer",
+  "version": "0.1.0",
+  "description": "A local desktop image editor.",
+  "private": true,
+  "main": "out/main/index.js",
+  "author": "Deep Fryer",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "start": "electron-vite preview",
+    "build": "electron-vite build",
+    "typecheck": "vue-tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "test:e2e": "playwright test",
+    "package:win": "npm run build && electron-builder --win nsis"
+  },
+  "dependencies": {
+    "vue": "3.5.44",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "@types/node": "^24.10.1",
+    "@types/pngjs": "^6.0.5",
+    "@vitejs/plugin-vue": "6.0.10",
+    "electron": "45.0.0",
+    "electron-builder": "26.15.3",
+    "electron-vite": "6.0.0",
+    "pngjs": "^7.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vite": "8.3.5",
+    "vue-tsc": "^3.1.5"
+  },
+  "allowScripts": {
+    "electron": true,
+    "esbuild": true
+  },
+  "build": {
+    "appId": "com.deepfryer.desktop",
+    "productName": "Deep Fryer",
+    "directories": { "output": "release" },
+    "files": ["out/**/*", "package.json"],
+    "asar": true,
+    "win": { "target": "nsis" },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true }
+  }
+}
