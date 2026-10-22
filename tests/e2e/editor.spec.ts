@@ -121,3 +121,95 @@ test('open, cancel, reject replacement, protect originals, and export real canva
     await rm(folder, { recursive: true, force: true })
   }
 })
+
+test('independent color controls preview and export combined settings while preserving alpha and source', async () => {
+  const folder = await mkdtemp(join(tmpdir(), 'deep-fryer-color-'))
+  const original = new PNG({ width: 200, height: 100 })
+  for (let y = 0; y < original.height; y += 1) {
+    for (let x = 0; x < original.width; x += 1) {
+      original.data.set(x < 100 ? [200, 100, 50, 255] : [40, 80, 120, 128], (y * original.width + x) * 4)
+    }
+  }
+  const bytes = PNG.sync.write(original)
+  const source = join(folder, 'patches.png')
+  const invalid = join(folder, 'broken.png')
+  const output = join(folder, 'color.png')
+  await writeFile(source, bytes)
+  await writeFile(invalid, bytes.subarray(0, 20))
+  const executable = process.env.DEEP_FRYER_EXECUTABLE ?? process.env.ELECTRON_EXECUTABLE_PATH
+  const app = await electron.launch({
+    ...(executable ? { executablePath: executable } : {}),
+    args: [...(process.env.DEEP_FRYER_EXECUTABLE ? [] : [resolve('.')]), `--user-data-dir=${join(folder, 'profile')}`],
+    env: { ...process.env, ELECTRON_RENDERER_URL: '' }
+  })
+  try {
+    const page = await app.firstWindow()
+    const errors: string[] = []
+    page.on('pageerror', (error) => errors.push(error.message))
+    await selectOpen(app, source)
+    await page.getByRole('button', { name: 'Open image' }).click()
+    await expect(page.getByRole('spinbutton', { name: 'Brightness value' })).toHaveValue('0')
+    await expect(page.getByRole('spinbutton', { name: 'Contrast value' })).toHaveValue('100')
+    await expect(page.getByRole('spinbutton', { name: 'Saturation value' })).toHaveValue('100')
+    await expect(page.getByRole('spinbutton', { name: 'Color levels value' })).toHaveValue('256')
+
+    await page.getByRole('spinbutton', { name: 'Contrast value' }).fill('150')
+    await expect(page.getByRole('status')).toContainText('Color changes are ready')
+    await page.getByRole('spinbutton', { name: 'Saturation value' }).fill('0')
+    await expect(page.getByRole('status')).toContainText('Color changes are ready')
+    await expect(page.getByRole('spinbutton', { name: 'Contrast value' })).toHaveValue('150')
+    await expect(page.getByRole('spinbutton', { name: 'Brightness value' })).toHaveValue('0')
+    await expect(page.getByRole('spinbutton', { name: 'Color levels value' })).toHaveValue('256')
+    await page.getByRole('spinbutton', { name: 'Color levels value' }).fill('1')
+    await expect(page.getByRole('spinbutton', { name: 'Color levels value' })).toHaveAttribute('aria-invalid', 'true')
+    await expect(page.getByRole('button', { name: 'Export PNG' })).toBeEnabled()
+    await page.getByRole('spinbutton', { name: 'Color levels value' }).fill('256')
+    await expect(page.getByRole('status')).toContainText('Color changes are ready')
+
+    const preview = await page.locator('canvas').evaluate((canvas) => {
+      if (!(canvas instanceof HTMLCanvasElement)) throw new Error('Preview canvas missing')
+      const context = canvas.getContext('2d')
+      if (!context) throw new Error('Preview context missing')
+      return Array.from(context.getImageData(0, 0, 200, 100).data)
+    })
+    expect(preview.slice(0, 4)).toEqual([112, 112, 112, 255])
+    const secondPatch = 199 * 4
+    expect(preview[secondPatch]).toBe(preview[secondPatch + 1])
+    expect(preview[secondPatch + 1]).toBe(preview[secondPatch + 2])
+    expect(preview[secondPatch + 3]).toBe(128)
+
+    await page.setViewportSize({ width: 1244, height: 950 })
+    await page.evaluate(() => {
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+      document.querySelector('.sidebar')?.scrollTo(0, 0)
+    })
+    await mkdir('.artifacts', { recursive: true })
+    await page.screenshot({ path: '.artifacts/color-controls.png' })
+
+    await selectOpen(app, invalid)
+    await page.getByRole('button', { name: 'Open image' }).click()
+    await expect(page.locator('.notice.error')).toBeVisible()
+    await expect(page.getByRole('spinbutton', { name: 'Contrast value' })).toHaveValue('150')
+    await expect(page.getByRole('spinbutton', { name: 'Saturation value' })).toHaveValue('0')
+    await selectSave(app, output)
+    await page.getByRole('button', { name: 'Export PNG' }).click()
+    await expect(page.getByRole('status')).toContainText('Saved color.png')
+    const exported = PNG.sync.read(await readFile(output))
+    expect(Array.from(exported.data)).toEqual(preview)
+    expect(createHash('sha256').update(await readFile(source)).digest('hex')).toBe(createHash('sha256').update(bytes).digest('hex'))
+
+    await page.getByRole('button', { name: 'Reset color' }).click()
+    await expect(page.getByRole('status')).toContainText('Color changes are ready')
+    await expect(page.getByRole('spinbutton', { name: 'Contrast value' })).toHaveValue('100')
+    await expect(page.getByRole('spinbutton', { name: 'Saturation value' })).toHaveValue('100')
+    await page.getByRole('spinbutton', { name: 'Brightness value' }).fill('25')
+    await expect(page.getByRole('status')).toContainText('Color changes are ready')
+    await selectOpen(app, source)
+    await page.getByRole('button', { name: 'Open image' }).click()
+    await expect(page.getByRole('spinbutton', { name: 'Brightness value' })).toHaveValue('0')
+    expect(errors).toEqual([])
+  } finally {
+    await app.close()
+    await rm(folder, { recursive: true, force: true })
+  }
+})
