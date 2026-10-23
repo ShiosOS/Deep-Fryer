@@ -161,7 +161,7 @@ dialog::backdrop { background: #14101999; backdrop-filter: blur(5px); }
 .help-body h3 { font-size: 18px; margin: 0 0 9px; }
 .help-body p { font-size: 12px; }
 .help-body .lead { color: var(--text); font-size: 13px; margin-bottom: 17px; }
-.guide-shot { display: block; width: 100%; border: 1px solid var(--line); border-radius: 9px; }
+.guide-shot { display: block; width: 100%; max-height: 300px; object-fit: contain; background: var(--paper); border: 1px solid var(--line); border-radius: 9px; }
 .steps { display: grid; grid-template-columns: 1fr 1fr; gap: 13px 30px; font-size: 12px; padding-left: 20px; line-height: 1.65; }
 .steps strong { display: block; }
 .tip { background: var(--soft); color: var(--text); border-radius: 9px; padding: 12px 14px; margin-top: 15px; font-size: 12px; line-height: 1.6; }
