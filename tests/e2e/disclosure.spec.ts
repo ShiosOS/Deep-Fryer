@@ -26,7 +26,6 @@ test('effect controls wait for a replacement image before expanding its cards', 
     await fileAction(page, 'Open image')
     await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeDisabled()
     const expanding = controls(page)
-    // Keep the chooser pending long enough for an unsynchronized helper to finish against the old panel.
     await Promise.race([expanding, page.waitForTimeout(500)])
     await app.evaluate(() => Reflect.get(globalThis, 'releaseReopen')())
     await expanding
