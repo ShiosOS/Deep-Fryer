@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { reactive, ref, watch } from 'vue'
-import { effectOptions, moveEffect, newEffect, recipeSchema, replaceEffect, type Effect, type EffectKind, type Recipe } from './recipe'
+import { effectOptions, moveEffect, newEffect, recipeSchema, replaceEffect, type Effect, type EffectKind, type Recipe } from '../../shared/recipe'
 
 const props = defineProps<{ recipe: Recipe; disabled: boolean; restoreVersion: number; selectedPointId: string | null }>()
 const emit = defineEmits<{ change: [recipe: Recipe]; gestureBegin: []; gestureEnd: []; selectPoint: [id: string] }>()

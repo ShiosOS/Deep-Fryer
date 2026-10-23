@@ -33,6 +33,8 @@ export type OpenImage = NonNullable<z.infer<typeof openImageResult>>
 export type ExportResult = z.infer<typeof exportPngResult>
 export type ImageBridge = {
   openImage: () => Promise<OpenImage | null>
+  pasteImage: () => Promise<OpenImage>
+  dropImages: (files: File[]) => Promise<OpenImage>
   exportPng: (bytes: Uint8Array, suggestedName: string) => Promise<ExportResult>
 }
 

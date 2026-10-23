@@ -1,5 +1,5 @@
 import { computed, ref } from 'vue'
-import { type Recipe } from './recipe'
+import { type Recipe } from '../../shared/recipe'
 
 export function snapshotRecipe(recipe: Recipe): Recipe { return { ...recipe, effects: recipe.effects.map((effect) => ({ ...effect })) } }
 function same(left: Recipe, right: Recipe): boolean { return JSON.stringify(left) === JSON.stringify(right) }

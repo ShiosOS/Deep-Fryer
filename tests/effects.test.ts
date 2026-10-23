@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { applyPixelEffect, renderRecipe } from '../src/renderer/src/effects'
-import { moveEffect, type Recipe } from '../src/renderer/src/recipe'
+import { moveEffect, type Recipe } from '../src/shared/recipe'
 
 Object.defineProperty(globalThis, 'ImageData', { value: class {
   constructor(public data: Uint8ClampedArray, public width: number, public height: number) {}

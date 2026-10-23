@@ -1,4 +1,4 @@
-import { isNeutralEffect, type Effect, type Recipe } from './recipe'
+import { isNeutralEffect, type Effect, type Recipe } from '../../shared/recipe'
 import { applyBulge } from './bulge'
 
 function clamp(value: number): number { return Math.max(0, Math.min(255, value)) }

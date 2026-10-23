@@ -143,3 +143,13 @@ h2 { font-size: 27px; letter-spacing: -.8px; font-weight: 500; margin: 13px 0 14
 .variation-choice img { width: 100%; height: 150px; object-fit: contain; image-rendering: auto; background: #252528; }
 .variation-choice input { accent-color: var(--accent); }
 .variation-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.document-controls { margin: 0 0 20px; padding: 16px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.document-buttons { display: flex; flex-wrap: wrap; gap: 7px; }
+.document-buttons button { padding: 8px 10px; border: 1px solid #45413e; border-radius: 5px; background: #29282a; color: var(--text); font-size: 11px; }
+.recovery-status, .document-controls details { color: var(--muted); font-size: 10px; line-height: 1.6; }
+.document-controls summary { cursor: pointer; }
+.recovery-dialog::backdrop { background: #08090bd9; }
+.recovery-dialog { width: min(560px, calc(100% - 48px)); padding: 28px; border: 1px solid #665446; border-radius: 10px; background: #202124; color: var(--text); box-shadow: 0 20px 80px #0009; }
+.recovery-dialog h2 { margin: 0 0 18px; }
+.recovery-dialog p { color: var(--muted); line-height: 1.6; }
+.recovery-location { overflow-wrap: anywhere; font-size: 11px; }

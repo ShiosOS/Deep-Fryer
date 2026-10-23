@@ -1,8 +1,17 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, type IpcMainInvokeEvent } from 'electron'
 import { basename, join } from 'node:path'
+import { mkdirSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { exportPngInput, type ExportResult } from '../shared/image'
 import { readImage, writePngExclusive } from './image-files'
+import { registerDocumentActions, validateSource } from './document-actions'
+import { RecoveryStore } from './recovery'
+
+const profile = app.commandLine.getSwitchValue('user-data-dir')
+if (profile) { mkdirSync(profile, { recursive: true }); app.setPath('userData', profile) }
+const recovery = new RecoveryStore(join(app.getPath('userData'), 'recovery'), validateSource)
+let quitting = false
+let preserveRecovery = false
 
 let window: BrowserWindow | null = null
 let operation: 'idle' | 'opening' | 'exporting' = 'idle'
@@ -33,6 +42,7 @@ function createWindow(): void {
   editor.webContents.on('will-attach-webview', (event) => event.preventDefault())
   editor.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
   editor.webContents.session.setPermissionCheckHandler(() => false)
+  editor.webContents.on('render-process-gone', () => { preserveRecovery = true })
   function checkSender(event: IpcMainInvokeEvent): void {
     if (event.sender !== editor.webContents || event.senderFrame !== editor.webContents.mainFrame ||
       event.senderFrame.url !== rendererUrl) {
@@ -40,6 +50,7 @@ function createWindow(): void {
     }
     if (operation !== 'idle') throw new Error('Finish the current file action first.')
   }
+  registerDocumentActions(editor, checkSender, recovery)
   ipcMain.removeHandler('image:open')
   ipcMain.removeHandler('image:export-png')
   ipcMain.handle('image:open', async (event) => {
@@ -87,3 +98,9 @@ app.whenReady().then(() => {
   app.on('activate', () => { if (window === null) createWindow() })
 })
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit() })
+app.on('before-quit', (event) => {
+  if (quitting || preserveRecovery) return
+  event.preventDefault()
+  quitting = true
+  void recovery.close().finally(() => app.quit())
+})

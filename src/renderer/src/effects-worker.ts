@@ -1,5 +1,5 @@
 import { renderRecipe } from './effects'
-import { recipeSchema, type Recipe } from './recipe'
+import { recipeSchema, type Recipe } from '../../shared/recipe'
 
 export type WorkerRequest =
   | { kind: 'source'; sourceId: number; width: number; height: number; pixels: Uint8ClampedArray<ArrayBuffer>; preview: { width: number; height: number; pixels: Uint8ClampedArray<ArrayBuffer> } | null }

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, shallowRef, watch } from 'vue'
 import { renderRecipe } from './effects'
-import { isNeutralEffect, type Recipe } from './recipe'
+import { isNeutralEffect, type Recipe } from '../../shared/recipe'
 import { snapshotRecipe } from './recipe-history'
 import { fryAmounts, namedLooks, namedRecipe, parameterKey, randomizeRecipe, randomParameters, scaleFry, type NamedLook } from './recipe-looks'
 

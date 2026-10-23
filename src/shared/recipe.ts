@@ -32,7 +32,7 @@ export const effectOptions: ReadonlyArray<{ kind: EffectKind; label: string; min
   { kind: 'bulge', label: 'Bulge / pinch' }
 ]
 
-export function newEffect(kind: EffectKind, id = crypto.randomUUID()): Effect {
+export function newEffect(kind: EffectKind, id: string = crypto.randomUUID()): Effect {
   const common = { id, enabled: true, mix: 100 }
   switch (kind) {
     case 'brightness': return { ...common, kind, value: 0 }
