@@ -88,3 +88,64 @@ jobs:
             .artifacts/*.png
             test-results/
           if-no-files-found: ignore
+
+  package-upgrade:
+    needs: build-and-test
+    runs-on: windows-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Download the tested previous 0.2.0 package
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download v0.2.0 --repo $env:GITHUB_REPOSITORY --pattern 'DeepFryer-Setup-0.2.0.exe' --dir previous-installer
+          if ($LASTEXITCODE -ne 0) { throw 'The tested previous package could not be downloaded.' }
+          $baselineHash = (Get-FileHash -LiteralPath 'previous-installer/DeepFryer-Setup-0.2.0.exe' -Algorithm SHA256).Hash
+          if ($baselineHash -ne 'FFB583C5F58C5958746D7F41107BF1BF25E0CC29A4C78AE01E3D65800F0E19EE') { throw 'The previous package does not match the tested baseline.' }
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-installer
+          path: candidate-installer
+      - name: Test actual installation, upgrade, restart and return to the older package
+        shell: pwsh
+        run: |
+          $installDirectory = Join-Path $env:RUNNER_TEMP 'DeepFryerUpgradeInstalled'
+          $env:DEEP_FRYER_EXECUTABLE = Join-Path $installDirectory 'Deep Fryer.exe'
+          $env:DEEP_FRYER_UPGRADE_DIRECTORY = Join-Path $env:RUNNER_TEMP 'DeepFryerUpgradeWork'
+          function Install-Package([string] $directory) {
+            $installers = @(Get-ChildItem -LiteralPath $directory -Filter '*.exe')
+            if ($installers.Count -ne 1) { throw 'Expected exactly one installer for each package.' }
+            Get-FileHash -LiteralPath $installers[0].FullName -Algorithm SHA256 | Format-List
+            $installation = Start-Process -FilePath $installers[0].FullName -ArgumentList @('/S', ('/D=' + $installDirectory)) -WindowStyle Hidden -Wait -PassThru
+            if ($installation.ExitCode -ne 0) { throw "Installer exited with $($installation.ExitCode)." }
+            if (!(Test-Path -LiteralPath $env:DEEP_FRYER_EXECUTABLE)) { throw 'The installed application is missing.' }
+          }
+          function Test-Package([string] $phase) {
+            $env:DEEP_FRYER_UPGRADE_PHASE = $phase
+            node node_modules/@playwright/test/cli.js test package-upgrade.spec.ts
+            if ($LASTEXITCODE -ne 0) { throw "Installed package $phase check failed." }
+          }
+          Install-Package 'previous-installer'
+          Test-Package 'previous'
+          Install-Package 'candidate-installer'
+          Test-Package 'candidate'
+          Install-Package 'previous-installer'
+          Test-Package 'return'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: package-upgrade-check-output
+          include-hidden-files: true
+          path: |
+            ${{ runner.temp }}/DeepFryerUpgradeWork/
+            test-results/
+          if-no-files-found: ignore

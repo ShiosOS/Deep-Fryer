@@ -1,6 +1,7 @@
 import { open } from 'node:fs/promises'
 import { basename } from 'node:path'
-import { MAX_FILE_BYTES, MAX_PNG_EXPORT_BYTES, validateDimensions, type OpenImage } from '../shared/image'
+import { MAX_FILE_BYTES, validateDimensions, type OpenImage } from '../shared/image'
+import { MAX_EXPORT_BYTES, type OutputOptions } from '../shared/output'
 
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])
 const JPEG_FRAME_MARKERS = new Set([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf])
@@ -65,8 +66,16 @@ export async function readImage(path: string): Promise<OpenImage> {
   }
 }
 
-export async function writePngExclusive(path: string, bytes: Uint8Array): Promise<void> {
-  if (inspectImage(bytes, MAX_PNG_EXPORT_BYTES) !== 'image/png') throw new Error('Export requires a PNG image.')
+export async function writeImageExclusive(path: string, bytes: Uint8Array, format: OutputOptions['format']): Promise<void> {
+  if (bytes.byteLength === 0 || bytes.byteLength > MAX_EXPORT_BYTES) throw new Error('Use an output within the 128 MiB size limit.')
+  if (format === 'webp') {
+    const data = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+    if (data.length < 20 || data.toString('ascii', 0, 4) !== 'RIFF' || data.toString('ascii', 8, 12) !== 'WEBP' || data.readUInt32LE(4) + 8 !== data.length) {
+      throw new Error('Export requires a complete WebP image.')
+    }
+  } else if (inspectImage(bytes, MAX_EXPORT_BYTES) !== (format === 'png' ? 'image/png' : 'image/jpeg')) {
+    throw new Error(`Export requires a ${format === 'png' ? 'PNG' : 'JPEG'} image.`)
+  }
   let file
   try {
     file = await open(path, 'wx')

@@ -1,9 +1,9 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, type IpcMainInvokeEvent } from 'electron'
-import { basename, join } from 'node:path'
+import { join } from 'node:path'
 import { mkdirSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
-import { exportPngInput, type ExportResult } from '../shared/image'
-import { readImage, writePngExclusive } from './image-files'
+import { readImage } from './image-files'
+import { registerImageOutput } from './image-output'
 import { registerDocumentActions, validateSource } from './document-actions'
 import { RecoveryStore } from './recovery'
 
@@ -53,7 +53,7 @@ function createWindow(): void {
   }
   registerDocumentActions(editor, checkSender, recovery)
   ipcMain.removeHandler('image:open')
-  ipcMain.removeHandler('image:export-png')
+  registerImageOutput(editor, checkSender, (active) => { operation = active ? 'exporting' : 'idle' })
   ipcMain.handle('image:open', async (event) => {
     checkSender(event)
     operation = 'opening'
@@ -66,26 +66,6 @@ function createWindow(): void {
       const path = result.filePaths[0]
       if (result.canceled || path === undefined) return null
       return await readImage(path)
-    } finally {
-      operation = 'idle'
-    }
-  })
-  ipcMain.handle('image:export-png', async (event, bytes: unknown, suggestedName: unknown): Promise<ExportResult> => {
-    checkSender(event)
-    const input = exportPngInput.parse({ bytes, suggestedName })
-    operation = 'exporting'
-    try {
-      const safeName = basename(input.suggestedName).replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')
-      const result = await dialog.showSaveDialog(editor, {
-        title: 'Export PNG as a new file',
-        defaultPath: safeName,
-        properties: ['dontAddToRecent'],
-        filters: [{ name: 'PNG image', extensions: ['png'] }]
-      })
-      if (result.canceled || result.filePath === undefined) return { kind: 'cancelled' }
-      const path = /\.png$/i.test(result.filePath) ? result.filePath : `${result.filePath}.png`
-      await writePngExclusive(path, input.bytes)
-      return { kind: 'saved', name: basename(path) }
     } finally {
       operation = 'idle'
     }
