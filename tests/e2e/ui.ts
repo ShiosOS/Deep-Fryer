@@ -8,6 +8,7 @@ export async function fileAction(page: Page, name: string): Promise<void> {
 }
 
 export async function controls(page: Page): Promise<Page> {
+  await ready(page)
   await expect(page.locator('.effect-card').first()).toBeVisible()
   for (const selector of ['.effect-card', '.more-controls']) {
     for (const details of await page.locator(selector).all()) {
