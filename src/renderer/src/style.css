@@ -61,6 +61,12 @@ dd { margin: 0; color: #d4d1cc; }
 .preview-label { font-size: 13px; font-weight: 500; }
 .original-badge { border: 1px solid #373735; border-radius: 4px; padding: 4px 6px; color: #8b8c87; font-size: 8px; letter-spacing: 1.3px; }
 .preview-scale { color: #80817e; font-size: 11px; }
+.preview-toolbar > .inspection-controls { gap: 5px; white-space: nowrap; }
+.inspection-controls button { border: 1px solid #393a3b; border-radius: 5px; background: #242527; color: #d5d1cb; padding: 5px 8px; font-size: 11px; }
+.inspection-controls button:hover { background: #343536; }
+.inspection-controls button[aria-pressed=true] { border-color: #b58c6d; background: #473629; color: #ffe0c6; }
+.inspection-controls .preview-scale { min-width: 38px; text-align: center; }
+.inspection-divider { width: 1px; height: 20px; margin: 0 5px; background: #393a3b; }
 .preview-stage { position: relative; flex: 1; min-height: 0; margin: 0 28px 26px; border: 1px solid #303133; border-radius: 10px; background-color: #1b1c1f; background-image: radial-gradient(#343538 1px, transparent 1px); background-size: 18px 18px; display: flex; justify-content: center; align-items: center; padding: 38px; overflow: hidden; }
 .empty-state { text-align: center; }
 .empty-art { width: 116px; height: 114px; margin: 0 auto 32px; position: relative; transform: rotate(-7deg); }
@@ -74,8 +80,10 @@ h2 { font-size: 27px; letter-spacing: -.8px; font-weight: 500; margin: 13px 0 14
 .text-button { margin-top: 23px; background: transparent; border: none; color: var(--accent); padding: 7px 12px; font-size: 12px; }
 .text-button span { margin-left: 8px; }
 .text-button:hover:enabled { color: #ffceaa; }
-.preview-stage canvas { display: block; max-width: 100%; max-height: 100%; object-fit: contain; box-shadow: 0 14px 50px #0006; }
-.has-image { padding: 38px 38px 56px; background-color: #1b1c1e; background-image: conic-gradient(#202123 25%, transparent 0 50%, #202123 0 75%, transparent 0); background-size: 20px 20px; }
+.has-image { padding: 0; cursor: grab; touch-action: none; background-color: #1b1c1e; background-image: conic-gradient(#202123 25%, transparent 0 50%, #202123 0 75%, transparent 0); background-size: 20px 20px; }
+.preview-stage:focus-visible { outline: 2px solid #ffd2ae; outline-offset: 2px; }
+.image-plane { position: absolute; top: 0; left: 0; transform-origin: top left; pointer-events: none; }
+.image-plane canvas { display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%; box-shadow: 0 14px 50px #0006; }
 .canvas-caption { position: absolute; bottom: 18px; color: #8d8e89; font-size: 10px; letter-spacing: .3px; }
 .canvas-caption span { margin: 0 8px; }
 .export-bar { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 83px; padding: 17px 28px; border-top: 1px solid var(--line); background: #17181a; }
