@@ -24,17 +24,19 @@ h3 { font-size: 13px; margin: 0 0 12px; }
 .editor { height: 100%; display: flex; flex-direction: column; }
 .appearance-loading { visibility: hidden; }
 .app-header { height: 62px; flex-shrink: 0; display: flex; align-items: center; gap: 16px; padding: 0 21px; background: var(--panel); border-bottom: 1px solid var(--line); }
-.app-mark { width: 34px; height: 34px; }
-.header-divider { width: 1px; height: 24px; background: var(--line); }
-.filename { color: var(--text); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 40px; }
+.app-mark { width: 34px; height: 34px; flex-shrink: 0; color: var(--control); }
+.header-divider { width: 1px; height: 24px; margin: 0 5px; background: var(--line); flex-shrink: 0; }
+.filename { position: relative; padding-left: 13px; color: var(--text); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 40px; }
+.file-dot { position: absolute; left: 0; top: calc(50% - 3px); width: 6px; height: 6px; background: var(--control); border-radius: 50%; }
 .header-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
-.header-actions button { min-height: 36px; }
-.header-actions button:not(.primary) { background: transparent; border-color: transparent; }
-.export-button { min-width: 85px; }
+.header-actions button, .header-actions summary, .fry-buttons button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.header-actions svg, .fry-buttons svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.header-actions .icon-button { position: relative; width: 34px; height: 34px; padding: 0; background: transparent; border-color: transparent; color: var(--muted); }
+.header-actions .icon-button:hover:enabled { background: var(--soft); color: var(--text); }
+.settings-attention { position: absolute; right: 3px; top: 3px; width: 5px; height: 5px; border-radius: 50%; background: var(--control); }
+.export-button { min-width: 100px; min-height: 36px; }
 .workspace { display: grid; grid-template-columns: 272px minmax(0, 1fr); flex: 1; min-height: 0; }
 .sidebar { padding: 23px 18px; background: var(--panel); border-right: 1px solid var(--line); overflow-y: auto; scrollbar-width: thin; }
-.history-controls { display: flex; gap: 6px; margin-bottom: 20px; }
-.history-controls button { flex: 1; font-size: 11px; }
 .inspector-empty { margin-top: 24px; }
 .eyebrow { font-size: 11px; color: var(--muted); font-weight: 600; }
 .controls-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
@@ -101,8 +103,8 @@ h3 { font-size: 13px; margin: 0 0 12px; }
 .bulge-handle { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); width: 26px; height: 26px; padding: 0; border-radius: 50%; border: 2px solid #30212b; background: #efb9d8; color: #30212b; font-size: 11px; pointer-events: auto; cursor: move; touch-action: none; }
 .bulge-handle.selected { outline: 3px solid white; outline-offset: 2px; }
 .file-menu { position: relative; flex-shrink: 0; }
-.file-menu > summary { list-style: none; padding: 8px 10px; border-radius: 7px; font-weight: 600; }
-.file-menu > summary::after { content: '⌄'; padding-left: 8px; }
+.file-menu > summary { list-style: none; min-height: 36px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); font-size: 12px; font-weight: 600; }
+.file-menu .menu-items { left: auto; right: 0; }
 .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; width: 235px; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 10px 30px #0003; padding: 6px; }
 .menu-items button { display: flex; width: 100%; justify-content: space-between; background: transparent; border: none; text-align: left; font-size: 11px; padding: 10px; }
 kbd { color: var(--muted); font: 10px 'Segoe UI', sans-serif; }

@@ -10,7 +10,7 @@ watchEffect(() => { if (props.recoveryOffer && dialog.value && !dialog.value.ope
 
 <template>
   <details ref="menu" class="file-menu">
-    <summary role="button" aria-label="File" data-dialog-fallback>File</summary>
+    <summary role="button" aria-label="File" data-dialog-fallback>File<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 10 4 4 4-4"/></svg></summary>
     <div class="menu-items">
       <div @click="menu && (menu.open = false)">
         <button class="open-button" type="button" :disabled="busy" @click="$emit('openImage')">Open image<kbd>Ctrl O</kbd></button>
