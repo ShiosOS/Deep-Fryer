@@ -48,3 +48,12 @@ test('noise is repeatable and does not alter saturation settings or source', asy
   assert.equal(preset.effects[0]?.kind, 'saturation')
   assert.deepEqual(Array.from(source.data.subarray(0, 4)), [100, 110, 120, 255])
 })
+
+test('5x contrast and saturation clip destructively while strength blends the result and preserves alpha', () => {
+  const source = image([100, 130, 160, 128])
+  const contrast = { id: 'c', kind: 'contrast', enabled: true, mix: 100, value: 500 } as const
+  assert.deepEqual(Array.from(applyPixelEffect(source, contrast, 1).data), [0, 138, 255, 128])
+  assert.deepEqual(Array.from(applyPixelEffect(source, { ...contrast, mix: 50 }, 1).data), [50, 134, 208, 128])
+  assert.deepEqual(Array.from(applyPixelEffect(source, { ...contrast, kind: 'saturation' }, 1).data), [0, 147, 255, 128])
+  assert.deepEqual(Array.from(applyPixelEffect(source, { ...contrast, value: 100 }, 1).data), Array.from(source.data))
+})

@@ -17,7 +17,7 @@ export function namedPreset(name: NamedLook, seed: number): Preset {
   const settings = {
     'Crispy color': { brightness: 8, contrast: 150, saturation: 135, levels: 48, sharpen: 80, noise: 10, quality: 60, passes: 1 },
     'Noisy photocopy': { brightness: 10, contrast: 175, saturation: 0, levels: 8, sharpen: 60, noise: 40, quality: 35, passes: 2 },
-    'Overcooked': { brightness: 20, contrast: 195, saturation: 175, levels: 12, sharpen: 150, noise: 55, quality: 15, passes: 3 }
+    'Overcooked': { brightness: 20, contrast: 500, saturation: 500, levels: 12, sharpen: 150, noise: 55, quality: 15, passes: 3 }
   }[name]
   return presetSchema.parse({ seed, effects: [
     { ...newEffect('brightness'), id: 'look-brightness', value: settings.brightness },

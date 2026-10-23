@@ -3,8 +3,8 @@ import { z } from 'zod'
 const base = { id: z.string().min(1), enabled: z.boolean(), mix: z.number().int().min(0).max(100) }
 const effectSchema = z.discriminatedUnion('kind', [
   z.object({ ...base, kind: z.literal('brightness'), value: z.number().int().min(-100).max(100) }),
-  z.object({ ...base, kind: z.literal('contrast'), value: z.number().int().min(0).max(200) }),
-  z.object({ ...base, kind: z.literal('saturation'), value: z.number().int().min(0).max(200) }),
+  z.object({ ...base, kind: z.literal('contrast'), value: z.number().int().min(0).max(500) }),
+  z.object({ ...base, kind: z.literal('saturation'), value: z.number().int().min(0).max(500) }),
   z.object({ ...base, kind: z.literal('levels'), value: z.number().int().min(2).max(256) }),
   z.object({ ...base, kind: z.literal('sharpen'), value: z.number().int().min(0).max(200) }),
   z.object({ ...base, kind: z.literal('noise'), value: z.number().int().min(0).max(100) }),
@@ -23,8 +23,8 @@ export type EffectKind = Effect['kind']
 
 export const effectOptions: ReadonlyArray<{ kind: EffectKind; label: string; min?: number; max?: number }> = [
   { kind: 'brightness', label: 'Brightness', min: -100, max: 100 },
-  { kind: 'contrast', label: 'Contrast', min: 0, max: 200 },
-  { kind: 'saturation', label: 'Saturation', min: 0, max: 200 },
+  { kind: 'contrast', label: 'Contrast', min: 0, max: 500 },
+  { kind: 'saturation', label: 'Saturation', min: 0, max: 500 },
   { kind: 'levels', label: 'Color levels', min: 2, max: 256 },
   { kind: 'sharpen', label: 'Sharpen', min: 0, max: 200 },
   { kind: 'noise', label: 'Noise', min: 0, max: 100 },
