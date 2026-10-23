@@ -13,7 +13,12 @@ test('place, drag, edit, undo, redo, and export a bulge in Electron', async () =
   for (let y = 0; y < 120; y += 1) for (let x = 0; x < 120; x += 1) image.data.set([x * 2, y * 2, (x % 20 < 2 || y % 20 < 2) ? 255 : 40, 255], (y * 120 + x) * 4)
   const original = PNG.sync.write(image)
   await writeFile(source, original)
-  const app = await electron.launch({ args: [resolve('.'), `--user-data-dir=${join(folder, 'profile')}`], env: { ...process.env, ELECTRON_RENDERER_URL: '' } })
+  const executable = process.env.DEEP_FRYER_EXECUTABLE ?? process.env.ELECTRON_EXECUTABLE_PATH
+  const app = await electron.launch({
+    ...(executable ? { executablePath: executable } : {}),
+    args: [...(process.env.DEEP_FRYER_EXECUTABLE ? [] : [resolve('.')]), `--user-data-dir=${join(folder, 'profile')}`],
+    env: { ...process.env, ELECTRON_RENDERER_URL: '' }
+  })
   try {
     const page = await app.firstWindow()
     const errors: string[] = []

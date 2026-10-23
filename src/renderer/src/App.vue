@@ -88,7 +88,7 @@ function pointerDown(event: PointerEvent): void {
     const relative = pointerPosition(event)
     const point = paneToImage(view.value, relative, pane.value)
     if (point.x >= 0 && point.x <= imageSize.value.width && point.y >= 0 && point.y <= imageSize.value.height) {
-      const effect = { ...newEffect('bulge'), x: Math.max(0, Math.min(1, point.x / (imageSize.value.width - 1))), y: Math.max(0, Math.min(1, point.y / (imageSize.value.height - 1))) }
+      const effect = { ...newEffect('bulge'), x: Math.max(0, Math.min(1, point.x / Math.max(1, imageSize.value.width - 1))), y: Math.max(0, Math.min(1, point.y / Math.max(1, imageSize.value.height - 1))) }
       changeRecipe({ ...recipe.value, effects: [...recipe.value.effects, effect] })
       selectedPointId.value = effect.id
       placingPoint.value = false
@@ -263,6 +263,7 @@ function deletePoint(id: string): void {
 }
 
 function restoreFromHistory(direction: 'undo' | 'redo'): void {
+  if (controlsBusy.value) return
   history.end()
   if (!(direction === 'undo' ? history.undo() : history.redo())) return
   restoreVersion.value += 1
@@ -275,7 +276,13 @@ function cancelPending(): void {
   if (renderTimer) { clearTimeout(renderTimer); renderTimer = null }
   history.rollback(confirmedRecipe)
   restoreVersion.value += 1
-  canvas.value?.getContext('2d')?.putImageData(confirmedFrame, 0, 0)
+  const context = canvas.value?.getContext('2d')
+  if (!context) {
+    notice.value = { kind: 'error', text: 'The confirmed image could not be restored. Reopen your image to continue.' }
+    operation.value = { kind: 'idle' }
+    return
+  }
+  context.putImageData(confirmedFrame, 0, 0)
   readyRevision.value = renderRevision
   operation.value = { kind: 'idle' }
   notice.value = { kind: 'info', text: 'Pending changes canceled. Last confirmed image restored.' }

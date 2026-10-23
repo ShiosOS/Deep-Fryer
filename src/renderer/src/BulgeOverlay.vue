@@ -12,7 +12,7 @@ function normalized(event: PointerEvent): Point {
   const bounds = stage?.getBoundingClientRect()
   const panePoint = { x: event.clientX - (bounds?.left ?? 0), y: event.clientY - (bounds?.top ?? 0) }
   const imagePoint = paneToImage(props.view, panePoint, props.pane)
-  return { x: Math.max(0, Math.min(1, imagePoint.x / (props.image.width - 1))), y: Math.max(0, Math.min(1, imagePoint.y / (props.image.height - 1))) }
+  return { x: Math.max(0, Math.min(1, imagePoint.x / Math.max(1, props.image.width - 1))), y: Math.max(0, Math.min(1, imagePoint.y / Math.max(1, props.image.height - 1))) }
 }
 function pointerDown(event: PointerEvent, id: string): void {
   if (event.button !== 0) return
