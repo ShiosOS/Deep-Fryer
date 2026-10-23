@@ -1,4 +1,4 @@
-import type { Effect } from './recipe'
+import type { Effect } from '../../shared/recipe'
 
 type Bulge = Extract<Effect, { kind: 'bulge' }>
 

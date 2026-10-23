@@ -4,7 +4,10 @@ import { validateDimensions, type OpenImage } from '../../shared/image'
 import EffectsPanel from './EffectsPanel.vue'
 import RecipeLooks from './RecipeLooks.vue'
 import BulgeOverlay from './BulgeOverlay.vue'
-import { isNeutralEffect, newEffect, newRecipe, recipeSchema, replaceEffect, type Recipe } from './recipe'
+import DocumentControls from './DocumentControls.vue'
+import { describeError, useDocumentFiles } from './document-files'
+import { renderRecipeFrame } from './render-recipe-frame'
+import { isNeutralEffect, newEffect, newRecipe, recipeSchema, replaceEffect, type Recipe } from '../../shared/recipe'
 import { snapshotRecipe, useRecipeHistory } from './recipe-history'
 import type { WorkerRequest, WorkerResponse } from './effects-worker'
 import { actualSize, fitView, imageOrigin, paneToImage, pan, resizeView, zoom, type InspectionView, type Point, type Size } from './inspection-geometry'
@@ -12,6 +15,7 @@ import { actualSize, fitView, imageOrigin, paneToImage, pan, resizeView, zoom, t
 type ImageDocument = Readonly<OpenImage & { bitmap: ImageBitmap }>
 type Operation = { kind: 'idle' } | { kind: 'opening' } | { kind: 'processing' } | { kind: 'exporting' }
 type Notice = { kind: 'info' | 'success' | 'error'; text: string }
+const applicationVersion = __APP_VERSION__
 
 const document = shallowRef<ImageDocument | null>(null)
 const operation = ref<Operation>({ kind: 'idle' })
@@ -27,6 +31,7 @@ const { recipe } = history
 const restoreVersion = ref(0)
 const placingPoint = ref(false)
 const selectedPointId = ref<string | null>(null)
+const gestureActive = ref(false)
 const bulgePoints = computed(() => recipe.value.effects.filter((effect) => effect.kind === 'bulge'))
 const readyRevision = ref(0)
 const imageVersion = ref(0)
@@ -127,24 +132,16 @@ function stageKeydown(event: KeyboardEvent): void {
   event.preventDefault()
 }
 
-function describeError(error: unknown): string {
-  return error instanceof Error ? error.message.replace(/^Error invoking remote method '[^']+': Error: /, '') : 'Something went wrong. Try again.'
-}
-
-async function openImage(): Promise<void> {
-  if (busy.value) return
-  operation.value = { kind: 'opening' }
+async function publishImage(source: OpenImage, savedRecipe: Recipe): Promise<void> {
   let candidate: ImageBitmap | null = null
   const previous = document.value
   const previousReadyRevision = readyRevision.value
   let previousFrame: ImageData | null = null
   let publishing = false
   try {
-    const source = await window.imageBridge.openImage()
-    if (source === null) return
     candidate = await createImageBitmap(new Blob([new Uint8Array(source.bytes).buffer], { type: source.mime }), { imageOrientation: 'from-image' })
     validateDimensions(candidate.width, candidate.height)
-    const context = canvas.value?.getContext('2d')
+    const context = canvas.value?.getContext('2d', { willReadFrequently: true })
     const originalContext = originalCanvas.value?.getContext('2d')
     if (!context || !canvas.value || !originalContext || !originalCanvas.value) throw new Error('The image preview is unavailable. Reopen the app and try again.')
     const prepared = window.document.createElement('canvas')
@@ -168,7 +165,8 @@ async function openImage(): Promise<void> {
       preview = { width: surface.width, height: surface.height, pixels: draftContext.getImageData(0, 0, surface.width, surface.height).data }
     }
     const candidateDocument = { ...source, bitmap: candidate }
-    const candidateRecipe = newRecipe()
+    const candidateRecipe = recipeSchema.parse(savedRecipe)
+    const editedPixels = await renderRecipeFrame(pixels, candidateRecipe)
     const candidateView = fitView({ width: candidate.width, height: candidate.height }, pane.value)
     if (previous) previousFrame = context.getImageData(0, 0, canvas.value.width, canvas.value.height)
     const request: WorkerRequest = { kind: 'source', sourceId: imageVersion.value + 1, width: candidate.width, height: candidate.height, pixels: workerPixels, preview }
@@ -179,11 +177,12 @@ async function openImage(): Promise<void> {
     originalContext.putImageData(pixels, 0, 0)
     canvas.value.width = candidate.width
     canvas.value.height = candidate.height
-    context.putImageData(pixels, 0, 0)
+    context.putImageData(editedPixels, 0, 0)
     worker.postMessage(request, preview ? [workerPixels.buffer, preview.pixels.buffer] : [workerPixels.buffer])
     document.value = candidateDocument
     history.reset(candidateRecipe)
-    confirmedFrame = pixels
+    confirmedFrame = editedPixels
+    gestureActive.value = false
     selectedPointId.value = null
     placingPoint.value = false
     restoreVersion.value += 1
@@ -214,15 +213,28 @@ async function openImage(): Promise<void> {
         readyRevision.value = previousReadyRevision
       } catch {
         notice.value = { kind: 'error', text: 'The new image could not be opened and the preview could not be restored. Reopen your previous image to continue.' }
-        return
+        throw new Error(notice.value.text)
       }
     }
-    notice.value = { kind: 'error', text: describeError(error) }
+    throw error
   } finally {
     candidate?.close()
-    operation.value = { kind: 'idle' }
   }
 }
+
+const files = useDocumentFiles({
+  busy, source: () => document.value, recipe: () => snapshotRecipe(recipe.value),
+  ready: () => document.value !== null && readyRevision.value === renderRevision,
+  gestureActive: () => gestureActive.value,
+  setOperation: (kind) => { operation.value = { kind } },
+  finishOperation: () => { if (operation.value.kind === 'opening' || operation.value.kind === 'exporting') operation.value = { kind: 'idle' } },
+  report: (message) => { notice.value = message }, publish: publishImage,
+  applyRecipe: (settings) => { changeRecipe(settings); restoreVersion.value += 1 }
+})
+const { openImage } = files
+
+function beginGesture(): void { gestureActive.value = true; files.cancelCheckpoint(); history.begin() }
+function endGesture(): void { history.end(); gestureActive.value = false; files.scheduleCheckpoint() }
 
 function changeRecipe(settings: Recipe): boolean {
   const source = document.value
@@ -238,6 +250,7 @@ function changeRecipe(settings: Recipe): boolean {
 }
 
 function scheduleRender(source: ImageDocument): void {
+  files.cancelCheckpoint()
   const revision = ++renderRevision
   const accepted = snapshotRecipe(recipe.value)
   operation.value = { kind: 'processing' }
@@ -289,6 +302,8 @@ function cancelPending(): void {
   readyRevision.value = renderRevision
   operation.value = { kind: 'idle' }
   notice.value = { kind: 'info', text: 'Pending changes canceled. Last confirmed image restored.' }
+  gestureActive.value = false
+  files.scheduleCheckpoint()
 }
 
 worker.onmessage = (event: MessageEvent<WorkerResponse>): void => {
@@ -322,6 +337,7 @@ worker.onmessage = (event: MessageEvent<WorkerResponse>): void => {
   confirmedFrame = frame
   history.confirm()
   readyRevision.value = result.revision
+  files.scheduleCheckpoint()
   operation.value = { kind: 'idle' }
   const textured = recipe.value.effects.some((effect) => effect.enabled && effect.mix > 0 && ((effect.kind === 'sharpen' || effect.kind === 'noise') && effect.value > 0 || effect.kind === 'jpeg' && effect.passes > 0 || effect.kind === 'bulge' && effect.strength !== 0))
   notice.value = { kind: 'success', text: textured ? 'Effects are ready to export.' : 'Color changes are ready to export.' }
@@ -334,6 +350,7 @@ worker.onerror = (): void => {
 
 async function exportPng(): Promise<void> {
   if (busy.value || readyRevision.value !== renderRevision || document.value === null || canvas.value === null) return
+  files.cancelCheckpoint()
   operation.value = { kind: 'exporting' }
   try {
     const source = document.value
@@ -347,6 +364,7 @@ async function exportPng(): Promise<void> {
     notice.value = { kind: 'error', text: describeError(error) }
   } finally {
     operation.value = { kind: 'idle' }
+    files.scheduleCheckpoint()
   }
 }
 
@@ -356,6 +374,14 @@ function onKeydown(event: KeyboardEvent): void {
   if (event.key.toLowerCase() === 'o' && !event.shiftKey) {
     event.preventDefault()
     void openImage()
+  } else if (event.key.toLowerCase() === 'v') {
+    const target = event.target
+    if (target instanceof HTMLElement && (target.isContentEditable || target.closest('input, textarea, select'))) return
+    event.preventDefault()
+    void files.pasteImage()
+  } else if (event.key.toLowerCase() === 's' && !event.shiftKey) {
+    event.preventDefault()
+    void files.saveProject()
   } else if (event.key.toLowerCase() === 's' && event.shiftKey) {
     event.preventDefault()
     void exportPng()
@@ -373,6 +399,7 @@ onMounted(() => {
   resizeObserver = new ResizeObserver(measurePane)
   if (stage.value) resizeObserver.observe(stage.value)
   measurePane()
+  void files.checkRecovery()
 })
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeydown)
@@ -385,7 +412,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="editor">
+  <div class="editor" @dragover.prevent @drop="files.drop">
     <header class="app-header">
       <div class="brand"><span class="brand-mark" aria-hidden="true">✳</span><span>deep fryer<span class="brand-dot">.</span></span><span class="version">DESKTOP</span></div>
       <span class="local-label"><span class="status-dot"></span> Local files. All yours.</span>
@@ -408,18 +435,20 @@ onUnmounted(() => {
           <dl v-if="document"><div><dt>Dimensions</dt><dd>{{ dimensions }} px</dd></div><div><dt>Source size</dt><dd>{{ fileSize }}</dd></div><div><dt>Export format</dt><dd>PNG</dd></div></dl>
         </section>
 
-        <div v-if="document" class="history-controls" aria-label="Edit history"><button type="button" :disabled="!history.canUndo.value || controlsBusy" aria-keyshortcuts="Control+Z Meta+Z" @click="restoreFromHistory('undo')">Undo</button><button type="button" :disabled="!history.canRedo.value || controlsBusy" aria-keyshortcuts="Control+Shift+Z Control+Y Meta+Shift+Z" @click="restoreFromHistory('redo')">Redo</button></div>
-        <RecipeLooks v-if="document" :key="imageVersion" :recipe="recipe" :bitmap="document.bitmap" :restore-version="restoreVersion" :disabled="controlsBusy" @change="changeRecipe" @gesture-begin="history.begin" @gesture-end="history.end" />
-        <EffectsPanel v-if="document" :key="imageVersion" :recipe="recipe" :restore-version="restoreVersion" :selected-point-id="selectedPointId" :disabled="controlsBusy" @change="changeRecipe" @gesture-begin="history.begin" @gesture-end="history.end" @select-point="selectedPointId = $event; showing = 'edited'" />
+        <DocumentControls :busy="busy" :has-image="document !== null" :ready="readyRevision === renderRevision" :recovery-status="files.recoveryStatus.value" :recovery-offer="files.recoveryOffer.value" @open-project="files.openProject" @save-project="files.saveProject" @load-preset="files.loadPreset" @save-preset="files.savePreset" @paste-image="files.pasteImage" @restore-recovery="files.restoreRecovery" @discard-recovery="files.discardRecovery" />
 
-        <div class="sidebar-bottom"><div class="original-note"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6z" /><path d="m8 12 3 3 5-6" /></svg><span>Your original is safe.<small>Exports always use a new file.</small></span></div><span class="edition">DEEP FRYER / VERSION 0.1</span></div>
+        <div v-if="document" class="history-controls" aria-label="Edit history"><button type="button" :disabled="!history.canUndo.value || controlsBusy" aria-keyshortcuts="Control+Z Meta+Z" @click="restoreFromHistory('undo')">Undo</button><button type="button" :disabled="!history.canRedo.value || controlsBusy" aria-keyshortcuts="Control+Shift+Z Control+Y Meta+Shift+Z" @click="restoreFromHistory('redo')">Redo</button></div>
+        <RecipeLooks v-if="document" :key="imageVersion" :recipe="recipe" :bitmap="document.bitmap" :restore-version="restoreVersion" :disabled="controlsBusy" @change="changeRecipe" @gesture-begin="beginGesture" @gesture-end="endGesture" />
+        <EffectsPanel v-if="document" :key="imageVersion" :recipe="recipe" :restore-version="restoreVersion" :selected-point-id="selectedPointId" :disabled="controlsBusy" @change="changeRecipe" @gesture-begin="beginGesture" @gesture-end="endGesture" @select-point="selectedPointId = $event; showing = 'edited'" />
+
+        <div class="sidebar-bottom"><div class="original-note"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6z" /><path d="m8 12 3 3 5-6" /></svg><span>Your original is safe.<small>Exports always use a new file.</small></span></div><span class="edition">DEEP FRYER / VERSION {{ applicationVersion }}</span></div>
       </aside>
 
       <main class="main-area">
         <div class="preview-toolbar"><div><span class="preview-label">Preview</span><span v-if="document" class="original-badge">{{ showing === 'original' ? 'ORIGINAL' : operation.kind === 'processing' ? 'PROCESSING' : recipeNeutral ? 'UNCHANGED' : 'EDITED' }}</span></div><div v-if="document" class="inspection-controls" aria-label="Image inspection controls"><button type="button" :aria-pressed="placingPoint" :disabled="controlsBusy" @click="placingPoint = !placingPoint; showing = 'edited'">{{ placingPoint ? 'Click image…' : 'Place point' }}</button><button type="button" @click="fit">Fit</button><button type="button" @click="oneToOne">100%</button><button type="button" aria-label="Zoom out" @click="zoomAt(-1)">−</button><span class="preview-scale">{{ zoomLabel }}</span><button type="button" aria-label="Zoom in" @click="zoomAt(1)">+</button><span class="inspection-divider"></span><button type="button" :aria-pressed="showing === 'original'" @click="showing = 'original'">Original</button><button type="button" :aria-pressed="showing === 'edited'" @click="showing = 'edited'">Edited</button></div><span v-else class="preview-scale">No image loaded</span></div>
         <section ref="stage" class="preview-stage" :class="{ 'has-image': document }" aria-label="Image preview" :tabindex="document ? 0 : -1" @keydown="stageKeydown" @pointerdown="pointerDown" @pointermove="pointerMove" @pointerup="endDrag" @pointercancel="endDrag" @lostpointercapture="endDrag" @dblclick="zoomAt($event.shiftKey ? -1 : 1, pointerPosition($event))">
           <div class="image-plane" v-show="document" :style="imageStyle"><canvas ref="canvas" v-show="showing === 'edited'" aria-label="Edited full resolution image canvas"></canvas><canvas ref="originalCanvas" v-show="showing === 'original'" aria-label="Original full resolution image canvas"></canvas></div>
-          <BulgeOverlay v-if="document && view && imageSize && showing === 'edited'" :points="bulgePoints" :selected-id="selectedPointId" :view="view" :pane="pane" :image="imageSize" @select="selectedPointId = $event" @change="movePoint" @delete="deletePoint" @gesture-begin="history.begin" @gesture-end="history.end" />
+          <BulgeOverlay v-if="document && view && imageSize && showing === 'edited'" :points="bulgePoints" :selected-id="selectedPointId" :view="view" :pane="pane" :image="imageSize" @select="selectedPointId = $event" @change="movePoint" @delete="deletePoint" @gesture-begin="beginGesture" @gesture-end="endGesture" />
           <div class="empty-state" v-if="!document">
             <div class="empty-art" aria-hidden="true"><svg viewBox="0 0 100 100"><rect x="18" y="21" width="64" height="58" rx="8" /><circle cx="63" cy="40" r="7" /><path d="m20 67 20-22 21 23 10-10 10 10" /></svg><span class="spark spark-one">✧</span><span class="spark spark-two">+</span></div>
             <span class="eyebrow">IMAGE PREVIEW</span><h2>Open your first image.</h2><p>Your image appears here at its original orientation.<br>Export it as a new PNG when you're ready.</p><button class="text-button" :disabled="busy" @click="openImage">Choose an image <span aria-hidden="true">↗</span></button>

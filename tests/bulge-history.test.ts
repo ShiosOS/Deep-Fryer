@@ -4,7 +4,7 @@ import { applyBulge } from '../src/renderer/src/bulge'
 import { renderRecipe } from '../src/renderer/src/effects'
 import { paneToImage, imageToPane, fitView, zoom, pan } from '../src/renderer/src/inspection-geometry'
 import { useRecipeHistory } from '../src/renderer/src/recipe-history'
-import type { Recipe } from '../src/renderer/src/recipe'
+import type { Recipe } from '../src/shared/recipe'
 
 Object.defineProperty(globalThis, 'ImageData', { value: class {
   constructor(public data: Uint8ClampedArray, public width: number, public height: number) {}

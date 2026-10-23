@@ -5,6 +5,7 @@ export default defineConfig({
   main: {},
   preload: { build: { externalizeDeps: false } },
   renderer: {
+    define: { __APP_VERSION__: JSON.stringify(process.env.npm_package_version ?? 'development') },
     plugins: [
       vue(),
       {

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, shallowRef, watch } from 'vue'
-import { renderRecipe } from './effects'
-import { isNeutralEffect, type Recipe } from './recipe'
+import { renderRecipeFrame } from './render-recipe-frame'
+import { isNeutralEffect, type Recipe } from '../../shared/recipe'
 import { snapshotRecipe } from './recipe-history'
 import { fryAmounts, namedLooks, namedRecipe, parameterKey, randomizeRecipe, randomParameters, scaleFry, type NamedLook } from './recipe-looks'
 
@@ -19,6 +19,7 @@ const comparisonBusy = ref(false)
 const neutral = computed(() => props.recipe.effects.every(isNeutralEffect))
 let published = ''
 let comparisonGeneration = 0
+let comparisonCancellation: AbortController | null = null
 
 function publish(recipe: Recipe): void {
   published = JSON.stringify(recipe)
@@ -57,12 +58,16 @@ function randomize(): void {
 }
 function closeComparison(): void {
   comparisonGeneration += 1
+  comparisonCancellation?.abort()
+  comparisonCancellation = null
   comparisonBusy.value = false
   candidates.value = []
   dialog.value?.close()
 }
 async function compare(): Promise<void> {
   const generation = ++comparisonGeneration
+  const cancellation = new AbortController()
+  comparisonCancellation = cancellation
   const startingRecipe = snapshotRecipe(props.recipe)
   candidates.value = []
   comparisonStatus.value = 'Building five draft previews…'
@@ -81,7 +86,7 @@ async function compare(): Promise<void> {
     const results = []
     for (const amount of fryAmounts) {
       const recipe = scaleFry(startingRecipe, amount)
-      const pixels = await renderRecipe(source, recipe)
+      const pixels = await renderRecipeFrame(source, recipe, cancellation.signal)
       if (generation !== comparisonGeneration) return
       context.putImageData(pixels, 0, 0)
       results.push({ recipe, amount, thumbnail: surface.toDataURL('image/png') })
@@ -102,7 +107,7 @@ function applyCandidate(): void {
   publish(candidate.recipe)
   closeComparison()
 }
-onUnmounted(() => { comparisonGeneration += 1 })
+onUnmounted(() => { comparisonGeneration += 1; comparisonCancellation?.abort() })
 </script>
 
 <template>

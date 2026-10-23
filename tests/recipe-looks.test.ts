@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { isNeutralEffect, recipeSchema, type Recipe } from '../src/renderer/src/recipe'
+import { isNeutralEffect, recipeSchema, type Recipe } from '../src/shared/recipe'
 import { fryAmounts, namedLooks, namedRecipe, parameterKey, randomizeRecipe, scaleFry } from '../src/renderer/src/recipe-looks'
 
 test('named looks scale from neutral to their original settings without changing randomness or identities', () => {

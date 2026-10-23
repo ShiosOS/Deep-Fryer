@@ -1,4 +1,4 @@
-import { newEffect, recipeSchema, type Effect, type Recipe } from './recipe'
+import { newEffect, recipeSchema, type Effect, type Recipe } from '../../shared/recipe'
 
 export const namedLooks = ['Crispy color', 'Noisy photocopy', 'Overcooked'] as const
 export type NamedLook = typeof namedLooks[number]
