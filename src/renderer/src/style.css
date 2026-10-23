@@ -40,7 +40,13 @@ dl > div { display: flex; justify-content: space-between; gap: 8px; margin: 14px
 dt { color: #898986; }
 dd { margin: 0; color: #d4d1cc; }
 .effects-panel { padding-top: 18px; border-top: 1px solid var(--line); }
+.history-controls { display: flex; gap: 8px; padding: 0 0 18px; }
+.history-controls button, .cancel-button { border: 1px solid #45403a; border-radius: 5px; background: #242527; color: #eee8e1; padding: 7px 12px; font-size: 11px; }
+.history-controls button { flex: 1; }
+.cancel-button { margin-left: auto; white-space: nowrap; }
 .effect-card { border: 1px solid #383837; border-radius: 7px; padding: 10px; margin: 9px 0; background: #222325; }
+.effect-card.selected-point-card { border-color: #e5a575; }
+.point-select { display: block; width: 100%; margin: 8px 0; padding: 5px; border: 1px solid #615141; border-radius: 4px; background: #322b26; color: #f9c9a5; font-size: 11px; }
 .effect-heading { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
 .effect-enabled { display: flex; align-items: center; gap: 6px; min-width: 0; color: #eee8e1; font-size: 11px; font-weight: 600; }
 .effect-enabled input { accent-color: var(--accent); }
@@ -97,6 +103,13 @@ h2 { font-size: 27px; letter-spacing: -.8px; font-weight: 500; margin: 13px 0 14
 .preview-stage:focus-visible { outline: 2px solid #ffd2ae; outline-offset: 2px; }
 .image-plane { position: absolute; top: 0; left: 0; transform-origin: top left; pointer-events: none; }
 .image-plane canvas { display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%; box-shadow: 0 14px 50px #0006; }
+.bulge-overlay { position: absolute; inset: 0; pointer-events: none; }
+.bulge-point { position: absolute; width: 0; height: 0; }
+.bulge-radius { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); border: 1px dashed #ffba86c4; border-radius: 50%; box-shadow: 0 0 0 1px #20120b80; pointer-events: none; }
+.bulge-handle { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); width: 26px; height: 26px; border-radius: 50%; border: 2px solid #2a180e; background: #ffb783; color: #20120b; font-size: 11px; font-weight: 700; pointer-events: auto; cursor: move; touch-action: none; }
+.bulge-handle.selected { outline: 3px solid white; outline-offset: 2px; }
+.has-image:has(.bulge-overlay) { cursor: grab; }
+.has-image:has(.bulge-overlay) .bulge-handle { cursor: move; }
 .canvas-caption { position: absolute; bottom: 18px; color: #8d8e89; font-size: 10px; letter-spacing: .3px; }
 .canvas-caption span { margin: 0 8px; }
 .export-bar { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 83px; padding: 17px 28px; border-top: 1px solid var(--line); background: #17181a; }
