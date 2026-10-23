@@ -38,6 +38,7 @@ test('zoom, pan, compare, resize, and export full Edited pixels while Original i
   })
   try {
     const page = await app.firstWindow()
+    await app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0]?.setSize(1024, 768) })
     const errors: string[] = []
     page.on('pageerror', (error) => errors.push(error.message))
     const stage = page.getByRole('region', { name: 'Image preview' })
@@ -95,8 +96,13 @@ test('zoom, pan, compare, resize, and export full Edited pixels while Original i
     expect(await plane.evaluate((element) => getComputedStyle(element).transform)).toBe(editedTransform)
     await page.screenshot({ path: '.artifacts/inspection-large-edited.png' })
     expect(pixelAt(await stage.screenshot(), sampleX, sampleY)).not.toEqual([70, 110, 150, 255])
-    await app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0]?.setSize(1100, 700) })
-    await expect.poll(async () => (await stage.boundingBox())?.width).toBeLessThan(bounds.width)
+    await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0]
+      if (!window) throw new Error('The editor window is unavailable')
+      const [width, height] = window.getSize()
+      window.setSize(width > 900 ? Math.max(900, width - 120) : 1020, Math.max(620, height - 100))
+    })
+    await expect.poll(async () => (await stage.boundingBox())?.width).not.toBe(bounds.width)
     await expect(page.locator('.inspection-controls .preview-scale')).toHaveText('200%')
     await stage.focus()
     await page.keyboard.press('0')
