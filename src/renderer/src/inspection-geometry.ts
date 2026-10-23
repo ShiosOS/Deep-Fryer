@@ -3,7 +3,7 @@ export type Size = Readonly<{ width: number; height: number }>
 export type InspectionView = Readonly<{ mode: 'fit' | 'detail'; scale: number; center: Point }>
 
 const STEP = Math.SQRT2
-const MIN_SCALE = 1 / 32
+const MIN_SCALE = 1 / 65_536
 const MAX_SCALE = 32
 
 function fitScale(image: Size, pane: Size): number {

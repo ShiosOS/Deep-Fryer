@@ -40,3 +40,11 @@ test('fit never enlarges a small image and detailed resize clamps exposed edges'
   assert.deepEqual(view.center, { x: 400, y: 300 })
   assert.deepEqual(resizeView(view, image, { width: 1200, height: 800 }).center, { x: 600, y: 400 })
 })
+
+test('zoom out reduces the fitted scale of a supported tall image', () => {
+  const image = { width: 1000, height: 16_384 }
+  const pane = { width: 550, height: 370 }
+  const fitted = fitView(image, pane)
+  const reduced = zoom(fitted, -1, { x: pane.width / 2, y: pane.height / 2 }, image, pane)
+  assert.ok(Math.abs(reduced.scale - fitted.scale / Math.SQRT2) < 1e-12)
+})
