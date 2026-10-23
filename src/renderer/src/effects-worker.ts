@@ -1,9 +1,9 @@
-import { renderRecipe } from './effects'
-import { recipeSchema, type Recipe } from '../../shared/recipe'
+import { renderPreset } from './effects'
+import { presetSchema, type Preset } from '../../shared/preset'
 
 export type WorkerRequest =
   | { kind: 'source'; sourceId: number; width: number; height: number; pixels: Uint8ClampedArray<ArrayBuffer>; preview: { width: number; height: number; pixels: Uint8ClampedArray<ArrayBuffer> } | null }
-  | { kind: 'render'; sourceId: number; revision: number; recipe: Recipe; quality: 'preview' | 'full' }
+  | { kind: 'render'; sourceId: number; revision: number; preset: Preset; quality: 'preview' | 'full' }
 
 export type WorkerResponse =
   | { kind: 'rendered'; sourceId: number; revision: number; quality: 'preview' | 'full'; width: number; height: number; pixels: Uint8ClampedArray<ArrayBuffer> }
@@ -24,8 +24,8 @@ async function drain(): Promise<void> {
     if (request.sourceId !== sourceId || !source) continue
     const current = request.quality === 'preview' && preview ? preview : source
     try {
-      const recipe = recipeSchema.parse(request.recipe)
-      const result = await renderRecipe(current, recipe)
+      const preset = presetSchema.parse(request.preset)
+      const result = await renderPreset(current, preset)
       const response: WorkerResponse = { kind: 'rendered', sourceId: request.sourceId, revision: request.revision, quality: request.quality, width: result.width, height: result.height, pixels: result.data }
       self.postMessage(response, { transfer: [result.data.buffer] })
     } catch (error) {

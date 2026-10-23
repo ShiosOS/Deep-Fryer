@@ -1,3 +1,4 @@
+import { fileAction, controls, exportImage, openOutput } from './ui'
 import { _electron as electron, expect, test, type Page } from '@playwright/test'
 import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -58,14 +59,15 @@ test('PNG, JPEG and WebP save the inspected bytes at explicit output size and de
     page.on('pageerror', (error) => errors.push(error.message))
     await recordEncodedSnapshots(page)
     await app.evaluate(({ dialog }, selected) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [selected] }) }, source)
-    await page.getByRole('button', { name: 'Open image' }).click()
-    await page.getByRole('spinbutton', { name: 'Brightness value' }).fill('15')
-    await expect(page.getByRole('button', { name: 'Export PNG' })).toBeEnabled()
+    await fileAction(page, 'Open image')
+    await (await controls(page)).getByRole('spinbutton', { name: 'Brightness value' }).fill('15')
+    await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeEnabled()
     await page.getByLabel('Add effect').selectOption('noise')
-    await page.getByRole('spinbutton', { name: 'Noise value', exact: true }).fill('35')
-    await page.getByRole('spinbutton', { name: 'Noise pattern' }).fill('42')
-    await page.getByRole('spinbutton', { name: 'Noise pattern' }).blur()
-    await expect(page.getByRole('button', { name: 'Export PNG' })).toBeEnabled()
+    await (await controls(page)).getByRole('spinbutton', { name: 'Noise value', exact: true }).fill('35')
+    await (await controls(page)).getByRole('spinbutton', { name: 'Noise pattern' }).fill('42')
+    await (await controls(page)).getByRole('spinbutton', { name: 'Noise pattern' }).blur()
+    await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeEnabled()
+    await openOutput(page)
     await page.getByRole('spinbutton', { name: 'Output width' }).fill('48')
     await page.getByRole('spinbutton', { name: 'Output height' }).fill('32')
     const resizedPreview = await page.evaluate(() => {
@@ -128,9 +130,11 @@ test('PNG, JPEG and WebP save the inspected bytes at explicit output size and de
     await page.getByRole('spinbutton', { name: 'Output quality' }).fill('44')
     await expect(page.locator('.output-inspection-state')).toContainText('Out of date.')
     await expect(page.getByRole('button', { name: 'Save inspected snapshot', includeHidden: true })).toBeDisabled()
-    await page.getByRole('spinbutton', { name: 'Brightness value' }).fill('25')
+    await page.getByRole('button', { name: 'Close export', exact: true }).click()
+    await (await controls(page)).getByRole('spinbutton', { name: 'Brightness value' }).fill('25')
     await expect(page.locator('.output-inspection-state')).toContainText('Out of date.')
-    await expect(page.getByRole('button', { name: 'Export WebP' })).toBeEnabled()
+    await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeEnabled()
+    await openOutput(page)
     await page.getByRole('spinbutton', { name: 'Output width' }).fill('0')
     await expect(page.getByRole('button', { name: 'Inspect final output', exact: true })).toBeDisabled()
     expect(await readFile(source)).toEqual(originalBytes)
@@ -158,7 +162,7 @@ test('a delayed save uses the frozen export and cancellation never reports a com
     const page = await app.firstWindow()
     await recordEncodedSnapshots(page)
     await app.evaluate(({ dialog }, selected) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [selected] }) }, source)
-    await page.getByRole('button', { name: 'Open image' }).click()
+    await fileAction(page, 'Open image')
     const destination = join(folder, 'frozen.png')
     await app.evaluate(({ dialog }, selected) => {
       dialog.showSaveDialog = async () => {
@@ -166,11 +170,14 @@ test('a delayed save uses the frozen export and cancellation never reports a com
         return { canceled: false, filePath: selected }
       }
     }, destination)
-    await page.getByRole('button', { name: 'Export PNG' }).click()
+    await exportImage(page)
     await expect(page.locator('html')).toHaveAttribute('data-encoded-snapshot', /.+/)
     const frozen = await page.locator('html').getAttribute('data-encoded-snapshot')
-    await page.getByRole('spinbutton', { name: 'Brightness value' }).fill('50')
+    await (await controls(page)).getByRole('spinbutton', { name: 'Brightness value' }).fill('50')
+    await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeEnabled()
+    await openOutput(page)
     await page.getByRole('spinbutton', { name: 'Output width' }).fill('4')
+    await page.getByRole('button', { name: 'Close export', exact: true }).click()
     await expect(page.locator('.output-inspection-state')).toContainText('Out of date.')
     await expect(page.getByRole('status')).toContainText('Saved frozen.png')
     const saved = await readFile(destination)
@@ -178,7 +185,7 @@ test('a delayed save uses the frozen export and cancellation never reports a com
     expect(PNG.sync.read(saved).width).toBe(8)
     expect(Array.from(PNG.sync.read(saved).data.subarray(0, 4))).toEqual([50, 60, 70, 255])
     await app.evaluate(({ dialog }) => { dialog.showSaveDialog = async () => ({ canceled: true, filePath: '' }) })
-    await page.getByRole('button', { name: 'Export PNG' }).click()
+    await exportImage(page)
     await expect(page.getByRole('status')).toContainText('Export canceled. No file was saved.')
     expect(await readFile(source)).toEqual(original)
   } finally {

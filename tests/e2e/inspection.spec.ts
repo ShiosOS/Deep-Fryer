@@ -1,3 +1,4 @@
+import { fileAction, controls, exportImage } from './ui'
 import { _electron as electron, expect, test } from '@playwright/test'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -46,7 +47,7 @@ test('zoom, pan, compare, resize, and export full Edited pixels while Original i
     await app.evaluate(({ dialog }, selectedPath) => {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [selectedPath] })
     }, largePath)
-    await page.getByRole('button', { name: 'Open image' }).click()
+    await fileAction(page, 'Open image')
     await expect(page.locator('.filename')).toHaveText('large.png')
     await page.getByRole('button', { name: '100%' }).click()
     await expect(page.locator('.inspection-controls .preview-scale')).toHaveText('100%')
@@ -77,7 +78,7 @@ test('zoom, pan, compare, resize, and export full Edited pixels while Original i
     await page.keyboard.press('-')
     await expect(page.locator('.inspection-controls .preview-scale')).toHaveText('200%')
 
-    await page.getByRole('spinbutton', { name: 'Brightness value' }).fill('30')
+    await (await controls(page)).getByRole('spinbutton', { name: 'Brightness value' }).fill('30')
     await expect(page.getByRole('status')).toContainText('Color changes are ready')
     const editedTransform = await plane.evaluate((element) => getComputedStyle(element).transform)
     await page.keyboard.press('ArrowRight')
@@ -111,7 +112,7 @@ test('zoom, pan, compare, resize, and export full Edited pixels while Original i
     await app.evaluate(({ dialog }, selectedPath) => {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [selectedPath] })
     }, smallPath)
-    await page.getByRole('button', { name: 'Open image' }).click()
+    await fileAction(page, 'Open image')
     await expect(page.locator('.filename')).toHaveText('small.png')
     await expect(page.locator('.inspection-controls .preview-scale')).toHaveText('100%')
     let displayed = await page.getByLabel('Edited full resolution image canvas').boundingBox()
@@ -121,7 +122,7 @@ test('zoom, pan, compare, resize, and export full Edited pixels while Original i
     await page.keyboard.press('1')
     displayed = await page.getByLabel('Edited full resolution image canvas').boundingBox()
     expect([displayed?.width, displayed?.height]).toEqual([80, 40])
-    await page.getByRole('spinbutton', { name: 'Brightness value' }).fill('30')
+    await (await controls(page)).getByRole('spinbutton', { name: 'Brightness value' }).fill('30')
     await expect(page.getByRole('status')).toContainText('Color changes are ready')
     await page.getByRole('button', { name: 'Original' }).click()
     await app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0]?.setSize(1260, 840) })
@@ -132,7 +133,7 @@ test('zoom, pan, compare, resize, and export full Edited pixels while Original i
     await app.evaluate(({ dialog }, selectedPath) => {
       dialog.showSaveDialog = async () => ({ canceled: false, filePath: selectedPath })
     }, outputPath)
-    await page.getByRole('button', { name: 'Export PNG' }).click()
+    await exportImage(page)
     await expect(page.getByRole('status')).toContainText('Saved small-edited.png')
     const exported = PNG.sync.read(await readFile(outputPath))
     expect([exported.width, exported.height]).toEqual([80, 40])

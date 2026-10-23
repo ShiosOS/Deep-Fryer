@@ -6,11 +6,14 @@ import { readImage } from './image-files'
 import { registerImageOutput } from './image-output'
 import { registerDocumentActions, validateSource } from './document-actions'
 import { RecoveryStore } from './recovery'
+import { AppearanceStore } from './appearance-store'
+import { appearanceSchema, defaultAppearance } from '../shared/appearance'
 
 const profile = app.commandLine.getSwitchValue('user-data-dir')
 if (profile) { mkdirSync(profile, { recursive: true }); app.setPath('userData', profile) }
 const ownsProfile = app.requestSingleInstanceLock()
 const recovery = new RecoveryStore(join(app.getPath('userData'), 'recovery'), validateSource)
+const appearance = new AppearanceStore(app.getPath('userData'))
 let quitting = false
 let preserveRecovery = false
 
@@ -22,11 +25,12 @@ function createWindow(): void {
   const rendererUrl = new URL((!app.isPackaged && process.env.ELECTRON_RENDERER_URL) || pathToFileURL(rendererPath).href).href
   const editor = new BrowserWindow({
     title: 'Deep Fryer',
+    icon: join(__dirname, '../../resources/icon.png'),
     width: 1260,
     height: 840,
     minWidth: 900,
     minHeight: 620,
-    backgroundColor: '#121315',
+    backgroundColor: '#28232c',
     autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -52,6 +56,10 @@ function createWindow(): void {
     if (operation !== 'idle') throw new Error('Finish the current file action first.')
   }
   registerDocumentActions(editor, checkSender, recovery)
+  for (const channel of ['appearance:load', 'appearance:save', 'appearance:reset']) ipcMain.removeHandler(channel)
+  ipcMain.handle('appearance:load', (event) => { checkSender(event); return appearance.load() })
+  ipcMain.handle('appearance:save', (event, input: unknown) => { checkSender(event); return appearance.save(appearanceSchema.parse(input)) })
+  ipcMain.handle('appearance:reset', (event) => { checkSender(event); return appearance.save(defaultAppearance(), true) })
   ipcMain.removeHandler('image:open')
   registerImageOutput(editor, checkSender, (active) => { operation = active ? 'exporting' : 'idle' })
   ipcMain.handle('image:open', async (event) => {
@@ -79,15 +87,16 @@ if (ownsProfile) {
     window?.focus()
   })
   app.whenReady().then(() => {
+    app.setAppUserModelId('com.deepfryer.desktop')
     Menu.setApplicationMenu(null)
     createWindow()
     app.on('activate', () => { if (window === null) createWindow() })
   })
   app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit() })
   app.on('before-quit', (event) => {
-    if (quitting || preserveRecovery) return
+    if (quitting) return
     event.preventDefault()
     quitting = true
-    void recovery.close().finally(() => app.quit())
+    void Promise.all([preserveRecovery ? Promise.resolve() : recovery.close(), appearance.drain()]).finally(() => app.quit())
   })
 } else { app.quit() }

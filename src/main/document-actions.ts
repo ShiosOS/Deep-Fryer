@@ -1,12 +1,12 @@
 import { clipboard, dialog, ipcMain, nativeImage, type BrowserWindow, type IpcMainInvokeEvent } from 'electron'
 import { basename } from 'node:path'
 import { z } from 'zod'
-import { editableDocumentSchema } from '../shared/documents'
+import { editableDocumentSchema, savePresetInput, saveProjectInput } from '../shared/documents'
 import { validateDimensions, type OpenImage } from '../shared/image'
-import { recipeSchema } from '../shared/recipe'
 import { encodePreset, encodeProject, readPreset, readProject, writeDocumentExclusive } from './document-files'
 import { inspectImage, readImage } from './image-files'
 import { RecoveryStore } from './recovery'
+import { legacyPresetExtension } from './legacy-document-codec'
 
 export function validateSource(source: OpenImage): void {
   if (inspectImage(source.bytes) !== source.mime) throw new Error('The embedded image has the wrong format.')
@@ -50,18 +50,17 @@ export function registerDocumentActions(editor: BrowserWindow, checkSender: (eve
     return document
   })
   register('document:save-project', async (input) => {
-    const document = editableDocumentSchema.parse(input)
+    const { document, suggestedName } = saveProjectInput.parse(input)
     validateSource(document.source)
-    return save(encodeProject(document), `${document.source.name.replace(/\.[^.]+$/, '')}.deepfryer`, 'deepfryer', 'project')
+    return save(encodeProject(document), suggestedName.replace(/\.deepfryer$/i, '') + '.deepfryer', 'deepfryer', 'project')
   })
   register('document:open-preset', async () => {
-    const path = await openPath('Load a recipe preset', 'Deep Fryer recipe', ['fryrecipe'])
+    const path = await openPath('Load a preset', 'Deep Fryer preset', ['frypreset', legacyPresetExtension])
     return path ? readPreset(path) : null
   })
-  register('document:save-preset', async (input, imageName) => {
-    const recipe = recipeSchema.parse(input)
-    const name = z.string().min(1).max(1024).parse(imageName)
-    return save(encodePreset(recipe), `${name.replace(/\.[^.]+$/, '')}.fryrecipe`, 'fryrecipe', 'recipe preset')
+  register('document:save-preset', async (input) => {
+    const { preset, suggestedName } = savePresetInput.parse(input)
+    return save(encodePreset(preset), suggestedName.replace(/\.frypreset$/i, '') + '.frypreset', 'frypreset', 'preset')
   })
   register('image:paste', async () => {
     for (const item of await clipboard.read()) {

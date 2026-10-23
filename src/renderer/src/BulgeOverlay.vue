@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { imageToPane, paneToImage, type InspectionView, type Point, type Size } from './inspection-geometry'
-import type { Effect } from '../../shared/recipe'
+import type { Effect } from '../../shared/preset'
 
 type Bulge = Extract<Effect, { kind: 'bulge' }>
 const props = defineProps<{ points: Bulge[]; selectedId: string | null; view: InspectionView; pane: Size; image: Size }>()
