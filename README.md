@@ -1,13 +1,49 @@
 # Deep Fryer
 
-Open a PNG or JPEG, preview the oriented image, and export a full resolution PNG to a new file. Existing paths are refused, including the source and hard links to it. Images stay on your computer.
+A local desktop image editor. Open or paste a PNG or JPEG, choose a preset, and adjust eight ordered effects: brightness, contrast, saturation, color levels, noise, sharpening, JPEG damage, and bulge/pinch points. Contrast and saturation reach 5×; each effect has a separate blend strength. Images stay on your computer.
 
-Requires Node.js 22.12 or newer and npm. Run `npm install`, then `npm run dev`. Use **Open image** or Ctrl+O. Use **Export PNG** or Ctrl+Shift+S. This first slice has no effects yet.
+The compact inspector includes randomization locks, five draft comparisons, and undo/redo. The canvas supports original comparison, fit/actual size, zoom/pan, and editable distortion points. Help in the header explains the controls with real engine examples, an optional animation, and screenshots of the actual editor. Settings provides light, dark, System, and separate custom palettes for each appearance.
 
-Run `npm run typecheck`, `npm test`, `npm run build`, and `npm run test:e2e` to check the app. The Electron smoke test stubs native OS file selection and runs the real file IPC, image decoder, canvas, and PNG export. Set `ELECTRON_EXECUTABLE_PATH` to test with a particular Electron executable. Its screenshot is `.artifacts/first-slice.png`.
+## Run
 
-The limits are 64 MiB per file, 16,384 pixels per side, and 24 million pixels. Export preserves the decoded canvas pixels, not source metadata. A failed open keeps the previous image. A failed disk write can leave a partial new file. Choose another name after resolving the disk problem.
+Requires Node.js 22.12 or newer and npm:
 
-`npm run package:win` builds an NSIS installer. Installer creation and signing are not part of this slice.
+```powershell
+npm ci
+Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
+npm run dev
+```
 
-[Product brief in Notion](https://app.notion.com/p/4019c0510118810b911cd64ff485274e). [First slice](https://app.notion.com/p/4019c051011881a48559ee6ff578df01).
+Ctrl+O opens an image, Ctrl+S names a project, and Ctrl+Shift+S opens export options. Native file choosers select destinations. Project, preset, and export names are independent.
+
+## Files and safety
+
+- `.deepfryer` projects contain the original source bytes and the editable preset.
+- `.frypreset` presets contain ordered effects, relative points, and a saved seed without an image.
+- PNG, JPEG, and WebP exports are rendered at the chosen output dimensions. Final inspection decodes the encoded output; saving that inspection writes the exact inspected bytes. Changing only its name preserves the inspection.
+
+Current project and preset files use outer version 2. Projects have `{ format: "deep-fryer-project", version: 2, source: { name, mime, base64 }, preset }`; presets have `{ format: "deep-fryer-preset", version: 2, preset }`. The in-memory preset is unversioned. The private legacy codec reads original v1 files with their original ranges and semantics. Old applications reject v2 files.
+
+All user saves create new files exclusively. Existing destinations, including the source and hard links to it, remain protected even when a native chooser offers replacement. A failed open leaves the current edit intact. Input limits are 64 MiB, 16,384 pixels per side, and 24 million pixels. Export preserves decoded pixels rather than source metadata.
+
+Recovery retains two completed edits locally for up to seven days after an interruption. Clean exit or Discard removes recovery copies. Appearance is saved separately in the application data directory, outside projects, presets, recovery, and undo history. Unreadable or future appearance files remain untouched until an explicit reset.
+
+## Verify
+
+```powershell
+npm run typecheck
+npm test
+npm run build
+Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
+npm run test:e2e
+npm run package:win
+node scripts/verify-package.mjs
+```
+
+Electron journeys use real IPC, decoding, rendering, history, recovery, and filesystem operations with native open/save selection stubbed. Immutable v1 fixtures compare every reopened RGBA byte with pixels captured by the old application. Settings restart, Help keyboard/media, 5× intensity, invalid files, naming cancellation, and frozen exports have dedicated coverage. The clipboard test runs only in CI to avoid replacing a personal clipboard. The staged installer-upgrade test requires its documented environment variables and installations; it is not part of an ordinary local run.
+
+Use `DEEP_FRYER_EXECUTABLE` for a packaged application or `ELECTRON_EXECUTABLE_PATH` for an alternative Electron runtime. `scripts/verify-native-dialog.mjs` exercises an actual Windows Save dialog using observed UI Automation handles, while stubbing only project opening. `scripts/verify-package.mjs` checks packaged media, runtime icons, and the actual executable icon pixels.
+
+## Help media and icons
+
+`npm run assets:render` renders examples through the production engine and converts the approved SVG into runtime PNG and multiresolution Windows ICO files. `npm run assets:capture` captures the implemented editor for Help. Rebuild after generating assets. The media manifest records parameters and hashes. Windows packaging includes the icon in the executable, installer, uninstaller, and application resources.
