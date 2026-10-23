@@ -65,6 +65,9 @@ jobs:
           if ($installation.ExitCode -ne 0) { throw "Installer exited with $($installation.ExitCode)." }
           $env:DEEP_FRYER_EXECUTABLE = Join-Path $installDirectory 'Deep Fryer.exe'
           if (!(Test-Path -LiteralPath $env:DEEP_FRYER_EXECUTABLE)) { throw 'The installer did not create the application.' }
+          Set-NetFirewallProfile -Profile Domain,Private,Public -Enabled True
+          $disabledProfiles = @(Get-NetFirewallProfile | Where-Object Enabled -ne True)
+          if ($disabledProfiles.Count -ne 0) { throw 'The Windows firewall is not active for every network profile.' }
           $ruleName = 'DeepFryerInstalledOfflineCheck'
           New-NetFirewallRule -Name $ruleName -DisplayName $ruleName -Direction Outbound -Program $env:DEEP_FRYER_EXECUTABLE -Action Block -Enabled True | Out-Null
           try {
