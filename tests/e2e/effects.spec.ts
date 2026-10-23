@@ -1,5 +1,5 @@
 import { _electron as electron, expect, test } from '@playwright/test'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { PNG } from 'pngjs'
@@ -51,6 +51,13 @@ test('ordered texture and real JPEG damage export the current pixels', async () 
     expect(afterJpeg[3]).toBe(255)
     expect(afterJpeg.slice(0, 3)).not.toEqual([0, 0, 0])
     expect(afterJpeg).not.toEqual(noiseOnly)
+    await page.setViewportSize({ width: 1244, height: 950 })
+    await page.evaluate(() => {
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+      document.querySelector('.sidebar')?.scrollTo(0, 10000)
+    })
+    await mkdir('.artifacts', { recursive: true })
+    await page.screenshot({ path: '.artifacts/ordered-effects.png' })
     const firstOutput = join(folder, 'after-jpeg.png')
     await app.evaluate(({ dialog }, selected) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: selected }) }, firstOutput)
     await page.getByRole('button', { name: 'Export PNG' }).click()
@@ -95,7 +102,7 @@ test('ordered texture and real JPEG damage export the current pixels', async () 
   }
 })
 
-test('maximum supported image renders a small draft and then full resolution', async () => {
+test('maximum supported image finishes the latest full resolution edit', async () => {
   test.setTimeout(120_000)
   const folder = await mkdtemp(join(tmpdir(), 'deep-fryer-max-'))
   const original = new PNG({ width: 6000, height: 4000, colorType: 2 })
