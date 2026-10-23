@@ -99,7 +99,7 @@ test('zoom, pan, compare, resize, and export full Edited pixels while Original i
     await app.evaluate(({ BrowserWindow }) => {
       const window = BrowserWindow.getAllWindows()[0]
       if (!window) throw new Error('The editor window is unavailable')
-      const [width, height] = window.getSize()
+      const { width, height } = window.getBounds()
       window.setSize(width > 900 ? Math.max(900, width - 120) : 1020, Math.max(620, height - 100))
     })
     await expect.poll(async () => (await stage.boundingBox())?.width).not.toBe(bounds.width)
