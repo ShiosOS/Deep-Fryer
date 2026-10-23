@@ -1,0 +1,88 @@
+name: Windows application and installed package
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npm run test:e2e
+      - run: npm run package:win
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: release/*Setup*.exe
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: application-check-output
+          path: |
+            .artifacts/*.png
+            test-results/
+          if-no-files-found: ignore
+
+  installed-offline:
+    needs: build-and-test
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-installer
+          path: installer
+      - name: Install and run with network access blocked for the installed application
+        shell: pwsh
+        run: |
+          $installers = @(Get-ChildItem -LiteralPath installer -Filter '*.exe')
+          if ($installers.Count -ne 1) { throw 'Expected exactly one Windows installer.' }
+          $installer = $installers[0]
+          $installDirectory = Join-Path $env:RUNNER_TEMP 'DeepFryerInstalled'
+          $installation = Start-Process -FilePath $installer.FullName -ArgumentList @('/S', ('/D=' + $installDirectory)) -WindowStyle Hidden -Wait -PassThru
+          if ($installation.ExitCode -ne 0) { throw "Installer exited with $($installation.ExitCode)." }
+          $env:DEEP_FRYER_EXECUTABLE = Join-Path $installDirectory 'Deep Fryer.exe'
+          if (!(Test-Path -LiteralPath $env:DEEP_FRYER_EXECUTABLE)) { throw 'The installer did not create the application.' }
+          Set-NetFirewallProfile -Profile Domain,Private,Public -Enabled True
+          $disabledProfiles = @(Get-NetFirewallProfile | Where-Object Enabled -ne True)
+          if ($disabledProfiles.Count -ne 0) { throw 'The Windows firewall is not active for every network profile.' }
+          $ruleName = 'DeepFryerInstalledOfflineCheck'
+          New-NetFirewallRule -Name $ruleName -DisplayName $ruleName -Direction Outbound -Program $env:DEEP_FRYER_EXECUTABLE -Action Block -Enabled True | Out-Null
+          try {
+            $rule = Get-NetFirewallRule -Name $ruleName -ErrorAction Stop
+            if ($rule.Enabled -ne 'True' -or $rule.Action -ne 'Block') { throw 'The application network block is not active.' }
+            npm run test:e2e
+            if ($LASTEXITCODE -ne 0) { throw 'The installed application journey failed.' }
+          } finally {
+            Remove-NetFirewallRule -Name $ruleName
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: installed-application-check-output
+          path: |
+            .artifacts/*.png
+            test-results/
+          if-no-files-found: ignore
