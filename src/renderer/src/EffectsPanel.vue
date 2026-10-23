@@ -6,9 +6,10 @@ const props = defineProps<{ recipe: Recipe; disabled: boolean }>()
 const emit = defineEmits<{ change: [recipe: Recipe] }>()
 const drafts = reactive<Record<string, string>>({})
 const panelError = ref('')
-function accept(next: Recipe | null): void {
-  if (next) { panelError.value = ''; emit('change', next) }
-  else panelError.value = 'Use at most eight active JPEG passes.'
+function accept(next: Recipe): void {
+  const parsed = recipeSchema.safeParse(next)
+  if (parsed.success) { panelError.value = ''; emit('change', parsed.data) }
+  else panelError.value = parsed.error.issues[0]?.message ?? 'Check the effect settings.'
 }
 
 function label(kind: EffectKind): string { return effectOptions.find((item) => item.kind === kind)?.label ?? kind }
@@ -44,15 +45,13 @@ function changeEnabled(effect: Effect, event: Event): void {
   accept(next)
 }
 function add(kind: EffectKind): void {
-  const parsed = recipeSchema.safeParse({ ...props.recipe, effects: [...props.recipe.effects, newEffect(kind)] })
-  accept(parsed.success ? parsed.data : null)
+  accept({ ...props.recipe, effects: [...props.recipe.effects, newEffect(kind)] })
 }
 function duplicate(effect: Effect): void {
   const index = props.recipe.effects.findIndex((item) => item.id === effect.id)
   const effects = [...props.recipe.effects]
   effects.splice(index + 1, 0, { ...effect, id: crypto.randomUUID() })
-  const parsed = recipeSchema.safeParse({ ...props.recipe, effects })
-  accept(parsed.success ? parsed.data : null)
+  accept({ ...props.recipe, effects })
 }
 function remove(id: string): void { emit('change', { ...props.recipe, effects: props.recipe.effects.filter((effect) => effect.id !== id) }) }
 function selectEffect(event: Event): void {

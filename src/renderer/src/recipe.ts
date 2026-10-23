@@ -12,7 +12,7 @@ const effectSchema = z.discriminatedUnion('kind', [
 ])
 
 export const recipeSchema = z.object({
-  version: z.literal(1), seed: z.number().int().min(0).max(0xffffffff), effects: z.array(effectSchema).max(64)
+  version: z.literal(1), seed: z.number().int().min(0).max(0xffffffff), effects: z.array(effectSchema).max(64, 'Use at most 64 effects')
 }).refine((recipe) => new Set(recipe.effects.map((effect) => effect.id)).size === recipe.effects.length, 'Effect identities must be unique')
   .refine((recipe) => recipe.effects.reduce((count, effect) => count + (effect.kind === 'jpeg' && effect.enabled && effect.mix > 0 ? effect.passes : 0), 0) <= 8, 'Use at most eight active JPEG passes')
 
@@ -68,7 +68,6 @@ export function moveEffect(recipe: Recipe, id: string, direction: -1 | 1): Recip
   return { ...recipe, effects }
 }
 
-export function replaceEffect(recipe: Recipe, changed: Effect): Recipe | null {
-  const parsed = recipeSchema.safeParse({ ...recipe, effects: recipe.effects.map((effect) => effect.id === changed.id ? changed : effect) })
-  return parsed.success ? parsed.data : null
+export function replaceEffect(recipe: Recipe, changed: Effect): Recipe {
+  return { ...recipe, effects: recipe.effects.map((effect) => effect.id === changed.id ? changed : effect) }
 }

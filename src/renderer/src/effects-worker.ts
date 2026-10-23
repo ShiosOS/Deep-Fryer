@@ -13,13 +13,14 @@ let source: ImageData | null = null
 let preview: ImageData | null = null
 let sourceId = -1
 let running = false
-let pending: Extract<WorkerRequest, { kind: 'render' }> | null = null
+let pending: Array<Extract<WorkerRequest, { kind: 'render' }>> = []
 
 async function drain(): Promise<void> {
   running = true
-  while (pending) {
-    const request = pending
-    pending = null
+  while (pending.length > 0) {
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
+    const request = pending.shift()
+    if (!request) break
     if (request.sourceId !== sourceId || !source) continue
     const current = request.quality === 'preview' && preview ? preview : source
     try {
@@ -41,8 +42,12 @@ self.onmessage = (event: MessageEvent<WorkerRequest>): void => {
     source = new ImageData(request.pixels, request.width, request.height)
     preview = request.preview ? new ImageData(request.preview.pixels, request.preview.width, request.preview.height) : null
     sourceId = request.sourceId
+    pending = []
     return
   }
-  pending = request
+  if (request.sourceId !== sourceId) return
+  pending = pending.filter((queued) => queued.sourceId === request.sourceId &&
+    queued.revision === request.revision && queued.quality !== request.quality)
+  pending.push(request)
   if (!running) void drain()
 }

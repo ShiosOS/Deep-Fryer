@@ -115,6 +115,10 @@ async function openImage(): Promise<void> {
   if (busy.value) return
   operation.value = { kind: 'opening' }
   let candidate: ImageBitmap | null = null
+  const previous = document.value
+  const previousReadyRevision = readyRevision.value
+  let previousFrame: ImageData | null = null
+  let publishing = false
   try {
     const source = await window.imageBridge.openImage()
     if (source === null) return
@@ -123,24 +127,18 @@ async function openImage(): Promise<void> {
     const context = canvas.value?.getContext('2d')
     const originalContext = originalCanvas.value?.getContext('2d')
     if (!context || !canvas.value || !originalContext || !originalCanvas.value) throw new Error('The image preview is unavailable. Reopen the app and try again.')
-    originalCanvas.value.width = candidate.width
-    originalCanvas.value.height = candidate.height
-    originalContext.drawImage(candidate, 0, 0)
-    const pixels = originalContext.getImageData(0, 0, candidate.width, candidate.height)
-    const previous = document.value
-    canvas.value.width = candidate.width
-    canvas.value.height = candidate.height
-    context.putImageData(pixels, 0, 0)
-    document.value = { ...source, bitmap: candidate }
-    recipe.value = newRecipe()
-    renderRevision += 1
-    readyRevision.value = renderRevision
-    if (renderTimer) clearTimeout(renderTimer)
+    const prepared = window.document.createElement('canvas')
+    prepared.width = candidate.width
+    prepared.height = candidate.height
+    const preparedContext = prepared.getContext('2d', { willReadFrequently: true })
+    if (!preparedContext) throw new Error('The image preview is unavailable. Reopen the app and try again.')
+    preparedContext.drawImage(candidate, 0, 0)
+    const pixels = preparedContext.getImageData(0, 0, candidate.width, candidate.height)
     const workerPixels = new Uint8ClampedArray(pixels.data)
     const previewScale = Math.min(1, 1200 / Math.max(candidate.width, candidate.height))
-    hasPreview = candidate.width * candidate.height > 2_000_000
+    const candidateHasPreview = candidate.width * candidate.height > 2_000_000
     let preview: Extract<WorkerRequest, { kind: 'source' }>['preview'] = null
-    if (hasPreview) {
+    if (candidateHasPreview) {
       const surface = window.document.createElement('canvas')
       surface.width = Math.max(1, Math.round(candidate.width * previewScale))
       surface.height = Math.max(1, Math.round(candidate.height * previewScale))
@@ -149,16 +147,52 @@ async function openImage(): Promise<void> {
       draftContext.drawImage(candidate, 0, 0, surface.width, surface.height)
       preview = { width: surface.width, height: surface.height, pixels: draftContext.getImageData(0, 0, surface.width, surface.height).data }
     }
+    const candidateDocument = { ...source, bitmap: candidate }
+    const candidateRecipe = newRecipe()
+    const candidateView = fitView({ width: candidate.width, height: candidate.height }, pane.value)
+    if (previous) previousFrame = context.getImageData(0, 0, canvas.value.width, canvas.value.height)
     const request: WorkerRequest = { kind: 'source', sourceId: imageVersion.value + 1, width: candidate.width, height: candidate.height, pixels: workerPixels, preview }
+    publishing = true
+    readyRevision.value = -1
+    originalCanvas.value.width = candidate.width
+    originalCanvas.value.height = candidate.height
+    originalContext.putImageData(pixels, 0, 0)
+    canvas.value.width = candidate.width
+    canvas.value.height = candidate.height
+    context.putImageData(pixels, 0, 0)
     worker.postMessage(request, preview ? [workerPixels.buffer, preview.pixels.buffer] : [workerPixels.buffer])
+    document.value = candidateDocument
+    recipe.value = candidateRecipe
+    renderRevision += 1
+    readyRevision.value = renderRevision
+    if (renderTimer) clearTimeout(renderTimer)
+    hasPreview = candidateHasPreview
     showing.value = 'edited'
     endDrag()
-    view.value = fitView({ width: candidate.width, height: candidate.height }, pane.value)
+    view.value = candidateView
     imageVersion.value += 1
     candidate = null
     previous?.bitmap.close()
     notice.value = { kind: 'success', text: `${source.name} is ready. Your original stays untouched.` }
   } catch (error) {
+    if (publishing && previous && previousFrame && canvas.value && originalCanvas.value) {
+      try {
+        originalCanvas.value.width = previous.bitmap.width
+        originalCanvas.value.height = previous.bitmap.height
+        const originalContext = originalCanvas.value.getContext('2d')
+        if (!originalContext) throw new Error('The original image preview could not be restored.')
+        originalContext.drawImage(previous.bitmap, 0, 0)
+        canvas.value.width = previousFrame.width
+        canvas.value.height = previousFrame.height
+        const context = canvas.value.getContext('2d')
+        if (!context) throw new Error('The current image preview could not be restored.')
+        context.putImageData(previousFrame, 0, 0)
+        readyRevision.value = previousReadyRevision
+      } catch {
+        notice.value = { kind: 'error', text: 'The new image could not be opened and the preview could not be restored. Reopen your previous image to continue.' }
+        return
+      }
+    }
     notice.value = { kind: 'error', text: describeError(error) }
   } finally {
     candidate?.close()
