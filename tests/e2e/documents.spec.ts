@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:f
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { PNG } from 'pngjs'
+import { spawnSync } from 'node:child_process'
 
 function fixture(width: number, height: number): Buffer {
   const image = new PNG({ width, height })
@@ -170,6 +171,26 @@ test('unexpected process stop restores the last valid generation, falls back fro
     await app.evaluate(({ app }) => app.exit(19)).catch(() => {})
     app = await launch(profile)
     page = await app.firstWindow()
+    const offeredBytes = await readFile(join(recovery, 'latest.deepfryer'))
+    const replacement = join(folder, 'replacement.png')
+    await writeFile(replacement, fixture(40, 30))
+    await app.evaluate(({ ipcMain }, offer) => {
+      ipcMain.removeHandler('recovery:offer')
+      ipcMain.handle('recovery:offer', () => new Promise((resolve) => {
+        Reflect.set(globalThis, '__releaseRecoveryLookup', () => resolve(offer))
+      }))
+    }, { name: 'recover-me.png', savedAt: new Date().toISOString(), directory: recovery })
+    await page.reload()
+    await expect(page.locator('.open-button')).toBeDisabled()
+    await selectOpen(app, replacement)
+    await page.keyboard.press('Control+o')
+    await page.waitForTimeout(1100)
+    expect(await readFile(join(recovery, 'latest.deepfryer'))).toEqual(offeredBytes)
+    await app.evaluate(() => {
+      const release = Reflect.get(globalThis, '__releaseRecoveryLookup')
+      if (typeof release !== 'function') throw new Error('The delayed recovery request was not received')
+      release()
+    })
     await expect(page.getByRole('alertdialog')).toContainText('recover-me.png')
     await mkdir('.artifacts', { recursive: true })
     await page.screenshot({ path: '.artifacts/recovery-prompt.png' })
@@ -196,6 +217,42 @@ test('unexpected process stop restores the last valid generation, falls back fro
     await expect(page.getByRole('alertdialog')).toHaveCount(0)
     expect(await readdir(recovery)).toEqual([])
     await expect(page.getByRole('heading', { name: 'Open your first image.' })).toBeVisible()
+  } finally { await app.close().catch(() => {}); await rm(folder, { recursive: true, force: true }) }
+})
+
+test('a second application cannot own or delete the live profile recovery', async () => {
+  const folder = await mkdtemp(join(tmpdir(), 'deep-fryer-profile-owner-'))
+  const profile = join(folder, 'profile')
+  const source = join(folder, 'live-edit.png')
+  await writeFile(source, fixture(50, 40))
+  let app = await launch(profile)
+  try {
+    let page = await app.firstWindow()
+    await selectOpen(app, source)
+    await page.getByRole('button', { name: 'Open image' }).click()
+    await ready(page)
+    await expect(page.getByRole('note')).toContainText('Recovery saved')
+    const checkpoint = join(profile, 'recovery', 'latest.deepfryer')
+    const saved = await readFile(checkpoint)
+    await app.evaluate(({ app }) => {
+      Reflect.set(globalThis, '__secondInstanceCount', 0)
+      app.on('second-instance', () => Reflect.set(globalThis, '__secondInstanceCount', Number(Reflect.get(globalThis, '__secondInstanceCount')) + 1))
+    })
+    const executable = await app.evaluate(() => process.execPath)
+    const second = spawnSync(executable, [...(process.env.DEEP_FRYER_EXECUTABLE ? [] : [resolve('.')]), `--user-data-dir=${profile}`], {
+      env: { ...process.env, ELECTRON_RENDERER_URL: '' }, timeout: 10_000, windowsHide: true, encoding: 'utf8'
+    })
+    expect(second.error).toBeUndefined()
+    expect(second.status, second.stderr).toBe(0)
+    await expect.poll(() => app.evaluate(() => Reflect.get(globalThis, '__secondInstanceCount'))).toBe(1)
+    expect(await readFile(checkpoint)).toEqual(saved)
+    await app.evaluate(({ app }) => app.exit(19)).catch(() => {})
+    app = await launch(profile)
+    page = await app.firstWindow()
+    await expect(page.getByRole('alertdialog')).toContainText('live-edit.png')
+    await page.getByRole('button', { name: 'Restore work' }).click()
+    await ready(page)
+    await expect(page.locator('.filename')).toHaveText('live-edit.png')
   } finally { await app.close().catch(() => {}); await rm(folder, { recursive: true, force: true }) }
 })
 

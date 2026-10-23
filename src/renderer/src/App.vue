@@ -350,6 +350,7 @@ worker.onerror = (): void => {
 
 async function exportPng(): Promise<void> {
   if (busy.value || readyRevision.value !== renderRevision || document.value === null || canvas.value === null) return
+  files.cancelCheckpoint()
   operation.value = { kind: 'exporting' }
   try {
     const source = document.value
@@ -363,6 +364,7 @@ async function exportPng(): Promise<void> {
     notice.value = { kind: 'error', text: describeError(error) }
   } finally {
     operation.value = { kind: 'idle' }
+    files.scheduleCheckpoint()
   }
 }
 

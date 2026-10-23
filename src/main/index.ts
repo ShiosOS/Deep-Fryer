@@ -9,6 +9,7 @@ import { RecoveryStore } from './recovery'
 
 const profile = app.commandLine.getSwitchValue('user-data-dir')
 if (profile) { mkdirSync(profile, { recursive: true }); app.setPath('userData', profile) }
+const ownsProfile = app.requestSingleInstanceLock()
 const recovery = new RecoveryStore(join(app.getPath('userData'), 'recovery'), validateSource)
 let quitting = false
 let preserveRecovery = false
@@ -92,15 +93,21 @@ function createWindow(): void {
   void editor.loadURL(rendererUrl)
 }
 
-app.whenReady().then(() => {
-  Menu.setApplicationMenu(null)
-  createWindow()
-  app.on('activate', () => { if (window === null) createWindow() })
-})
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit() })
-app.on('before-quit', (event) => {
-  if (quitting || preserveRecovery) return
-  event.preventDefault()
-  quitting = true
-  void recovery.close().finally(() => app.quit())
-})
+if (ownsProfile) {
+  app.on('second-instance', () => {
+    if (window?.isMinimized()) window.restore()
+    window?.focus()
+  })
+  app.whenReady().then(() => {
+    Menu.setApplicationMenu(null)
+    createWindow()
+    app.on('activate', () => { if (window === null) createWindow() })
+  })
+  app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit() })
+  app.on('before-quit', (event) => {
+    if (quitting || preserveRecovery) return
+    event.preventDefault()
+    quitting = true
+    void recovery.close().finally(() => app.quit())
+  })
+} else { app.quit() }

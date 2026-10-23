@@ -24,7 +24,8 @@ export function describeError(error: unknown): string {
 
 export function useDocumentFiles(owner: DocumentOwner) {
   const recoveryOffer = ref<RecoveryOffer>(null)
-  const recoveryStatus = ref('Recovery saves completed edits locally for up to seven days after an interruption.')
+  const recoveryStatus = ref('Checking for interrupted work…')
+  let recoveryState: 'checking' | 'ready' | 'failed' = 'checking'
   let checkpointTimer: ReturnType<typeof setTimeout> | null = null
 
   function cancelCheckpoint(): void {
@@ -36,7 +37,7 @@ export function useDocumentFiles(owner: DocumentOwner) {
     return source ? { source: { name: source.name, mime: source.mime, bytes: source.bytes }, recipe: owner.recipe() } : null
   }
   async function run(operation: FileOperation, action: () => Promise<void>, allowRecovery = false): Promise<void> {
-    if (owner.busy.value || recoveryOffer.value && !allowRecovery) return
+    if (recoveryState === 'checking' || owner.busy.value || recoveryOffer.value && !allowRecovery) return
     cancelCheckpoint()
     owner.setOperation(operation)
     try { await action() } catch (error) { owner.report({ kind: 'error', text: describeError(error) }) }
@@ -50,10 +51,10 @@ export function useDocumentFiles(owner: DocumentOwner) {
   }
   function scheduleCheckpoint(): void {
     cancelCheckpoint()
-    if (!owner.ready() || owner.gestureActive() || recoveryOffer.value) return
+    if (recoveryState !== 'ready' || !owner.ready() || owner.gestureActive() || recoveryOffer.value) return
     checkpointTimer = setTimeout(() => {
       checkpointTimer = null
-      if (!owner.ready() || owner.gestureActive()) return
+      if (recoveryState !== 'ready' || recoveryOffer.value || !owner.ready() || owner.gestureActive()) return
       const document = current()
       if (!document) return
       void window.documentBridge.checkpoint(document).then(() => {
@@ -98,8 +99,15 @@ export function useDocumentFiles(owner: DocumentOwner) {
     })
   }
   async function checkRecovery(): Promise<void> {
-    try { recoveryOffer.value = await window.documentBridge.recoveryOffer() }
-    catch (error) { recoveryStatus.value = `Recovery could not be checked. ${describeError(error)}` }
+    owner.setOperation('opening')
+    try {
+      recoveryOffer.value = await window.documentBridge.recoveryOffer()
+      recoveryState = 'ready'
+      recoveryStatus.value = 'Recovery saves completed edits locally for up to seven days after an interruption.'
+    } catch (error) {
+      recoveryState = 'failed'
+      recoveryStatus.value = `Recovery could not be checked. Automatic recovery is disabled for this session to preserve existing copies. ${describeError(error)}`
+    } finally { owner.finishOperation() }
   }
   async function restoreRecovery(): Promise<void> {
     await run('opening', async () => {
