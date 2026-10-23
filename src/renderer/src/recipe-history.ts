@@ -11,6 +11,13 @@ export function useRecipeHistory(initial: Recipe) {
   const canUndo = ref(false)
   const canRedo = ref(false)
   let start: Recipe | null = null
+  let confirmed: { recipe: Recipe; undo: Recipe[]; redo: Recipe[]; start: Recipe | null } = {
+    recipe: snapshotRecipe(initial), undo: [], redo: [], start: null
+  }
+
+  function confirm(): void {
+    confirmed = { recipe: snapshotRecipe(recipe.value), undo: [...undoStack], redo: [...redoStack], start: start && snapshotRecipe(start) }
+  }
 
   function refresh(): void {
     canUndo.value = undoStack.length > 0 || start !== null && !same(start, recipe.value)
@@ -59,13 +66,14 @@ export function useRecipeHistory(initial: Recipe) {
     redoStack.length = 0
     start = null
     refresh()
+    confirm()
   }
-  function rollback(next: Recipe): void {
-    start = null
-    while (undoStack.length > 0 && !same(recipe.value, next)) recipe.value = undoStack.pop()!
-    if (!same(recipe.value, next)) recipe.value = snapshotRecipe(next)
-    redoStack.length = 0
-    refresh()
+  function rollback(): void {
+    recipe.value = snapshotRecipe(confirmed.recipe)
+    undoStack.splice(0, undoStack.length, ...confirmed.undo)
+    redoStack.splice(0, redoStack.length, ...confirmed.redo)
+    start = confirmed.start && snapshotRecipe(confirmed.start)
+    end()
   }
-  return { recipe, canUndo: computed(() => canUndo.value), canRedo: computed(() => canRedo.value), begin, end, change, undo, redo, reset, rollback }
+  return { recipe, canUndo: computed(() => canUndo.value), canRedo: computed(() => canRedo.value), begin, end, change, undo, redo, reset, confirm, rollback }
 }

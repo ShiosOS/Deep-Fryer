@@ -13,6 +13,7 @@ function beginInput(event: Event): void {
 }
 function endInput(event: Event): void {
   const target = event.target
+  if (event.type.startsWith('pointer') && (!(target instanceof HTMLInputElement) || target.type !== 'range')) return
   if (target instanceof HTMLInputElement && (target.type === 'number' || target.type === 'range' || target.type === 'color')) {
     emit('gestureEnd')
     for (const key of Object.keys(drafts)) delete drafts[key]

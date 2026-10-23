@@ -28,7 +28,6 @@ function sample(input: ImageData, x: number, y: number, output: Uint8ClampedArra
   for (let channel = 0; channel < 3; channel += 1) output[offset + channel] = alpha === 0 ? 0 : premultiplied[channel]! / alpha
 }
 
-/** Each bulge effect samples the previous effect's frame. Overlap follows Recipe order, top to bottom. */
 export function applyBulge(input: ImageData, effect: Bulge): ImageData {
   const output = new Uint8ClampedArray(input.data)
   if (!effect.enabled || effect.mix === 0 || effect.strength === 0) return new ImageData(output, input.width, input.height)
