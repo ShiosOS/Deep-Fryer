@@ -191,6 +191,34 @@ test('independent color controls preview and export combined settings while pres
     await expect(page.locator('.notice.error')).toBeVisible()
     await expect(page.getByRole('spinbutton', { name: 'Contrast value' })).toHaveValue('150')
     await expect(page.getByRole('spinbutton', { name: 'Saturation value' })).toHaveValue('0')
+    for (const failure of ['pixel preparation', 'worker publication']) {
+      await page.evaluate((stage) => {
+        if (stage === 'pixel preparation') {
+          const readPixels = CanvasRenderingContext2D.prototype.getImageData
+          CanvasRenderingContext2D.prototype.getImageData = function () {
+            CanvasRenderingContext2D.prototype.getImageData = readPixels
+            throw new Error('Injected pixel preparation failure')
+          }
+        } else {
+          const postMessage = Worker.prototype.postMessage
+          Worker.prototype.postMessage = function () {
+            Worker.prototype.postMessage = postMessage
+            throw new Error('Injected worker publication failure')
+          }
+        }
+      }, failure)
+      await selectOpen(app, source)
+      await page.getByRole('button', { name: 'Open image' }).click()
+      await expect(page.getByRole('status')).toContainText(`Injected ${failure} failure`)
+      await expect(page.getByRole('spinbutton', { name: 'Contrast value' })).toHaveValue('150')
+      await expect(page.getByRole('spinbutton', { name: 'Saturation value' })).toHaveValue('0')
+      await expect(page.getByRole('button', { name: 'Export PNG' })).toBeEnabled()
+      const retained = await page.getByLabel('Edited full resolution image canvas').evaluate((element) => {
+        if (!(element instanceof HTMLCanvasElement)) throw new Error('Preview canvas missing')
+        return Array.from(element.getContext('2d')!.getImageData(0, 0, 200, 100).data)
+      })
+      expect(retained).toEqual(preview)
+    }
     await selectSave(app, output)
     await page.getByRole('button', { name: 'Export PNG' }).click()
     await expect(page.getByRole('status')).toContainText('Saved color.png')
