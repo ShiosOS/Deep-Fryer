@@ -1,0 +1,207 @@
+{
+  "generator": "scripts/render-help-media.mjs",
+  "electron": "45.0.0",
+  "seed": 3328622589,
+  "presets": {
+    "original": {
+      "seed": 3328622589,
+      "effects": []
+    },
+    "brightness": {
+      "seed": 3328622589,
+      "effects": [
+        {
+          "enabled": true,
+          "mix": 100,
+          "id": "brightness",
+          "kind": "brightness",
+          "value": 35
+        }
+      ]
+    },
+    "contrast": {
+      "seed": 3328622589,
+      "effects": [
+        {
+          "enabled": true,
+          "mix": 100,
+          "id": "contrast",
+          "kind": "contrast",
+          "value": 500
+        }
+      ]
+    },
+    "saturation": {
+      "seed": 3328622589,
+      "effects": [
+        {
+          "enabled": true,
+          "mix": 100,
+          "id": "saturation",
+          "kind": "saturation",
+          "value": 500
+        }
+      ]
+    },
+    "levels": {
+      "seed": 3328622589,
+      "effects": [
+        {
+          "enabled": true,
+          "mix": 100,
+          "id": "levels",
+          "kind": "levels",
+          "value": 4
+        }
+      ]
+    },
+    "sharpen": {
+      "seed": 3328622589,
+      "effects": [
+        {
+          "enabled": true,
+          "mix": 100,
+          "id": "sharpen",
+          "kind": "sharpen",
+          "value": 200
+        }
+      ]
+    },
+    "noise": {
+      "seed": 3328622589,
+      "effects": [
+        {
+          "enabled": true,
+          "mix": 100,
+          "id": "noise",
+          "kind": "noise",
+          "value": 70
+        }
+      ]
+    },
+    "jpeg": {
+      "seed": 3328622589,
+      "effects": [
+        {
+          "enabled": true,
+          "mix": 100,
+          "id": "jpeg",
+          "kind": "jpeg",
+          "quality": 8,
+          "passes": 3,
+          "background": "#ffffff"
+        }
+      ]
+    },
+    "bulge": {
+      "seed": 3328622589,
+      "effects": [
+        {
+          "enabled": true,
+          "mix": 100,
+          "id": "bulge",
+          "kind": "bulge",
+          "x": 0.5,
+          "y": 0.5,
+          "radius": 0.45,
+          "strength": 85
+        }
+      ]
+    },
+    "jpeg-sharpen": {
+      "seed": 3328622589,
+      "effects": [
+        {
+          "enabled": true,
+          "mix": 100,
+          "id": "jpeg",
+          "kind": "jpeg",
+          "quality": 8,
+          "passes": 3,
+          "background": "#ffffff"
+        },
+        {
+          "enabled": true,
+          "mix": 100,
+          "id": "sharpen",
+          "kind": "sharpen",
+          "value": 200
+        }
+      ]
+    },
+    "sharpen-jpeg": {
+      "seed": 3328622589,
+      "effects": [
+        {
+          "enabled": true,
+          "mix": 100,
+          "id": "sharpen",
+          "kind": "sharpen",
+          "value": 200
+        },
+        {
+          "enabled": true,
+          "mix": 100,
+          "id": "jpeg",
+          "kind": "jpeg",
+          "quality": 8,
+          "passes": 3,
+          "background": "#ffffff"
+        }
+      ]
+    },
+    "contrast-100": {
+      "seed": 3328622589,
+      "effects": [
+        {
+          "enabled": true,
+          "mix": 100,
+          "id": "contrast",
+          "kind": "contrast",
+          "value": 100
+        }
+      ]
+    },
+    "contrast-200": {
+      "seed": 3328622589,
+      "effects": [
+        {
+          "enabled": true,
+          "mix": 100,
+          "id": "contrast",
+          "kind": "contrast",
+          "value": 200
+        }
+      ]
+    },
+    "contrast-500": {
+      "seed": 3328622589,
+      "effects": [
+        {
+          "enabled": true,
+          "mix": 100,
+          "id": "contrast",
+          "kind": "contrast",
+          "value": 500
+        }
+      ]
+    }
+  },
+  "sha256": {
+    "original": "c96e232815762adf14fbb658d59052a5bb86fe9b6e0f79b2b2843ba929c06874",
+    "brightness": "4d50b97eeb851c24aef1e0914d632bbba0e7d447f5449ed9119d2a852953e428",
+    "contrast": "d66777e11a450d72c19154543935a65103b59e36a1ab1b4628b71a830d48b406",
+    "saturation": "abc059bb3f8b916b85def6765deff58f3bb146838757070864888f9e7cd06b73",
+    "levels": "9dd6b7100793da04210d7a4ef957ce60c6dc850e453277301d6cf5c76873362f",
+    "sharpen": "2a408e008c13edce19e0f2eb36f7d327931a3b589ecdb153b3103b2be322f29b",
+    "noise": "de51d8304eb3b5639c2b9a9860d312c80a7373d0f735f65d19e341425c4fabb8",
+    "jpeg": "cac11d9f3fb3738f298beb59ccf06dec6013d4f847a7b47478aef8e08578ac09",
+    "bulge": "ad96f41d24f21dde478c0c1ee6745159d340313ab5bd3af4e09764ad5d0fc2c0",
+    "jpeg-sharpen": "7e3eda66023cc49a16d24a448db43b573e72f3c6d4eeb0c08fe4e0c4a379b86b",
+    "sharpen-jpeg": "89197fa8227c285098f28ac1837c3b8263f6b5b85928eb6bb18c4c5a39499df5",
+    "contrast-100": "c96e232815762adf14fbb658d59052a5bb86fe9b6e0f79b2b2843ba929c06874",
+    "contrast-200": "b17c940bee1b2dc7787cc6b9eafaddbb36e8e54b438168b84d5c252626efa1cd",
+    "contrast-500": "d66777e11a450d72c19154543935a65103b59e36a1ab1b4628b71a830d48b406",
+    "contrast-poster": "5f62a9878217131e1b799562af728ccf6999a69914afbf5d8f62c7295cf626fd"
+  }
+}

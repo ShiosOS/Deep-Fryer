@@ -72,13 +72,14 @@ export function useDocumentFiles(owner: DocumentOwner) {
       scheduleCheckpoint()
     })
   }
-  async function saveProject(): Promise<void> {
+  async function saveProject(suggestedName: string): Promise<void> {
     if (!owner.ready()) return
     await run('exporting', async () => {
       const document = current()
       if (!document) return
-      const result = await window.documentBridge.saveProject(document)
+      const result = await window.documentBridge.saveProject({ document, suggestedName })
       if (result.kind === 'saved') owner.report({ kind: 'success', text: `Saved ${result.name}. Move this project anywhere to continue editing.` })
+      else owner.report({ kind: 'info', text: 'Project save canceled. No file was saved.' })
     })
   }
   async function loadPreset(): Promise<void> {
@@ -89,13 +90,14 @@ export function useDocumentFiles(owner: DocumentOwner) {
     })
     if (candidate) owner.applyPreset(candidate)
   }
-  async function savePreset(): Promise<void> {
+  async function savePreset(suggestedName: string): Promise<void> {
     if (!owner.ready()) return
     await run('exporting', async () => {
       const document = current()
       if (!document) return
-      const result = await window.documentBridge.savePreset(document.preset, document.source.name)
+      const result = await window.documentBridge.savePreset({ preset: document.preset, suggestedName })
       if (result.kind === 'saved') owner.report({ kind: 'success', text: `Saved ${result.name}. This preset contains settings and its saved seed, without the source image.` })
+      else owner.report({ kind: 'info', text: 'Preset save canceled. No file was saved.' })
     })
   }
   async function checkRecovery(): Promise<void> {

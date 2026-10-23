@@ -1,7 +1,8 @@
 import type { ImageBridge } from '../../shared/image'
 import type { DocumentBridge } from '../../shared/documents'
+import type { AppearanceBridge } from '../../shared/appearance'
 
 declare global {
   const __APP_VERSION__: string
-  interface Window { imageBridge: ImageBridge; documentBridge: DocumentBridge }
+  interface Window { imageBridge: ImageBridge; documentBridge: DocumentBridge; appearanceBridge: AppearanceBridge }
 }

@@ -6,12 +6,18 @@ import { snapshotPreset } from './preset-history'
 import { fryAmounts, namedLooks, namedPreset, parameterKey, randomizePreset, randomParameters, scaleFry, type NamedLook } from './preset-looks'
 
 const props = defineProps<{ preset: Preset; bitmap: ImageBitmap; disabled: boolean; restoreVersion: number }>()
-const emit = defineEmits<{ change: [preset: Preset]; gestureBegin: []; gestureEnd: [] }>()
-const look = ref<NamedLook>('Crispy color')
+const emit = defineEmits<{ change: [preset: Preset]; gestureBegin: []; gestureEnd: []; loadPreset: []; savePreset: [] }>()
+const look = ref<NamedLook | ''>('')
 const amount = ref(100)
 const baseline = shallowRef(snapshotPreset(props.preset))
 const locks = ref(new Set<string>())
 const dialog = ref<HTMLDialogElement | null>(null)
+const menu = ref<HTMLDetailsElement | null>(null)
+function presetFile(action: 'load' | 'save'): void {
+  if (menu.value) { menu.value.open = false; menu.value.querySelector<HTMLElement>('summary')?.focus() }
+  if (action === 'load') emit('loadPreset')
+  else emit('savePreset')
+}
 const candidates = shallowRef<Array<{ preset: Preset; amount: number; thumbnail: string }>>([])
 const selectedAmount = ref(60)
 const comparisonStatus = ref('')
@@ -29,11 +35,17 @@ watch(() => props.preset, (preset) => {
   if (JSON.stringify(preset) === published) { published = ''; return }
   baseline.value = snapshotPreset(preset)
   amount.value = 100
+  look.value = ''
 })
 watch(() => props.restoreVersion, () => { baseline.value = snapshotPreset(props.preset); amount.value = 100 })
 
-function applyLook(): void {
-  const preset = namedPreset(look.value, props.preset.seed)
+function applyLook(event: Event): void {
+  if (!(event.target instanceof HTMLSelectElement)) return
+  const value = event.target.value
+  const selected = namedLooks.find((name) => name === value)
+  if (!selected) return
+  look.value = selected
+  const preset = namedPreset(selected, props.preset.seed)
   baseline.value = snapshotPreset(preset)
   amount.value = 100
   publish(preset)
@@ -111,20 +123,19 @@ onUnmounted(() => { comparisonGeneration += 1; comparisonCancellation?.abort() }
 </script>
 
 <template>
-  <section class="preset-looks" aria-label="Preset looks">
-    <div class="controls-heading"><span class="eyebrow">START WITH A LOOK</span></div>
-    <label class="look-choice">Named look <select v-model="look" :disabled="disabled"><option v-for="name in namedLooks" :key="name">{{ name }}</option></select></label>
-    <button type="button" :disabled="disabled" @click="applyLook">Apply named look</button>
-    <label class="fry-amount">Fry amount <span class="amount-value" aria-hidden="true">{{ amount }}%</span><input type="range" aria-label="Fry amount" min="0" max="100" :value="amount" :disabled="disabled" @pointerdown="emit('gestureBegin')" @pointerup="emit('gestureEnd')" @pointercancel="emit('gestureEnd')" @change="emit('gestureEnd')" @input="changeAmount"></label>
-    <button type="button" :disabled="disabled || neutral" @click="compare">Compare five levels</button>
+  <section class="preset-looks" aria-label="Presets">
+    <div class="controls-heading"><span class="eyebrow">Preset</span></div>
+    <label class="look-choice"><span class="sr-only">Preset</span><select :value="look" :disabled="disabled" aria-label="Preset" @change="applyLook"><option value="" disabled>Current settings</option><option v-for="name in namedLooks" :key="name">{{ name }}</option></select></label>
+    <details ref="menu" class="preset-menu"><summary role="button">Preset actions</summary><div class="menu-items"><button type="button" :disabled="disabled" @click="presetFile('load')">Load preset</button><button type="button" :disabled="disabled" @click="presetFile('save')">Save preset as…</button></div></details>
+    <label class="fry-amount">Fry level <span class="amount-value" aria-hidden="true">{{ amount }}%</span><input type="range" aria-label="Fry level" min="0" max="100" :value="amount" :disabled="disabled" @pointerdown="emit('gestureBegin')" @pointerup="emit('gestureEnd')" @pointercancel="emit('gestureEnd')" @change="emit('gestureEnd')" @input="changeAmount"></label>
+    <div class="fry-buttons"><button type="button" :disabled="disabled" @click="randomize">Randomize</button><button type="button" :disabled="disabled || neutral" @click="compare">Compare 5</button></div>
     <details class="random-locks"><summary>Randomization locks</summary><template v-for="(effect, index) in preset.effects" :key="effect.id"><label v-for="parameter in randomParameters(effect)" :key="parameter.key"><input type="checkbox" :aria-label="`Lock ${parameter.label} ${index + 1}`" :checked="locks.has(parameterKey(effect, parameter.key))" :disabled="disabled" @change="toggleLock(parameterKey(effect, parameter.key))">Lock {{ parameter.label }} <small>Effect {{ index + 1 }}</small></label></template></details>
-    <button type="button" :disabled="disabled" @click="randomize">Randomize unlocked settings</button>
-    <p class="jpeg-note">Locks keep selected values. Randomize creates a new saved noise pattern; point positions and effect order stay fixed.</p>
+
   </section>
   <dialog ref="dialog" class="variation-dialog" aria-labelledby="variation-title" @cancel.prevent="closeComparison">
     <h2 id="variation-title">Choose a fry level</h2>
     <p role="status">{{ comparisonStatus }}</p>
-    <fieldset :disabled="comparisonBusy"><legend>Five levels from the current preset</legend><div class="variation-grid"><label v-for="candidate in candidates" :key="candidate.amount" class="variation-choice"><img :src="candidate.thumbnail" :alt="`Draft at ${candidate.amount}% fry amount`"><span><input v-model="selectedAmount" type="radio" name="variation" :value="candidate.amount">{{ candidate.amount }}% fry</span></label></div></fieldset>
+    <fieldset :disabled="comparisonBusy"><legend>Five levels from the current preset</legend><div class="variation-grid"><label v-for="candidate in candidates" :key="candidate.amount" class="variation-choice"><img :src="candidate.thumbnail" :alt="`Draft at ${candidate.amount}% fry level`"><span><input v-model="selectedAmount" type="radio" name="variation" :value="candidate.amount">{{ candidate.amount }}% fry</span></label></div></fieldset>
     <div class="variation-actions"><button type="button" @click="closeComparison">Cancel</button><button type="button" :disabled="comparisonBusy || candidates.length !== 5" @click="applyCandidate">Apply selected level</button></div>
   </dialog>
 </template>

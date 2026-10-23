@@ -1,3 +1,4 @@
+import { controls } from './ui'
 import { _electron as electron, expect, test, type Locator, type Page } from '@playwright/test'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -30,18 +31,18 @@ test('keyboard completes import, effect and point edits, undo, variation selecti
     const errors: string[] = []
     page.on('pageerror', (error) => errors.push(error.message))
     await app.evaluate(({ dialog }, selected) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [selected] }) }, source)
-    await expect(page.getByRole('button', { name: 'Open image' })).toBeEnabled()
+    await expect(page.locator('.open-button')).toBeEnabled()
     await page.keyboard.press('Control+o')
-    const exportButton = page.getByRole('button', { name: 'Export PNG' })
+    const exportButton = page.getByRole('button', { name: 'Export', exact: true })
     await expect(exportButton).toBeEnabled()
     const add = page.getByRole('combobox', { name: 'Add effect' })
     await tabTo(page, add)
     await page.keyboard.press('Space')
     await page.keyboard.press('End')
     await page.keyboard.press('Enter')
-    await expect(page.locator('[data-effect-kind="bulge"]')).toHaveCount(1)
+    await expect((await controls(page)).locator('[data-effect-kind="bulge"]')).toHaveCount(1)
     for (const [name, value] of [['Bulge x value', '35'], ['Bulge y value', '65'], ['Bulge radius value', '40'], ['Bulge strength value', '-60']] as const) {
-      await tabTo(page, page.getByRole('spinbutton', { name, exact: true }))
+      await tabTo(page, (await controls(page)).getByRole('spinbutton', { name, exact: true }))
       await page.keyboard.press('Control+a')
       await page.keyboard.type(value)
       await page.keyboard.press('Tab')
@@ -51,12 +52,12 @@ test('keyboard completes import, effect and point edits, undo, variation selecti
     const redo = page.getByRole('button', { name: 'Redo', exact: true })
     await tabTo(page, undo)
     await page.keyboard.press('Enter')
-    await expect(page.getByRole('spinbutton', { name: 'Bulge strength value' })).toHaveValue('50')
+    await expect((await controls(page)).getByRole('spinbutton', { name: 'Bulge strength value' })).toHaveValue('50')
     await tabTo(page, redo)
     await page.keyboard.press('Enter')
     await expect(exportButton).toBeEnabled()
-    await expect(page.getByRole('spinbutton', { name: 'Bulge strength value' })).toHaveValue('-60')
-    const compare = page.getByRole('button', { name: 'Compare five levels' })
+    await expect((await controls(page)).getByRole('spinbutton', { name: 'Bulge strength value' })).toHaveValue('-60')
+    const compare = page.getByRole('button', { name: 'Compare 5' })
     await tabTo(page, compare)
     await page.keyboard.press('Enter')
     const variations = page.getByRole('dialog', { name: 'Choose a fry level' })
@@ -72,7 +73,9 @@ test('keyboard completes import, effect and point edits, undo, variation selecti
     await tabTo(page, variations.getByRole('button', { name: 'Apply selected level' }))
     await page.keyboard.press('Enter')
     await expect(exportButton).toBeEnabled()
-    await expect(page.getByRole('spinbutton', { name: 'Bulge strength value' })).toHaveValue('-24')
+    await expect((await controls(page)).getByRole('spinbutton', { name: 'Bulge strength value' })).toHaveValue('-24')
+    await tabTo(page, exportButton)
+    await page.keyboard.press('Enter')
     for (const [name, value] of [['Output width', '40'], ['Output height', '30']] as const) {
       await tabTo(page, page.getByRole('spinbutton', { name, exact: true }))
       await page.keyboard.press('Control+a')

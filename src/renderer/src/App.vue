@@ -2,8 +2,13 @@
 import { computed, onMounted, onUnmounted, ref, shallowRef } from 'vue'
 import { validateDimensions, type OpenImage } from '../../shared/image'
 import EffectsPanel from './EffectsPanel.vue'
-import PresetLooks from './PresetLooks.vue'
-import OutputPanel from './OutputPanel.vue'
+import PresetControls from './PresetControls.vue'
+import ExportDialog from './ExportDialog.vue'
+import SettingsDialog from './SettingsDialog.vue'
+import SaveNameDialog from './SaveNameDialog.vue'
+import HelpDialog from './HelpDialog.vue'
+import { useAppearance } from './appearance'
+import appIcon from './assets/minimal-app-icon.svg'
 import BulgeOverlay from './BulgeOverlay.vue'
 import DocumentControls from './DocumentControls.vue'
 import { useDocumentFiles } from './document-files'
@@ -16,7 +21,10 @@ import { actualSize, fitView, imageOrigin, paneToImage, pan, resizeView, zoom, t
 type ImageDocument = Readonly<OpenImage & { bitmap: ImageBitmap }>
 type Operation = { kind: 'idle' } | { kind: 'opening' } | { kind: 'processing' } | { kind: 'exporting' }
 type Notice = { kind: 'info' | 'success' | 'error'; text: string }
-const applicationVersion = __APP_VERSION__
+const appearance = useAppearance()
+const settingsDialog = ref<InstanceType<typeof SettingsDialog> | null>(null)
+const nameDialog = ref<InstanceType<typeof SaveNameDialog> | null>(null)
+const helpDialog = ref<InstanceType<typeof HelpDialog> | null>(null)
 
 const document = shallowRef<ImageDocument | null>(null)
 const operation = ref<Operation>({ kind: 'idle' })
@@ -24,7 +32,7 @@ const notice = ref<Notice>({ kind: 'info', text: 'Open an image to preview and e
 const canvas = ref<HTMLCanvasElement | null>(null)
 const originalCanvas = ref<HTMLCanvasElement | null>(null)
 const stage = ref<HTMLElement | null>(null)
-const outputPanel = ref<InstanceType<typeof OutputPanel> | null>(null)
+const outputPanel = ref<InstanceType<typeof ExportDialog> | null>(null)
 const pane = ref<Size>({ width: 0, height: 0 })
 const view = ref<InspectionView | null>(null)
 const showing = ref<'edited' | 'original'>('edited')
@@ -46,10 +54,6 @@ const busy = computed(() => operation.value.kind !== 'idle')
 const controlsBusy = computed(() => operation.value.kind === 'opening' || operation.value.kind === 'exporting')
 const presetNeutral = computed(() => preset.value.effects.every(isNeutralEffect))
 const dimensions = computed(() => document.value ? `${document.value.bitmap.width.toLocaleString()} × ${document.value.bitmap.height.toLocaleString()}` : 'No image yet')
-const fileSize = computed(() => {
-  const size = document.value?.bytes.byteLength ?? 0
-  return size < 1024 * 1024 ? `${(size / 1024).toFixed(1)} KB` : `${(size / 1024 / 1024).toFixed(1)} MB`
-})
 const imageSize = computed<Size | null>(() => document.value ? { width: document.value.bitmap.width, height: document.value.bitmap.height } : null)
 const imageStyle = computed(() => {
   if (!view.value || !imageSize.value) return {}
@@ -352,11 +356,28 @@ worker.onerror = (): void => {
 
 function exportOutput(): void {
   if (busy.value || readyRevision.value !== renderRevision) return
-  void outputPanel.value?.exportCurrent()
+  outputPanel.value?.open()
+}
+
+function openSaveName(kind: 'project' | 'preset'): void {
+  if (!document.value || busy.value || readyRevision.value !== renderRevision) return
+  void nameDialog.value?.open(kind, document.value.name)
+}
+function saveNamed(kind: 'project' | 'preset', name: string): void {
+  if (kind === 'project') void files.saveProject(name)
+  else void files.savePreset(name)
 }
 
 function onKeydown(event: KeyboardEvent): void {
   if (window.document.querySelector('dialog[open]')) return
+  if (event.key === 'Escape') {
+    for (const menu of window.document.querySelectorAll<HTMLDetailsElement>('.file-menu[open], .preset-menu[open]')) {
+      menu.open = false
+      menu.querySelector<HTMLElement>('summary')?.focus()
+    }
+    placingPoint.value = false
+    return
+  }
   if (!(event.ctrlKey || event.metaKey) || event.altKey) return
   if (event.key.toLowerCase() === 'o' && !event.shiftKey) {
     event.preventDefault()
@@ -368,7 +389,7 @@ function onKeydown(event: KeyboardEvent): void {
     void files.pasteImage()
   } else if (event.key.toLowerCase() === 's' && !event.shiftKey) {
     event.preventDefault()
-    void files.saveProject()
+    openSaveName('project')
   } else if (event.key.toLowerCase() === 's' && event.shiftKey) {
     event.preventDefault()
     exportOutput()
@@ -386,7 +407,7 @@ onMounted(() => {
   resizeObserver = new ResizeObserver(measurePane)
   if (stage.value) resizeObserver.observe(stage.value)
   measurePane()
-  void files.checkRecovery()
+  void appearance.load().then(() => files.checkRecovery())
 })
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeydown)
@@ -399,52 +420,42 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="editor" @dragover.prevent @drop="files.drop">
+  <div class="editor" :class="{ 'appearance-loading': !appearance.loaded.value }" @dragover.prevent @drop="files.drop">
     <header class="app-header">
-      <div class="brand"><span class="brand-mark" aria-hidden="true">✳</span><span>deep fryer<span class="brand-dot">.</span></span><span class="version">DESKTOP</span></div>
-      <span class="local-label"><span class="status-dot"></span> Local files. All yours.</span>
+      <img class="app-mark" :src="appIcon" alt="Deep Fryer">
+      <DocumentControls :busy="busy" :has-image="document !== null" :ready="readyRevision === renderRevision" :recovery-status="files.recoveryStatus.value" :recovery-offer="files.recoveryOffer.value" @open-image="openImage" @open-project="files.openProject" @save-project="openSaveName('project')" @paste-image="files.pasteImage" @restore-recovery="files.restoreRecovery" @discard-recovery="files.discardRecovery" />
+      <span class="header-divider"></span><span class="filename" :title="document?.name">{{ document?.name ?? 'Untitled' }}</span>
+      <div class="header-actions">
+        <button type="button" @click="helpDialog?.open()">Help</button>
+        <button type="button" @click="settingsDialog?.open()">Settings<span v-if="appearance.notice.value" aria-label="Settings need attention"> •</span></button>
+        <button type="button" class="primary export-button" :disabled="busy || !document || readyRevision !== renderRevision" aria-keyshortcuts="Control+Shift+S Meta+Shift+S" @click="exportOutput">Export</button>
+      </div>
     </header>
-
     <div class="workspace">
-      <aside class="sidebar">
-        <div class="sidebar-heading"><span class="eyebrow">YOUR WORKSPACE</span><span class="step">01</span></div>
-        <h1>Open. Preview.<br>Export.</h1>
-        <p class="intro">Choose a PNG or JPEG.<br>Shape it, inspect it, save a new image.</p>
-        <button class="button open-button" :disabled="busy" @click="openImage" aria-keyshortcuts="Control+O Meta+O">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h6l2 2h10v10H3zM3 7V5h7l2 2" /></svg>
-          <span>{{ operation.kind === 'opening' ? 'Opening…' : 'Open image' }}</span><kbd>Ctrl O</kbd>
-        </button>
-        <p class="format-note">PNG or JPEG · Up to 64 MiB</p>
-
-        <section class="image-details" aria-label="Image details">
-          <span class="eyebrow">CURRENT IMAGE</span>
-          <div class="file-heading"><span class="file-icon" aria-hidden="true">▧</span><div><strong class="filename">{{ document?.name ?? 'No image selected' }}</strong><span>{{ document ? (document.mime === 'image/png' ? 'PNG image' : 'JPEG image') : 'Waiting for an image' }}</span></div></div>
-          <dl v-if="document"><div><dt>Dimensions</dt><dd>{{ dimensions }} px</dd></div><div><dt>Source size</dt><dd>{{ fileSize }}</dd></div></dl>
-        </section>
-
-        <DocumentControls :busy="busy" :has-image="document !== null" :ready="readyRevision === renderRevision" :recovery-status="files.recoveryStatus.value" :recovery-offer="files.recoveryOffer.value" @open-project="files.openProject" @save-project="files.saveProject" @load-preset="files.loadPreset" @save-preset="files.savePreset" @paste-image="files.pasteImage" @restore-recovery="files.restoreRecovery" @discard-recovery="files.discardRecovery" />
-        <OutputPanel ref="outputPanel" :source="document" :preset="preset" :disabled="controlsBusy" @notice="notice = $event" @save-started="files.cancelCheckpoint" @save-finished="files.scheduleCheckpoint" />
-
-        <div v-if="document" class="history-controls" aria-label="Edit history"><button type="button" :disabled="!history.canUndo.value || controlsBusy" aria-keyshortcuts="Control+Z Meta+Z" @click="restoreFromHistory('undo')">Undo</button><button type="button" :disabled="!history.canRedo.value || controlsBusy" aria-keyshortcuts="Control+Shift+Z Control+Y Meta+Shift+Z" @click="restoreFromHistory('redo')">Redo</button></div>
-        <PresetLooks v-if="document" :key="imageVersion" :preset="preset" :bitmap="document.bitmap" :restore-version="restoreVersion" :disabled="controlsBusy" @change="changePreset" @gesture-begin="beginGesture" @gesture-end="endGesture" />
+      <aside class="sidebar" aria-label="Image controls">
+        <div class="history-controls" aria-label="Edit history"><button type="button" :disabled="!history.canUndo.value || controlsBusy" aria-keyshortcuts="Control+Z Meta+Z" @click="restoreFromHistory('undo')">Undo</button><button type="button" :disabled="!history.canRedo.value || controlsBusy" aria-keyshortcuts="Control+Shift+Z Control+Y Meta+Shift+Z" @click="restoreFromHistory('redo')">Redo</button></div>
+        <PresetControls v-if="document" :key="imageVersion" :preset="preset" :bitmap="document.bitmap" :restore-version="restoreVersion" :disabled="controlsBusy" @change="changePreset" @gesture-begin="beginGesture" @gesture-end="endGesture" @load-preset="files.loadPreset" @save-preset="openSaveName('preset')" />
+        <p v-else class="inspector-empty">Open an image to choose a preset and adjust its effects.</p>
         <EffectsPanel v-if="document" :key="imageVersion" :preset="preset" :restore-version="restoreVersion" :selected-point-id="selectedPointId" :disabled="controlsBusy" @change="changePreset" @gesture-begin="beginGesture" @gesture-end="endGesture" @select-point="selectedPointId = $event; showing = 'edited'" />
-
-        <div class="sidebar-bottom"><div class="original-note"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6z" /><path d="m8 12 3 3 5-6" /></svg><span>Your original is safe.<small>Exports always use a new file.</small></span></div><span class="edition">DEEP FRYER / VERSION {{ applicationVersion }}</span></div>
+        <div class="notice" :class="notice.kind" role="status" aria-live="polite">{{ notice.text }}</div>
+        <button v-if="document && readyRevision !== renderRevision" type="button" @click="cancelPending">Cancel pending changes</button>
       </aside>
-
       <main class="main-area">
-        <div class="preview-toolbar"><div><span class="preview-label">Preview</span><span v-if="document" class="original-badge">{{ showing === 'original' ? 'ORIGINAL' : operation.kind === 'processing' ? 'PROCESSING' : presetNeutral ? 'UNCHANGED' : 'EDITED' }}</span></div><div v-if="document" class="inspection-controls" aria-label="Image inspection controls"><button type="button" :aria-pressed="placingPoint" :disabled="controlsBusy" @click="placingPoint = !placingPoint; showing = 'edited'">{{ placingPoint ? 'Click image…' : 'Place point' }}</button><button type="button" @click="fit">Fit</button><button type="button" @click="oneToOne">100%</button><button type="button" aria-label="Zoom out" @click="zoomAt(-1)">−</button><span class="preview-scale">{{ zoomLabel }}</span><button type="button" aria-label="Zoom in" @click="zoomAt(1)">+</button><span class="inspection-divider"></span><button type="button" :aria-pressed="showing === 'original'" @click="showing = 'original'">Original</button><button type="button" :aria-pressed="showing === 'edited'" @click="showing = 'edited'">Edited</button></div><span v-else class="preview-scale">No image loaded</span></div>
+        <div class="preview-toolbar">
+          <div class="comparison-controls"><button type="button" :disabled="!document" :aria-pressed="showing === 'original'" @click="showing = 'original'">Original</button><button type="button" :disabled="!document" :aria-pressed="showing === 'edited'" @click="showing = 'edited'">Edited</button><span class="original-badge">{{ !document ? 'Preview' : operation.kind === 'processing' ? 'Processing' : presetNeutral ? 'Unchanged' : 'Edited' }}</span></div>
+          <div class="inspection-controls" aria-label="Image inspection controls"><button type="button" :aria-pressed="placingPoint" :disabled="!document || controlsBusy" @click="placingPoint = !placingPoint; showing = 'edited'">{{ placingPoint ? 'Click image…' : 'Place point' }}</button><button type="button" :disabled="!document" @click="fit">Fit</button><button type="button" :disabled="!document" @click="oneToOne">100%</button><button type="button" :disabled="!document" aria-label="Zoom out" @click="zoomAt(-1)">−</button><span class="preview-scale">{{ zoomLabel }}</span><button type="button" :disabled="!document" aria-label="Zoom in" @click="zoomAt(1)">+</button></div>
+        </div>
         <section ref="stage" class="preview-stage" :class="{ 'has-image': document }" aria-label="Image preview" :tabindex="document ? 0 : -1" @keydown="stageKeydown" @pointerdown="pointerDown" @pointermove="pointerMove" @pointerup="endDrag" @pointercancel="endDrag" @lostpointercapture="endDrag" @dblclick="zoomAt($event.shiftKey ? -1 : 1, pointerPosition($event))">
           <div class="image-plane" v-show="document" :style="imageStyle"><canvas ref="canvas" v-show="showing === 'edited'" aria-label="Edited full resolution image canvas"></canvas><canvas ref="originalCanvas" v-show="showing === 'original'" aria-label="Original full resolution image canvas"></canvas></div>
           <BulgeOverlay v-if="document && view && imageSize && showing === 'edited'" :points="bulgePoints" :selected-id="selectedPointId" :view="view" :pane="pane" :image="imageSize" @select="selectedPointId = $event" @change="movePoint" @delete="deletePoint" @gesture-begin="beginGesture" @gesture-end="endGesture" />
-          <div class="empty-state" v-if="!document">
-            <div class="empty-art" aria-hidden="true"><svg viewBox="0 0 100 100"><rect x="18" y="21" width="64" height="58" rx="8" /><circle cx="63" cy="40" r="7" /><path d="m20 67 20-22 21 23 10-10 10 10" /></svg><span class="spark spark-one">✧</span><span class="spark spark-two">+</span></div>
-            <span class="eyebrow">IMAGE PREVIEW</span><h2>Open your first image.</h2><p>Your image appears here at its original orientation.<br>Export it as a new PNG when you're ready.</p><button class="text-button" :disabled="busy" @click="openImage">Choose an image <span aria-hidden="true">↗</span></button>
-          </div>
-          <span class="canvas-caption" v-if="document">{{ dimensions }} px <span>·</span> Full resolution</span>
+          <div class="empty-state" v-if="!document"><img :src="appIcon" alt=""><h1>Open your first image.</h1><p>Choose a PNG or JPEG, paste an image, or drop a file here.</p><button class="primary" :disabled="busy" @click="openImage">Choose an image</button></div>
+          <span class="canvas-caption" v-if="document">{{ dimensions }} px</span>
         </section>
-        <footer class="export-bar"><div class="notice" :class="notice.kind" role="status" aria-live="polite"><span class="notice-dot"></span><span>{{ notice.text }}</span></div><button v-if="document && readyRevision !== renderRevision" type="button" class="cancel-button" @click="cancelPending">Cancel pending changes</button><button class="button export-button" :disabled="busy || !document || readyRevision !== renderRevision || outputPanel?.busy" @click="exportOutput" aria-keyshortcuts="Control+Shift+S Meta+Shift+S"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4-4-4M4 15v5h16v-5" /></svg><span>{{ outputPanel?.exportLabel ?? 'Export PNG' }}</span><kbd>Ctrl ⇧ S</kbd></button></footer>
       </main>
     </div>
+    <ExportDialog ref="outputPanel" :source="document" :preset="preset" :disabled="controlsBusy" @notice="notice = $event" @save-started="files.cancelCheckpoint" @save-finished="files.scheduleCheckpoint" />
+    <SettingsDialog ref="settingsDialog" :settings="appearance.settings.value" :mode="appearance.mode.value" :notice="appearance.notice.value" :saving="appearance.saving.value" @save="appearance.save" />
+    <SaveNameDialog ref="nameDialog" @save="saveNamed" />
+    <HelpDialog ref="helpDialog" />
   </div>
 </template>

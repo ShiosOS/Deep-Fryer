@@ -1,1 +1,1 @@
-:root { --base: #121315; --text: #eeeae3; --muted: #969590; --line: #2b2c2d; --accent: #f6aa73; color-scheme: dark; }
+:root { --panel: #28232c; --paper: #211e24; --canvas: #1c191f; --text: #f3edf3; --canvas-text: #f3edf3; --muted: #b1a2b2; --line: #453a47; --accent: #efb9d8; --control: #efb9d8; --on-accent: #422d3a; --soft: #44323f; --focus: #f3edf3; color-scheme: dark; }

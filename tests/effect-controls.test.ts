@@ -1,3 +1,4 @@
+import { legacyPresetFixture, legacyPresetField } from './fixtures/legacy-format'
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { intensityFromSlider, intensityToSlider } from '../src/renderer/src/effect-controls'
@@ -14,7 +15,7 @@ test('5x is valid only in the new domain while the frozen v1 limits still reject
   const effect = { id: 'contrast', kind: 'contrast', enabled: true, mix: 100, value: 500 }
   assert.equal(presetSchema.parse({ seed: 1, effects: [effect] }).effects[0]?.kind, 'contrast')
   assert.equal(presetSchema.safeParse({ seed: 1, effects: [{ ...effect, value: 501 }] }).success, false)
-  const old = JSON.parse(await readFile('tests/fixtures/v1/baseline.fryrecipe', 'utf8'))
-  old.recipe.effects = [effect]
+  const old = JSON.parse(await readFile(`tests/fixtures/v1/${legacyPresetFixture}`, 'utf8'))
+  old[legacyPresetField].effects = [effect]
   assert.throws(() => parsePreset(JSON.stringify(old)), /invalid or unsupported/)
 })
