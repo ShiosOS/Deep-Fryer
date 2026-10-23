@@ -1,16 +1,24 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, shallowRef } from 'vue'
 import { validateDimensions, type OpenImage } from '../../shared/image'
+import ColorControls from './ColorControls.vue'
+import { neutralColorSettings, renderColorImage, type ColorSettings } from './color'
 
 type ImageDocument = Readonly<OpenImage & { bitmap: ImageBitmap }>
-type Operation = { kind: 'idle' } | { kind: 'opening' } | { kind: 'exporting' }
+type Operation = { kind: 'idle' } | { kind: 'opening' } | { kind: 'processing' } | { kind: 'exporting' }
 type Notice = { kind: 'info' | 'success' | 'error'; text: string }
 
 const document = shallowRef<ImageDocument | null>(null)
 const operation = ref<Operation>({ kind: 'idle' })
 const notice = ref<Notice>({ kind: 'info', text: 'Open an image to preview and export it.' })
 const canvas = ref<HTMLCanvasElement | null>(null)
+const colorSettings = ref<ColorSettings>(neutralColorSettings)
+let renderedSettings: ColorSettings = neutralColorSettings
+const imageVersion = ref(0)
+let renderRevision = 0
 const busy = computed(() => operation.value.kind !== 'idle')
+const colorBusy = computed(() => operation.value.kind === 'opening' || operation.value.kind === 'exporting')
+const colorNeutral = computed(() => colorSettings.value.brightness === 0 && colorSettings.value.contrast === 100 && colorSettings.value.saturation === 100 && colorSettings.value.levels === 256)
 const dimensions = computed(() => document.value ? `${document.value.bitmap.width.toLocaleString()} × ${document.value.bitmap.height.toLocaleString()}` : 'No image yet')
 const fileSize = computed(() => {
   const size = document.value?.bytes.byteLength ?? 0
@@ -32,11 +40,15 @@ async function openImage(): Promise<void> {
     validateDimensions(candidate.width, candidate.height)
     const context = canvas.value?.getContext('2d')
     if (!context || !canvas.value) throw new Error('The image preview is unavailable. Reopen the app and try again.')
+    const pixels = renderColorImage(candidate, neutralColorSettings)
     const previous = document.value
     canvas.value.width = candidate.width
     canvas.value.height = candidate.height
-    context.drawImage(candidate, 0, 0)
+    context.putImageData(pixels, 0, 0)
     document.value = { ...source, bitmap: candidate }
+    colorSettings.value = neutralColorSettings
+    renderedSettings = neutralColorSettings
+    imageVersion.value += 1
     candidate = null
     previous?.bitmap.close()
     notice.value = { kind: 'success', text: `${source.name} is ready. Your original stays untouched.` }
@@ -45,6 +57,31 @@ async function openImage(): Promise<void> {
   } finally {
     candidate?.close()
     operation.value = { kind: 'idle' }
+  }
+}
+
+async function changeColor(settings: ColorSettings): Promise<void> {
+  const source = document.value
+  if (!source || colorBusy.value) return
+  const revision = ++renderRevision
+  colorSettings.value = settings
+  operation.value = { kind: 'processing' }
+  notice.value = { kind: 'info', text: 'Processing color…' }
+  await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+  if (revision !== renderRevision || document.value !== source) return
+  try {
+    const pixels = renderColorImage(source.bitmap, settings)
+    if (revision !== renderRevision || document.value !== source) return
+    const context = canvas.value?.getContext('2d')
+    if (!context) throw new Error('The image preview is unavailable. Reopen the app and try again.')
+    context.putImageData(pixels, 0, 0)
+    renderedSettings = settings
+    notice.value = { kind: 'success', text: 'Color changes are ready to export.' }
+  } catch (error) {
+    colorSettings.value = renderedSettings
+    notice.value = { kind: 'error', text: describeError(error) }
+  } finally {
+    if (revision === renderRevision) operation.value = { kind: 'idle' }
   }
 }
 
@@ -108,11 +145,13 @@ onUnmounted(() => {
           <dl v-if="document"><div><dt>Dimensions</dt><dd>{{ dimensions }} px</dd></div><div><dt>Source size</dt><dd>{{ fileSize }}</dd></div><div><dt>Export format</dt><dd>PNG</dd></div></dl>
         </section>
 
+        <ColorControls v-if="document" :key="imageVersion" :settings="colorSettings" :disabled="colorBusy" @change="changeColor" />
+
         <div class="sidebar-bottom"><div class="original-note"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6z" /><path d="m8 12 3 3 5-6" /></svg><span>Your original is safe.<small>Exports always use a new file.</small></span></div><span class="edition">DEEP FRYER / VERSION 0.1</span></div>
       </aside>
 
       <main class="main-area">
-        <div class="preview-toolbar"><div><span class="preview-label">Preview</span><span class="original-badge">ORIGINAL</span></div><span class="preview-scale">{{ document ? 'Fit to view' : 'No image loaded' }}</span></div>
+        <div class="preview-toolbar"><div><span class="preview-label">Preview</span><span v-if="document" class="original-badge">{{ colorNeutral ? 'ORIGINAL' : 'COLOR ADJUSTED' }}</span></div><span class="preview-scale">{{ operation.kind === 'processing' ? 'Processing…' : document ? 'Fit to view' : 'No image loaded' }}</span></div>
         <section class="preview-stage" :class="{ 'has-image': document }" aria-label="Image preview">
           <canvas ref="canvas" v-show="document" aria-label="Full resolution image canvas"></canvas>
           <div class="empty-state" v-if="!document">
