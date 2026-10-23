@@ -4,8 +4,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { PNG } from 'pngjs'
-import { inspectImage, readImage, writePngExclusive } from '../src/main/image-files'
-import { exportPngInput, MAX_FILE_BYTES } from '../src/shared/image'
+import { inspectImage, readImage, writeImageExclusive } from '../src/main/image-files'
+import { MAX_FILE_BYTES } from '../src/shared/image'
+import { exportImageInput } from '../src/shared/output'
 
 function png(): Buffer {
   const image = new PNG({ width: 3, height: 2 })
@@ -22,10 +23,10 @@ test('export creates a new PNG and refuses existing paths and source hard links'
     const original = png()
     await writeFile(source, original)
     await link(source, alias)
-    await writePngExclusive(destination, original)
+    await writeImageExclusive(destination, original, 'png')
     assert.deepEqual(await readFile(destination), original)
     for (const path of [source, alias, destination]) {
-      await assert.rejects(writePngExclusive(path, original), /already exists/)
+      await assert.rejects(writeImageExclusive(path, original, 'png'), /already exists/)
       assert.deepEqual(await readFile(path), original)
     }
   } finally {
@@ -65,7 +66,7 @@ test('invalid PNG export never creates a destination file', async () => {
   const folder = await mkdtemp(join(tmpdir(), 'deep-fryer-invalid-'))
   try {
     const path = join(folder, 'invalid.png')
-    await assert.rejects(writePngExclusive(path, Buffer.from('not an image')), /PNG or JPEG/)
+    await assert.rejects(writeImageExclusive(path, Buffer.from('not an image'), 'png'), /PNG or JPEG/)
     await assert.rejects(readFile(path), { code: 'ENOENT' })
   } finally {
     await rm(folder, { recursive: true, force: true })
@@ -77,9 +78,9 @@ test('PNG output may exceed the compressed source limit without relaxing imports
   try {
     const bytes = Buffer.alloc(MAX_FILE_BYTES + 1)
     png().copy(bytes)
-    const input = exportPngInput.parse({ bytes, suggestedName: 'large.png' })
+    const input = exportImageInput.parse({ bytes, format: 'png', suggestedName: 'large.png' })
     const destination = join(folder, input.suggestedName)
-    await writePngExclusive(destination, input.bytes)
+    await writeImageExclusive(destination, input.bytes, input.format)
     assert.equal((await stat(destination)).size, bytes.length)
     await assert.rejects(readImage(destination), /64 MiB/)
   } finally {

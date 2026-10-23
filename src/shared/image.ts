@@ -1,7 +1,7 @@
 import { z } from 'zod'
+import type { ExportImageInput, ExportResult } from './output'
 
 export const MAX_FILE_BYTES = 64 * 1024 * 1024
-export const MAX_PNG_EXPORT_BYTES = 128 * 1024 * 1024
 export const MAX_DIMENSION = 16_384
 export const MAX_PIXELS = 24_000_000
 
@@ -16,26 +16,12 @@ export const openImageResult = z.object({
   bytes: imageBytes
 }).nullable()
 
-export const exportPngInput = z.object({
-  bytes: z.instanceof(Uint8Array).refine(
-    (bytes) => bytes.byteLength > 0 && bytes.byteLength <= MAX_PNG_EXPORT_BYTES,
-    'The exported PNG exceeds the 128 MiB output limit.'
-  ),
-  suggestedName: z.string().min(1).max(1024)
-})
-
-export const exportPngResult = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('saved'), name: z.string() }),
-  z.object({ kind: z.literal('cancelled') })
-])
-
 export type OpenImage = NonNullable<z.infer<typeof openImageResult>>
-export type ExportResult = z.infer<typeof exportPngResult>
 export type ImageBridge = {
   openImage: () => Promise<OpenImage | null>
   pasteImage: () => Promise<OpenImage>
   dropImages: (files: File[]) => Promise<OpenImage>
-  exportPng: (bytes: Uint8Array, suggestedName: string) => Promise<ExportResult>
+  exportImage: (input: ExportImageInput) => Promise<ExportResult>
 }
 
 export function validateDimensions(width: number, height: number): void {

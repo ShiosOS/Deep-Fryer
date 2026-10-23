@@ -3,9 +3,10 @@ import { computed, onMounted, onUnmounted, ref, shallowRef } from 'vue'
 import { validateDimensions, type OpenImage } from '../../shared/image'
 import EffectsPanel from './EffectsPanel.vue'
 import RecipeLooks from './RecipeLooks.vue'
+import OutputPanel from './OutputPanel.vue'
 import BulgeOverlay from './BulgeOverlay.vue'
 import DocumentControls from './DocumentControls.vue'
-import { describeError, useDocumentFiles } from './document-files'
+import { useDocumentFiles } from './document-files'
 import { renderRecipeFrame } from './render-recipe-frame'
 import { isNeutralEffect, newEffect, newRecipe, recipeSchema, replaceEffect, type Recipe } from '../../shared/recipe'
 import { snapshotRecipe, useRecipeHistory } from './recipe-history'
@@ -23,6 +24,7 @@ const notice = ref<Notice>({ kind: 'info', text: 'Open an image to preview and e
 const canvas = ref<HTMLCanvasElement | null>(null)
 const originalCanvas = ref<HTMLCanvasElement | null>(null)
 const stage = ref<HTMLElement | null>(null)
+const outputPanel = ref<InstanceType<typeof OutputPanel> | null>(null)
 const pane = ref<Size>({ width: 0, height: 0 })
 const view = ref<InspectionView | null>(null)
 const showing = ref<'edited' | 'original'>('edited')
@@ -348,24 +350,9 @@ worker.onerror = (): void => {
   operation.value = { kind: 'idle' }
 }
 
-async function exportPng(): Promise<void> {
-  if (busy.value || readyRevision.value !== renderRevision || document.value === null || canvas.value === null) return
-  files.cancelCheckpoint()
-  operation.value = { kind: 'exporting' }
-  try {
-    const source = document.value
-    const blob = await new Promise<Blob>((resolve, reject) => {
-      canvas.value?.toBlob((result) => result ? resolve(result) : reject(new Error('The PNG could not be created. Try again.')), 'image/png')
-    })
-    const name = `${source.name.replace(/\.[^.]+$/, '')}-deep-fried.png`
-    const result = await window.imageBridge.exportPng(new Uint8Array(await blob.arrayBuffer()), name)
-    if (result.kind === 'saved') notice.value = { kind: 'success', text: `Saved ${result.name}. Your original stays untouched.` }
-  } catch (error) {
-    notice.value = { kind: 'error', text: describeError(error) }
-  } finally {
-    operation.value = { kind: 'idle' }
-    files.scheduleCheckpoint()
-  }
+function exportOutput(): void {
+  if (busy.value || readyRevision.value !== renderRevision) return
+  void outputPanel.value?.exportCurrent()
 }
 
 function onKeydown(event: KeyboardEvent): void {
@@ -384,7 +371,7 @@ function onKeydown(event: KeyboardEvent): void {
     void files.saveProject()
   } else if (event.key.toLowerCase() === 's' && event.shiftKey) {
     event.preventDefault()
-    void exportPng()
+    exportOutput()
   } else if (event.key.toLowerCase() === 'z' || event.key.toLowerCase() === 'y') {
     const target = event.target
     if (target instanceof HTMLElement && (target.isContentEditable || target.closest('input, textarea, select'))) return
@@ -422,7 +409,7 @@ onUnmounted(() => {
       <aside class="sidebar">
         <div class="sidebar-heading"><span class="eyebrow">YOUR WORKSPACE</span><span class="step">01</span></div>
         <h1>Open. Preview.<br>Export.</h1>
-        <p class="intro">Choose a PNG or JPEG.<br>Export a full resolution PNG.</p>
+        <p class="intro">Choose a PNG or JPEG.<br>Shape it, inspect it, save a new image.</p>
         <button class="button open-button" :disabled="busy" @click="openImage" aria-keyshortcuts="Control+O Meta+O">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h6l2 2h10v10H3zM3 7V5h7l2 2" /></svg>
           <span>{{ operation.kind === 'opening' ? 'Opening…' : 'Open image' }}</span><kbd>Ctrl O</kbd>
@@ -432,10 +419,11 @@ onUnmounted(() => {
         <section class="image-details" aria-label="Image details">
           <span class="eyebrow">CURRENT IMAGE</span>
           <div class="file-heading"><span class="file-icon" aria-hidden="true">▧</span><div><strong class="filename">{{ document?.name ?? 'No image selected' }}</strong><span>{{ document ? (document.mime === 'image/png' ? 'PNG image' : 'JPEG image') : 'Waiting for an image' }}</span></div></div>
-          <dl v-if="document"><div><dt>Dimensions</dt><dd>{{ dimensions }} px</dd></div><div><dt>Source size</dt><dd>{{ fileSize }}</dd></div><div><dt>Export format</dt><dd>PNG</dd></div></dl>
+          <dl v-if="document"><div><dt>Dimensions</dt><dd>{{ dimensions }} px</dd></div><div><dt>Source size</dt><dd>{{ fileSize }}</dd></div></dl>
         </section>
 
         <DocumentControls :busy="busy" :has-image="document !== null" :ready="readyRevision === renderRevision" :recovery-status="files.recoveryStatus.value" :recovery-offer="files.recoveryOffer.value" @open-project="files.openProject" @save-project="files.saveProject" @load-preset="files.loadPreset" @save-preset="files.savePreset" @paste-image="files.pasteImage" @restore-recovery="files.restoreRecovery" @discard-recovery="files.discardRecovery" />
+        <OutputPanel ref="outputPanel" :source="document" :recipe="recipe" :disabled="controlsBusy" @notice="notice = $event" @save-started="files.cancelCheckpoint" @save-finished="files.scheduleCheckpoint" />
 
         <div v-if="document" class="history-controls" aria-label="Edit history"><button type="button" :disabled="!history.canUndo.value || controlsBusy" aria-keyshortcuts="Control+Z Meta+Z" @click="restoreFromHistory('undo')">Undo</button><button type="button" :disabled="!history.canRedo.value || controlsBusy" aria-keyshortcuts="Control+Shift+Z Control+Y Meta+Shift+Z" @click="restoreFromHistory('redo')">Redo</button></div>
         <RecipeLooks v-if="document" :key="imageVersion" :recipe="recipe" :bitmap="document.bitmap" :restore-version="restoreVersion" :disabled="controlsBusy" @change="changeRecipe" @gesture-begin="beginGesture" @gesture-end="endGesture" />
@@ -455,7 +443,7 @@ onUnmounted(() => {
           </div>
           <span class="canvas-caption" v-if="document">{{ dimensions }} px <span>·</span> Full resolution</span>
         </section>
-        <footer class="export-bar"><div class="notice" :class="notice.kind" role="status" aria-live="polite"><span class="notice-dot"></span><span>{{ notice.text }}</span></div><button v-if="document && readyRevision !== renderRevision" type="button" class="cancel-button" @click="cancelPending">Cancel pending changes</button><button class="button export-button" :disabled="busy || !document || readyRevision !== renderRevision" @click="exportPng" aria-keyshortcuts="Control+Shift+S Meta+Shift+S"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4-4-4M4 15v5h16v-5" /></svg><span>{{ operation.kind === 'exporting' ? 'Exporting…' : 'Export PNG' }}</span><kbd>Ctrl ⇧ S</kbd></button></footer>
+        <footer class="export-bar"><div class="notice" :class="notice.kind" role="status" aria-live="polite"><span class="notice-dot"></span><span>{{ notice.text }}</span></div><button v-if="document && readyRevision !== renderRevision" type="button" class="cancel-button" @click="cancelPending">Cancel pending changes</button><button class="button export-button" :disabled="busy || !document || readyRevision !== renderRevision || outputPanel?.busy" @click="exportOutput" aria-keyshortcuts="Control+Shift+S Meta+Shift+S"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4-4-4M4 15v5h16v-5" /></svg><span>{{ outputPanel?.exportLabel ?? 'Export PNG' }}</span><kbd>Ctrl ⇧ S</kbd></button></footer>
       </main>
     </div>
   </div>

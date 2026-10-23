@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import { exportPngResult, openImageResult, type ImageBridge } from '../shared/image'
+import { openImageResult, type ImageBridge } from '../shared/image'
+import { exportImageInput, exportImageResult } from '../shared/output'
 import { editableDocumentSchema, recoveryOfferSchema, type DocumentBridge } from '../shared/documents'
 import { recipeSchema } from '../shared/recipe'
 
@@ -7,17 +8,17 @@ const bridge: ImageBridge = {
   openImage: async () => openImageResult.parse(await ipcRenderer.invoke('image:open')),
   pasteImage: async () => openImageResult.unwrap().parse(await ipcRenderer.invoke('image:paste')),
   dropImages: async (files) => openImageResult.unwrap().parse(await ipcRenderer.invoke('image:drop', files.map((file) => webUtils.getPathForFile(file)))),
-  exportPng: async (bytes, suggestedName) =>
-    exportPngResult.parse(await ipcRenderer.invoke('image:export-png', bytes, suggestedName))
+  exportImage: async (input) =>
+    exportImageResult.parse(await ipcRenderer.invoke('image:export', exportImageInput.parse(input)))
 }
 
 contextBridge.exposeInMainWorld('imageBridge', bridge)
 
 const documents: DocumentBridge = {
   openProject: async () => editableDocumentSchema.nullable().parse(await ipcRenderer.invoke('document:open-project')),
-  saveProject: async (document) => exportPngResult.parse(await ipcRenderer.invoke('document:save-project', document)),
+  saveProject: async (document) => exportImageResult.parse(await ipcRenderer.invoke('document:save-project', document)),
   openPreset: async () => recipeSchema.nullable().parse(await ipcRenderer.invoke('document:open-preset')),
-  savePreset: async (recipe, name) => exportPngResult.parse(await ipcRenderer.invoke('document:save-preset', recipe, name)),
+  savePreset: async (recipe, name) => exportImageResult.parse(await ipcRenderer.invoke('document:save-preset', recipe, name)),
   recoveryOffer: async () => recoveryOfferSchema.parse(await ipcRenderer.invoke('recovery:offer')),
   restoreRecovery: async () => editableDocumentSchema.parse(await ipcRenderer.invoke('recovery:restore')),
   discardRecovery: async () => { await ipcRenderer.invoke('recovery:discard') },
