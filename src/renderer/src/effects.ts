@@ -1,4 +1,4 @@
-import { isNeutralEffect, type Effect, type Recipe } from '../../shared/recipe'
+import { isNeutralEffect, type Effect, type Preset } from '../../shared/preset'
 import { applyBulge } from './bulge'
 
 function clamp(value: number): number { return Math.max(0, Math.min(255, value)) }
@@ -133,11 +133,11 @@ async function applyJpeg(input: ImageData, effect: Extract<Effect, { kind: 'jpeg
   return new ImageData(mixed, input.width, input.height)
 }
 
-export async function renderRecipe(source: ImageData, recipe: Recipe): Promise<ImageData> {
+export async function renderPreset(source: ImageData, preset: Preset): Promise<ImageData> {
   let result = new ImageData(new Uint8ClampedArray(source.data), source.width, source.height)
-  for (const effect of recipe.effects) {
+  for (const effect of preset.effects) {
     if (isNeutralEffect(effect)) continue
-    result = effect.kind === 'jpeg' ? await applyJpeg(result, effect) : effect.kind === 'bulge' ? applyBulge(result, effect) : applyPixelEffect(result, effect, recipe.seed)
+    result = effect.kind === 'jpeg' ? await applyJpeg(result, effect) : effect.kind === 'bulge' ? applyBulge(result, effect) : applyPixelEffect(result, effect, preset.seed)
   }
   return result
 }

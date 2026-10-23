@@ -8,10 +8,10 @@ watchEffect(() => { if (props.recoveryOffer && dialog.value && !dialog.value.ope
 </script>
 
 <template>
-  <section class="document-controls" aria-label="Projects and recipes">
-    <div class="document-buttons"><button type="button" :disabled="busy" @click="$emit('openProject')">Open project</button><button type="button" :disabled="busy" @click="$emit('pasteImage')">Paste image</button><button type="button" :disabled="busy || !hasImage || !ready" @click="$emit('saveProject')">Save project as…</button><button type="button" :disabled="busy || !hasImage" @click="$emit('loadPreset')">Load recipe</button><button type="button" :disabled="busy || !hasImage || !ready" @click="$emit('savePreset')">Save recipe as…</button></div>
+  <section class="document-controls" aria-label="Projects and presets">
+    <div class="document-buttons"><button type="button" :disabled="busy" @click="$emit('openProject')">Open project</button><button type="button" :disabled="busy" @click="$emit('pasteImage')">Paste image</button><button type="button" :disabled="busy || !hasImage || !ready" @click="$emit('saveProject')">Save project as…</button><button type="button" :disabled="busy || !hasImage" @click="$emit('loadPreset')">Load preset</button><button type="button" :disabled="busy || !hasImage || !ready" @click="$emit('savePreset')">Save preset as…</button></div>
     <p class="recovery-status" role="note">{{ recoveryStatus }}</p>
-    <details><summary>About projects and recovery</summary><p>Projects embed your original image. Recipes store settings, relative points and their saved seed. Loading a recipe replaces the current seed.</p><p>Recovery keeps two completed edits in the app's local user data folder, in recovery. A clean exit or Discard removes them. Interrupted work expires after seven days.</p></details>
+    <details><summary>About projects and recovery</summary><p>Projects embed your original image. Presets store settings, relative points and their saved seed. Loading a preset replaces the current seed.</p><p>Recovery keeps two completed edits in the app's local user data folder, in recovery. A clean exit or Discard removes them. Interrupted work expires after seven days.</p></details>
   </section>
   <Teleport to="body">
       <dialog v-if="recoveryOffer" ref="dialog" class="recovery-dialog" role="alertdialog" aria-labelledby="recovery-title" @cancel.prevent>

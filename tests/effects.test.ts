@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { applyPixelEffect, renderRecipe } from '../src/renderer/src/effects'
-import { moveEffect, type Recipe } from '../src/shared/recipe'
+import { applyPixelEffect, renderPreset } from '../src/renderer/src/effects'
+import { moveEffect, type Preset } from '../src/shared/preset'
 
 Object.defineProperty(globalThis, 'ImageData', { value: class {
   constructor(public data: Uint8ClampedArray, public width: number, public height: number) {}
@@ -12,14 +12,14 @@ function image(values: number[], width = 1): ImageData {
 }
 
 test('effect order changes pixels and keeps instance settings attached', async () => {
-  const recipe: Recipe = { version: 1, seed: 1, effects: [
+  const preset: Preset = { seed: 1, effects: [
     { id: 'brightness', kind: 'brightness', enabled: true, mix: 100, value: 30 },
     { id: 'levels', kind: 'levels', enabled: true, mix: 100, value: 2 }
   ] }
   const source = image([100, 80, 60, 255])
-  const first = await renderRecipe(source, recipe)
-  const moved = moveEffect(recipe, 'levels', -1)
-  const second = await renderRecipe(source, moved)
+  const first = await renderPreset(source, preset)
+  const moved = moveEffect(preset, 'levels', -1)
+  const second = await renderPreset(source, moved)
   assert.notDeepEqual(Array.from(first.data), Array.from(second.data))
   assert.deepEqual(moved.effects.map(({ id }) => id), ['levels', 'brightness'])
   assert.equal(moved.effects[1]?.kind, 'brightness')
@@ -36,15 +36,15 @@ test('mix, enabled state, and alpha preserve expected pixels', () => {
 
 test('noise is repeatable and does not alter saturation settings or source', async () => {
   const source = image(Array.from({ length: 32 }, () => [100, 110, 120, 255]).flat(), 8)
-  const recipe: Recipe = { version: 1, seed: 42, effects: [
+  const preset: Preset = { seed: 42, effects: [
     { id: 'sat', kind: 'saturation', enabled: true, mix: 100, value: 70 },
     { id: 'grain', kind: 'noise', enabled: true, mix: 100, value: 60 }
   ] }
-  const first = await renderRecipe(source, recipe)
-  const second = await renderRecipe(source, recipe)
-  const other = await renderRecipe(source, { ...recipe, seed: 43 })
+  const first = await renderPreset(source, preset)
+  const second = await renderPreset(source, preset)
+  const other = await renderPreset(source, { ...preset, seed: 43 })
   assert.deepEqual(first.data, second.data)
   assert.notDeepEqual(first.data, other.data)
-  assert.equal(recipe.effects[0]?.kind, 'saturation')
+  assert.equal(preset.effects[0]?.kind, 'saturation')
   assert.deepEqual(Array.from(source.data.subarray(0, 4)), [100, 110, 120, 255])
 })

@@ -2,10 +2,10 @@
 import { computed, nextTick, onUnmounted, ref, shallowRef, watch } from 'vue'
 import type { OpenImage } from '../../shared/image'
 import { outputFormats, outputOptionsSchema, type OutputOptions } from '../../shared/output'
-import type { Recipe } from '../../shared/recipe'
+import type { Preset } from '../../shared/preset'
 import { freezeOutput, type OutputResponse, type PreparedOutput } from './output'
 
-const props = defineProps<{ source: (OpenImage & { bitmap: ImageBitmap }) | null; recipe: Recipe; disabled: boolean }>()
+const props = defineProps<{ source: (OpenImage & { bitmap: ImageBitmap }) | null; preset: Preset; disabled: boolean }>()
 const emit = defineEmits<{ notice: [notice: { kind: 'info' | 'success' | 'error'; text: string }]; saveStarted: []; saveFinished: [] }>()
 type Inspection = { kind: 'empty' } | { kind: 'preparing'; key: string } | { kind: 'ready' | 'stale'; key: string; output: PreparedOutput }
 const inspection = shallowRef<Inspection>({ kind: 'empty' })
@@ -29,7 +29,7 @@ const validationError = computed(() => {
   if (String(width.value).trim() === '' || String(height.value).trim() === '' || format.value !== 'png' && String(quality.value).trim() === '') return 'Enter whole output dimensions and quality.'
   return parsedOptions.value.success ? '' : 'Use whole dimensions from 1 to 16,384, at most 24 million pixels, and quality from 1 to 100.'
 })
-const currentKey = computed(() => JSON.stringify([sourceVersion.value, props.recipe, format.value, width.value, height.value, quality.value, background.value]))
+const currentKey = computed(() => JSON.stringify([sourceVersion.value, props.preset, format.value, width.value, height.value, quality.value, background.value]))
 const busy = computed(() => saving.value || inspection.value.kind === 'preparing')
 const exportLabel = computed(() => `Export ${outputFormats[format.value].label}`)
 const inspectionText = computed(() => {
@@ -37,7 +37,7 @@ const inspectionText = computed(() => {
     case 'empty': return 'Prepare the encoded output to inspect it before saving.'
     case 'preparing': return inspection.value.key === currentKey.value ? 'Preparing the frozen output…' : 'Preparing an earlier snapshot. Current edits need a new inspection.'
     case 'ready': return 'Current output. Saving writes the exact bytes inspected here.'
-    case 'stale': return 'Out of date. The image, recipe, or output settings changed. Inspect again before saving this output.'
+    case 'stale': return 'Out of date. The image, preset, or output settings changed. Inspect again before saving this output.'
   }
 })
 
@@ -61,7 +61,7 @@ async function prepare(): Promise<PreparedOutput> {
   if (!props.source || !parsedOptions.value.success || validationError.value) throw new Error(validationError.value || 'Open an image first.')
   const key = currentKey.value
   if (inspection.value.kind === 'ready' && inspection.value.key === key) return inspection.value.output
-  const job = freezeOutput(props.source, props.recipe, parsedOptions.value.data)
+  const job = freezeOutput(props.source, props.preset, parsedOptions.value.data)
   inspection.value = { kind: 'preparing', key }
   try {
     const worker = new Worker(new URL('./output-worker.ts', import.meta.url), { type: 'module' })

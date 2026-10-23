@@ -7,13 +7,13 @@ import { PNG } from 'pngjs'
 import { encodePreset, encodeProject, parsePreset, parseProject, readProject, writeDocumentExclusive } from '../src/main/document-files'
 import { RecoveryStore } from '../src/main/recovery'
 import type { EditableDocument } from '../src/shared/documents'
-import { newEffect, newRecipe } from '../src/shared/recipe'
+import { newEffect, newPreset } from '../src/shared/preset'
 
 function document(): EditableDocument {
   const image = new PNG({ width: 8, height: 5 })
   image.data.fill(190)
   return { source: { name: 'source.png', mime: 'image/png', bytes: new Uint8Array(PNG.sync.write(image)) },
-    recipe: { ...newRecipe(), seed: 123456, effects: [newEffect('noise', 'grain'), { ...newEffect('bulge', 'point'), kind: 'bulge', x: 0.25, y: 0.75, radius: 0.2, strength: -40 }] } }
+    preset: { ...newPreset(), seed: 123456, effects: [newEffect('noise', 'grain'), { ...newEffect('bulge', 'point'), kind: 'bulge', x: 0.25, y: 0.75, radius: 0.2, strength: -40 }] } }
 }
 
 test('a moved portable project embeds exact source bytes and ordered settings without a source path', async () => {
@@ -32,17 +32,17 @@ test('a moved portable project embeds exact source bytes and ordered settings wi
   } finally { await rm(directory, { recursive: true, force: true }) }
 })
 
-test('presets contain only a versioned recipe and reject invalid, future or image-bearing payloads', () => {
+test('presets contain only a versioned preset and reject invalid, future or image-bearing payloads', () => {
   const original = document()
-  const preset = encodePreset(original.recipe)
-  assert.deepEqual(parsePreset(preset), original.recipe)
-  assert.deepEqual(Object.keys(JSON.parse(preset)).sort(), ['format', 'recipe', 'version'])
-  assert.throws(() => parsePreset(preset.replace('"version":1', '"version":2')), /version is not supported/)
+  const preset = encodePreset(original.preset)
+  assert.deepEqual(parsePreset(preset), original.preset)
+  assert.deepEqual(Object.keys(JSON.parse(preset)).sort(), ['format', 'preset', 'version'])
+  assert.throws(() => parsePreset(preset.replace('"version":2', '"version":3')), /version is not supported/)
   const invalid = JSON.parse(preset)
-  invalid.recipe.effects[0].value = 101
+  invalid.preset.effects[0].value = 101
   assert.throws(() => parsePreset(JSON.stringify(invalid)), /invalid or unsupported/)
   assert.throws(() => parsePreset(JSON.stringify({ ...JSON.parse(preset), source: original.source })), /invalid or unsupported/)
-  assert.throws(() => parseProject(encodeProject(original).replace('"version":1', '"version":999')), /version is not supported/)
+  assert.throws(() => parseProject(encodeProject(original).replace('"version":2', '"version":999')), /version is not supported/)
   assert.throws(() => parseProject('{'), /not valid JSON/)
 })
 
@@ -54,7 +54,7 @@ test('recovery retains two valid generations, ignores a corrupt newest file, and
     assert.equal(await store.initialize(), null)
     const first = document()
     await store.checkpoint(first)
-    const second = { ...first, recipe: { ...first.recipe, seed: 654321 } }
+    const second = { ...first, preset: { ...first.preset, seed: 654321 } }
     await store.checkpoint(second)
     const previous = await readFile(join(directory, 'previous.deepfryer'), 'utf8')
     assert.deepEqual(parseProject(previous), first)

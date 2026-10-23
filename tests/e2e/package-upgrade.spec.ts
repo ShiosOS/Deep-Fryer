@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { PNG } from 'pngjs'
-import { presetFileSchema, projectFileSchema } from '../../src/shared/documents'
+import { parsePreset, parseProject } from '../../src/main/document-files'
 
 const phase = process.env.DEEP_FRYER_UPGRADE_PHASE
 
@@ -47,7 +47,7 @@ async function expectSavedSettings(page: Page): Promise<void> {
   await expect(page.getByRole('spinbutton', { name: 'Bulge strength value' })).toHaveValue('-40')
 }
 
-test('installed packages preserve prior projects and recipes across upgrade, restart and return to the older application', async () => {
+test('installed packages preserve prior projects and presets across upgrade, restart and return to the older application', async () => {
   test.skip(!phase, 'Run the previous, candidate and return phases around actual Windows installations.')
   test.setTimeout(90_000)
   const folder = process.env.DEEP_FRYER_UPGRADE_DIRECTORY
@@ -55,7 +55,7 @@ test('installed packages preserve prior projects and recipes across upgrade, res
   await mkdir(folder, { recursive: true })
   const sourcePath = join(folder, 'original.png')
   const projectPath = join(folder, 'previous.deepfryer')
-  const presetPath = join(folder, 'previous.fryrecipe')
+  const presetPath = join(folder, 'previous.frypreset')
   const continuedPath = join(folder, 'continued-in-candidate.deepfryer')
   const baselinePath = join(folder, 'previous.png')
   let app = await launch(folder, phase === 'candidate' ? '0.3.0' : '0.2.0')
@@ -86,19 +86,19 @@ test('installed packages preserve prior projects and recipes across upgrade, res
       await ready(page)
       await expectSavedSettings(page)
       await save(app, page, 'Save project as…', projectPath)
-      await save(app, page, 'Save recipe as…', presetPath)
+      await save(app, page, 'Save preset as…', presetPath)
       await save(app, page, 'Export PNG', baselinePath)
-      const project = projectFileSchema.parse(JSON.parse(await readFile(projectPath, 'utf8')))
-      const preset = presetFileSchema.parse(JSON.parse(await readFile(presetPath, 'utf8')))
-      expect(Buffer.from(project.source.base64, 'base64')).toEqual(source)
-      expect(preset.recipe).toEqual(project.recipe)
+      const project = parseProject(await readFile(projectPath, 'utf8'))
+      const preset = parsePreset(await readFile(presetPath, 'utf8'))
+      expect(Buffer.from(project.source.bytes)).toEqual(source)
+      expect(preset).toEqual(project.preset)
       expect(Array.from(PNG.sync.read(await readFile(baselinePath)).data)).toEqual(await pixels(page))
     } else {
       const projectBytes = await readFile(projectPath)
       const presetBytes = await readFile(presetPath)
       const source = await readFile(sourcePath)
-      const project = projectFileSchema.parse(JSON.parse(projectBytes.toString('utf8')))
-      const preset = presetFileSchema.parse(JSON.parse(presetBytes.toString('utf8')))
+      const project = parseProject(projectBytes.toString('utf8'))
+      const preset = parsePreset(presetBytes.toString('utf8'))
       const expected = PNG.sync.read(await readFile(baselinePath))
       await open(app, page, 'Open project', projectPath)
       await ready(page)
@@ -111,7 +111,7 @@ test('installed packages preserve prior projects and recipes across upgrade, res
       expect(exported.data).toEqual(expected.data)
       await open(app, page, 'Open image', sourcePath)
       await ready(page)
-      await open(app, page, 'Load recipe', presetPath)
+      await open(app, page, 'Load preset', presetPath)
       await ready(page)
       await expectSavedSettings(page)
       expect(await pixels(page)).toEqual(Array.from(expected.data))
@@ -130,7 +130,7 @@ test('installed packages preserve prior projects and recipes across upgrade, res
         await expectSavedSettings(page)
         await expect(page.getByRole('spinbutton', { name: 'Brightness value' })).toHaveValue('25')
         expect(await pixels(page)).toEqual(continuedPixels)
-        for (const [name, document, filename] of [['Open project', project, 'future.deepfryer'], ['Load recipe', preset, 'future.fryrecipe']] as const) {
+        for (const [name, document, filename] of [['Open project', project, 'future.deepfryer'], ['Load preset', preset, 'future.frypreset']] as const) {
           const futurePath = join(folder, filename)
           const futureBytes = Buffer.from(JSON.stringify({ ...document, version: 2 }))
           await writeFile(futurePath, futureBytes, { flag: 'wx' })
@@ -150,7 +150,7 @@ test('installed packages preserve prior projects and recipes across upgrade, res
       expect(await readFile(projectPath)).toEqual(projectBytes)
       expect(await readFile(presetPath)).toEqual(presetBytes)
       expect(await readFile(sourcePath)).toEqual(source)
-      expect(Buffer.from(project.source.base64, 'base64')).toEqual(source)
+      expect(Buffer.from(project.source.bytes)).toEqual(source)
     }
     expect(errors).toEqual([])
     const record = { phase, applicationVersion: await app.evaluate(({ app }) => app.getVersion()), sourceSha256: createHash('sha256').update(await readFile(sourcePath)).digest('hex'), projectSha256: createHash('sha256').update(await readFile(projectPath)).digest('hex'), presetSha256: createHash('sha256').update(await readFile(presetPath)).digest('hex') }

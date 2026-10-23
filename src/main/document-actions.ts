@@ -3,10 +3,11 @@ import { basename } from 'node:path'
 import { z } from 'zod'
 import { editableDocumentSchema } from '../shared/documents'
 import { validateDimensions, type OpenImage } from '../shared/image'
-import { recipeSchema } from '../shared/recipe'
+import { presetSchema } from '../shared/preset'
 import { encodePreset, encodeProject, readPreset, readProject, writeDocumentExclusive } from './document-files'
 import { inspectImage, readImage } from './image-files'
 import { RecoveryStore } from './recovery'
+import { legacyPresetExtension } from './legacy-document-codec'
 
 export function validateSource(source: OpenImage): void {
   if (inspectImage(source.bytes) !== source.mime) throw new Error('The embedded image has the wrong format.')
@@ -55,13 +56,13 @@ export function registerDocumentActions(editor: BrowserWindow, checkSender: (eve
     return save(encodeProject(document), `${document.source.name.replace(/\.[^.]+$/, '')}.deepfryer`, 'deepfryer', 'project')
   })
   register('document:open-preset', async () => {
-    const path = await openPath('Load a recipe preset', 'Deep Fryer recipe', ['fryrecipe'])
+    const path = await openPath('Load a preset', 'Deep Fryer preset', ['frypreset', legacyPresetExtension])
     return path ? readPreset(path) : null
   })
   register('document:save-preset', async (input, imageName) => {
-    const recipe = recipeSchema.parse(input)
+    const preset = presetSchema.parse(input)
     const name = z.string().min(1).max(1024).parse(imageName)
-    return save(encodePreset(recipe), `${name.replace(/\.[^.]+$/, '')}.fryrecipe`, 'fryrecipe', 'recipe preset')
+    return save(encodePreset(preset), `${name.replace(/\.[^.]+$/, '')}.frypreset`, 'frypreset', 'preset')
   })
   register('image:paste', async () => {
     for (const item of await clipboard.read()) {

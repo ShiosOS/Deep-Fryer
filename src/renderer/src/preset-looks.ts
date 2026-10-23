@@ -1,4 +1,4 @@
-import { newEffect, recipeSchema, type Effect, type Recipe } from '../../shared/recipe'
+import { newEffect, presetSchema, type Effect, type Preset } from '../../shared/preset'
 
 export const namedLooks = ['Crispy color', 'Noisy photocopy', 'Overcooked'] as const
 export type NamedLook = typeof namedLooks[number]
@@ -13,13 +13,13 @@ export function randomParameters(effect: Effect): ReadonlyArray<{ key: RandomPar
   return [{ key: 'value', label: labels[effect.kind] }]
 }
 
-export function namedRecipe(name: NamedLook, seed: number): Recipe {
+export function namedPreset(name: NamedLook, seed: number): Preset {
   const settings = {
     'Crispy color': { brightness: 8, contrast: 150, saturation: 135, levels: 48, sharpen: 80, noise: 10, quality: 60, passes: 1 },
     'Noisy photocopy': { brightness: 10, contrast: 175, saturation: 0, levels: 8, sharpen: 60, noise: 40, quality: 35, passes: 2 },
     'Overcooked': { brightness: 20, contrast: 195, saturation: 175, levels: 12, sharpen: 150, noise: 55, quality: 15, passes: 3 }
   }[name]
-  return recipeSchema.parse({ version: 1, seed, effects: [
+  return presetSchema.parse({ seed, effects: [
     { ...newEffect('brightness'), id: 'look-brightness', value: settings.brightness },
     { ...newEffect('contrast'), id: 'look-contrast', value: settings.contrast },
     { ...newEffect('saturation'), id: 'look-saturation', value: settings.saturation },
@@ -30,10 +30,10 @@ export function namedRecipe(name: NamedLook, seed: number): Recipe {
   ] })
 }
 
-export function scaleFry(recipe: Recipe, amount: number): Recipe {
+export function scaleFry(preset: Preset, amount: number): Preset {
   const fraction = Math.max(0, Math.min(100, amount)) / 100
   const scale = (value: number, neutral = 0): number => Math.round(neutral + (value - neutral) * fraction)
-  const effects = recipe.effects.map((effect): Effect => {
+  const effects = preset.effects.map((effect): Effect => {
     switch (effect.kind) {
       case 'brightness': case 'sharpen': case 'noise': return { ...effect, value: scale(effect.value) }
       case 'contrast': case 'saturation': return { ...effect, value: scale(effect.value, 100) }
@@ -42,18 +42,18 @@ export function scaleFry(recipe: Recipe, amount: number): Recipe {
       case 'bulge': return { ...effect, strength: scale(effect.strength) }
     }
   })
-  return { ...recipe, effects }
+  return { ...preset, effects }
 }
 
-export function randomizeRecipe(recipe: Recipe, locks: ReadonlySet<string>, seed: number): Recipe {
+export function randomizePreset(preset: Preset, locks: ReadonlySet<string>, seed: number): Preset {
   let state = seed >>> 0
   function integer(minimum: number, maximum: number): number {
     state = (Math.imul(state, 1664525) + 1013904223) >>> 0
     return minimum + Math.floor(state / 0x100000000 * (maximum - minimum + 1))
   }
   const locked = (effect: Effect, key: RandomParameter): boolean => locks.has(parameterKey(effect, key))
-  let passesLeft = 8 - recipe.effects.reduce((sum, effect) => sum + (effect.kind === 'jpeg' && effect.enabled && effect.mix > 0 && locked(effect, 'passes') ? effect.passes : 0), 0)
-  const effects = recipe.effects.map((effect): Effect => {
+  let passesLeft = 8 - preset.effects.reduce((sum, effect) => sum + (effect.kind === 'jpeg' && effect.enabled && effect.mix > 0 && locked(effect, 'passes') ? effect.passes : 0), 0)
+  const effects = preset.effects.map((effect): Effect => {
     if (effect.kind === 'jpeg') {
       const active = effect.enabled && effect.mix > 0
       const passes = locked(effect, 'passes') ? effect.passes : integer(0, active ? Math.min(3, passesLeft) : 3)
@@ -71,5 +71,5 @@ export function randomizeRecipe(recipe: Recipe, locks: ReadonlySet<string>, seed
       case 'noise': return { ...effect, value: integer(0, 65) }
     }
   })
-  return recipeSchema.parse({ ...recipe, seed, effects })
+  return presetSchema.parse({ ...preset, seed, effects })
 }

@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { openImageResult, type ImageBridge } from '../shared/image'
 import { exportImageInput, exportImageResult } from '../shared/output'
 import { editableDocumentSchema, recoveryOfferSchema, type DocumentBridge } from '../shared/documents'
-import { recipeSchema } from '../shared/recipe'
+import { presetSchema } from '../shared/preset'
 
 const bridge: ImageBridge = {
   openImage: async () => openImageResult.parse(await ipcRenderer.invoke('image:open')),
@@ -17,8 +17,8 @@ contextBridge.exposeInMainWorld('imageBridge', bridge)
 const documents: DocumentBridge = {
   openProject: async () => editableDocumentSchema.nullable().parse(await ipcRenderer.invoke('document:open-project')),
   saveProject: async (document) => exportImageResult.parse(await ipcRenderer.invoke('document:save-project', document)),
-  openPreset: async () => recipeSchema.nullable().parse(await ipcRenderer.invoke('document:open-preset')),
-  savePreset: async (recipe, name) => exportImageResult.parse(await ipcRenderer.invoke('document:save-preset', recipe, name)),
+  openPreset: async () => presetSchema.nullable().parse(await ipcRenderer.invoke('document:open-preset')),
+  savePreset: async (preset, name) => exportImageResult.parse(await ipcRenderer.invoke('document:save-preset', preset, name)),
   recoveryOffer: async () => recoveryOfferSchema.parse(await ipcRenderer.invoke('recovery:offer')),
   restoreRecovery: async () => editableDocumentSchema.parse(await ipcRenderer.invoke('recovery:restore')),
   discardRecovery: async () => { await ipcRenderer.invoke('recovery:discard') },

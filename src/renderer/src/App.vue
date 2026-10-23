@@ -2,14 +2,14 @@
 import { computed, onMounted, onUnmounted, ref, shallowRef } from 'vue'
 import { validateDimensions, type OpenImage } from '../../shared/image'
 import EffectsPanel from './EffectsPanel.vue'
-import RecipeLooks from './RecipeLooks.vue'
+import PresetLooks from './PresetLooks.vue'
 import OutputPanel from './OutputPanel.vue'
 import BulgeOverlay from './BulgeOverlay.vue'
 import DocumentControls from './DocumentControls.vue'
 import { useDocumentFiles } from './document-files'
-import { renderRecipeFrame } from './render-recipe-frame'
-import { isNeutralEffect, newEffect, newRecipe, recipeSchema, replaceEffect, type Recipe } from '../../shared/recipe'
-import { snapshotRecipe, useRecipeHistory } from './recipe-history'
+import { renderPresetFrame } from './render-preset-frame'
+import { isNeutralEffect, newEffect, newPreset, presetSchema, replaceEffect, type Preset } from '../../shared/preset'
+import { snapshotPreset, usePresetHistory } from './preset-history'
 import type { WorkerRequest, WorkerResponse } from './effects-worker'
 import { actualSize, fitView, imageOrigin, paneToImage, pan, resizeView, zoom, type InspectionView, type Point, type Size } from './inspection-geometry'
 
@@ -28,13 +28,13 @@ const outputPanel = ref<InstanceType<typeof OutputPanel> | null>(null)
 const pane = ref<Size>({ width: 0, height: 0 })
 const view = ref<InspectionView | null>(null)
 const showing = ref<'edited' | 'original'>('edited')
-const history = useRecipeHistory(newRecipe())
-const { recipe } = history
+const history = usePresetHistory(newPreset())
+const { preset } = history
 const restoreVersion = ref(0)
 const placingPoint = ref(false)
 const selectedPointId = ref<string | null>(null)
 const gestureActive = ref(false)
-const bulgePoints = computed(() => recipe.value.effects.filter((effect) => effect.kind === 'bulge'))
+const bulgePoints = computed(() => preset.value.effects.filter((effect) => effect.kind === 'bulge'))
 const readyRevision = ref(0)
 const imageVersion = ref(0)
 let renderRevision = 0
@@ -44,7 +44,7 @@ let confirmedFrame: ImageData | null = null
 const worker = new Worker(new URL('./effects-worker.ts', import.meta.url), { type: 'module' })
 const busy = computed(() => operation.value.kind !== 'idle')
 const controlsBusy = computed(() => operation.value.kind === 'opening' || operation.value.kind === 'exporting')
-const recipeNeutral = computed(() => recipe.value.effects.every(isNeutralEffect))
+const presetNeutral = computed(() => preset.value.effects.every(isNeutralEffect))
 const dimensions = computed(() => document.value ? `${document.value.bitmap.width.toLocaleString()} × ${document.value.bitmap.height.toLocaleString()}` : 'No image yet')
 const fileSize = computed(() => {
   const size = document.value?.bytes.byteLength ?? 0
@@ -96,7 +96,7 @@ function pointerDown(event: PointerEvent): void {
     const point = paneToImage(view.value, relative, pane.value)
     if (point.x >= 0 && point.x <= imageSize.value.width && point.y >= 0 && point.y <= imageSize.value.height) {
       const effect = { ...newEffect('bulge'), x: Math.max(0, Math.min(1, point.x / Math.max(1, imageSize.value.width - 1))), y: Math.max(0, Math.min(1, point.y / Math.max(1, imageSize.value.height - 1))) }
-      if (!changeRecipe({ ...recipe.value, effects: [...recipe.value.effects, effect] })) return
+      if (!changePreset({ ...preset.value, effects: [...preset.value.effects, effect] })) return
       selectedPointId.value = effect.id
       placingPoint.value = false
     }
@@ -134,7 +134,7 @@ function stageKeydown(event: KeyboardEvent): void {
   event.preventDefault()
 }
 
-async function publishImage(source: OpenImage, savedRecipe: Recipe): Promise<void> {
+async function publishImage(source: OpenImage, savedPreset: Preset): Promise<void> {
   let candidate: ImageBitmap | null = null
   const previous = document.value
   const previousReadyRevision = readyRevision.value
@@ -167,8 +167,8 @@ async function publishImage(source: OpenImage, savedRecipe: Recipe): Promise<voi
       preview = { width: surface.width, height: surface.height, pixels: draftContext.getImageData(0, 0, surface.width, surface.height).data }
     }
     const candidateDocument = { ...source, bitmap: candidate }
-    const candidateRecipe = recipeSchema.parse(savedRecipe)
-    const editedPixels = await renderRecipeFrame(pixels, candidateRecipe)
+    const candidatePreset = presetSchema.parse(savedPreset)
+    const editedPixels = await renderPresetFrame(pixels, candidatePreset)
     const candidateView = fitView({ width: candidate.width, height: candidate.height }, pane.value)
     if (previous) previousFrame = context.getImageData(0, 0, canvas.value.width, canvas.value.height)
     const request: WorkerRequest = { kind: 'source', sourceId: imageVersion.value + 1, width: candidate.width, height: candidate.height, pixels: workerPixels, preview }
@@ -182,7 +182,7 @@ async function publishImage(source: OpenImage, savedRecipe: Recipe): Promise<voi
     context.putImageData(editedPixels, 0, 0)
     worker.postMessage(request, preview ? [workerPixels.buffer, preview.pixels.buffer] : [workerPixels.buffer])
     document.value = candidateDocument
-    history.reset(candidateRecipe)
+    history.reset(candidatePreset)
     confirmedFrame = editedPixels
     gestureActive.value = false
     selectedPointId.value = null
@@ -225,23 +225,23 @@ async function publishImage(source: OpenImage, savedRecipe: Recipe): Promise<voi
 }
 
 const files = useDocumentFiles({
-  busy, source: () => document.value, recipe: () => snapshotRecipe(recipe.value),
+  busy, source: () => document.value, preset: () => snapshotPreset(preset.value),
   ready: () => document.value !== null && readyRevision.value === renderRevision,
   gestureActive: () => gestureActive.value,
   setOperation: (kind) => { operation.value = { kind } },
   finishOperation: () => { if (operation.value.kind === 'opening' || operation.value.kind === 'exporting') operation.value = { kind: 'idle' } },
   report: (message) => { notice.value = message }, publish: publishImage,
-  applyRecipe: (settings) => { changeRecipe(settings); restoreVersion.value += 1 }
+  applyPreset: (settings) => { changePreset(settings); restoreVersion.value += 1 }
 })
 const { openImage } = files
 
 function beginGesture(): void { gestureActive.value = true; files.cancelCheckpoint(); history.begin() }
 function endGesture(): void { history.end(); gestureActive.value = false; files.scheduleCheckpoint() }
 
-function changeRecipe(settings: Recipe): boolean {
+function changePreset(settings: Preset): boolean {
   const source = document.value
   if (!source || controlsBusy.value) return false
-  const parsed = recipeSchema.safeParse(settings)
+  const parsed = presetSchema.safeParse(settings)
   if (!parsed.success) {
     notice.value = { kind: 'error', text: parsed.error.issues[0]?.message ?? 'Check the effect settings.' }
     return false
@@ -254,17 +254,17 @@ function changeRecipe(settings: Recipe): boolean {
 function scheduleRender(source: ImageDocument): void {
   files.cancelCheckpoint()
   const revision = ++renderRevision
-  const accepted = snapshotRecipe(recipe.value)
+  const accepted = snapshotPreset(preset.value)
   operation.value = { kind: 'processing' }
   notice.value = { kind: 'info', text: 'Processing effects…' }
   if (renderTimer) clearTimeout(renderTimer)
   if (hasPreview) {
-    const previewRequest: WorkerRequest = { kind: 'render', sourceId: imageVersion.value, revision, recipe: accepted, quality: 'preview' }
+    const previewRequest: WorkerRequest = { kind: 'render', sourceId: imageVersion.value, revision, preset: accepted, quality: 'preview' }
     worker.postMessage(previewRequest)
   }
   renderTimer = setTimeout(() => {
     if (revision !== renderRevision || document.value !== source) return
-    const request: WorkerRequest = { kind: 'render', sourceId: imageVersion.value, revision, recipe: accepted, quality: 'full' }
+    const request: WorkerRequest = { kind: 'render', sourceId: imageVersion.value, revision, preset: accepted, quality: 'full' }
     worker.postMessage(request)
   }, 100)
 }
@@ -272,11 +272,11 @@ function scheduleRender(source: ImageDocument): void {
 function movePoint(id: string, x: number, y: number): void {
   const effect = bulgePoints.value.find((item) => item.id === id)
   if (!effect) return
-  changeRecipe(replaceEffect(recipe.value, { ...effect, x, y }))
+  changePreset(replaceEffect(preset.value, { ...effect, x, y }))
 }
 
 function deletePoint(id: string): void {
-  changeRecipe({ ...recipe.value, effects: recipe.value.effects.filter((effect) => effect.id !== id) })
+  changePreset({ ...preset.value, effects: preset.value.effects.filter((effect) => effect.id !== id) })
   if (selectedPointId.value === id) selectedPointId.value = null
 }
 
@@ -341,7 +341,7 @@ worker.onmessage = (event: MessageEvent<WorkerResponse>): void => {
   readyRevision.value = result.revision
   files.scheduleCheckpoint()
   operation.value = { kind: 'idle' }
-  const textured = recipe.value.effects.some((effect) => effect.enabled && effect.mix > 0 && ((effect.kind === 'sharpen' || effect.kind === 'noise') && effect.value > 0 || effect.kind === 'jpeg' && effect.passes > 0 || effect.kind === 'bulge' && effect.strength !== 0))
+  const textured = preset.value.effects.some((effect) => effect.enabled && effect.mix > 0 && ((effect.kind === 'sharpen' || effect.kind === 'noise') && effect.value > 0 || effect.kind === 'jpeg' && effect.passes > 0 || effect.kind === 'bulge' && effect.strength !== 0))
   notice.value = { kind: 'success', text: textured ? 'Effects are ready to export.' : 'Color changes are ready to export.' }
 }
 
@@ -423,17 +423,17 @@ onUnmounted(() => {
         </section>
 
         <DocumentControls :busy="busy" :has-image="document !== null" :ready="readyRevision === renderRevision" :recovery-status="files.recoveryStatus.value" :recovery-offer="files.recoveryOffer.value" @open-project="files.openProject" @save-project="files.saveProject" @load-preset="files.loadPreset" @save-preset="files.savePreset" @paste-image="files.pasteImage" @restore-recovery="files.restoreRecovery" @discard-recovery="files.discardRecovery" />
-        <OutputPanel ref="outputPanel" :source="document" :recipe="recipe" :disabled="controlsBusy" @notice="notice = $event" @save-started="files.cancelCheckpoint" @save-finished="files.scheduleCheckpoint" />
+        <OutputPanel ref="outputPanel" :source="document" :preset="preset" :disabled="controlsBusy" @notice="notice = $event" @save-started="files.cancelCheckpoint" @save-finished="files.scheduleCheckpoint" />
 
         <div v-if="document" class="history-controls" aria-label="Edit history"><button type="button" :disabled="!history.canUndo.value || controlsBusy" aria-keyshortcuts="Control+Z Meta+Z" @click="restoreFromHistory('undo')">Undo</button><button type="button" :disabled="!history.canRedo.value || controlsBusy" aria-keyshortcuts="Control+Shift+Z Control+Y Meta+Shift+Z" @click="restoreFromHistory('redo')">Redo</button></div>
-        <RecipeLooks v-if="document" :key="imageVersion" :recipe="recipe" :bitmap="document.bitmap" :restore-version="restoreVersion" :disabled="controlsBusy" @change="changeRecipe" @gesture-begin="beginGesture" @gesture-end="endGesture" />
-        <EffectsPanel v-if="document" :key="imageVersion" :recipe="recipe" :restore-version="restoreVersion" :selected-point-id="selectedPointId" :disabled="controlsBusy" @change="changeRecipe" @gesture-begin="beginGesture" @gesture-end="endGesture" @select-point="selectedPointId = $event; showing = 'edited'" />
+        <PresetLooks v-if="document" :key="imageVersion" :preset="preset" :bitmap="document.bitmap" :restore-version="restoreVersion" :disabled="controlsBusy" @change="changePreset" @gesture-begin="beginGesture" @gesture-end="endGesture" />
+        <EffectsPanel v-if="document" :key="imageVersion" :preset="preset" :restore-version="restoreVersion" :selected-point-id="selectedPointId" :disabled="controlsBusy" @change="changePreset" @gesture-begin="beginGesture" @gesture-end="endGesture" @select-point="selectedPointId = $event; showing = 'edited'" />
 
         <div class="sidebar-bottom"><div class="original-note"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6z" /><path d="m8 12 3 3 5-6" /></svg><span>Your original is safe.<small>Exports always use a new file.</small></span></div><span class="edition">DEEP FRYER / VERSION {{ applicationVersion }}</span></div>
       </aside>
 
       <main class="main-area">
-        <div class="preview-toolbar"><div><span class="preview-label">Preview</span><span v-if="document" class="original-badge">{{ showing === 'original' ? 'ORIGINAL' : operation.kind === 'processing' ? 'PROCESSING' : recipeNeutral ? 'UNCHANGED' : 'EDITED' }}</span></div><div v-if="document" class="inspection-controls" aria-label="Image inspection controls"><button type="button" :aria-pressed="placingPoint" :disabled="controlsBusy" @click="placingPoint = !placingPoint; showing = 'edited'">{{ placingPoint ? 'Click image…' : 'Place point' }}</button><button type="button" @click="fit">Fit</button><button type="button" @click="oneToOne">100%</button><button type="button" aria-label="Zoom out" @click="zoomAt(-1)">−</button><span class="preview-scale">{{ zoomLabel }}</span><button type="button" aria-label="Zoom in" @click="zoomAt(1)">+</button><span class="inspection-divider"></span><button type="button" :aria-pressed="showing === 'original'" @click="showing = 'original'">Original</button><button type="button" :aria-pressed="showing === 'edited'" @click="showing = 'edited'">Edited</button></div><span v-else class="preview-scale">No image loaded</span></div>
+        <div class="preview-toolbar"><div><span class="preview-label">Preview</span><span v-if="document" class="original-badge">{{ showing === 'original' ? 'ORIGINAL' : operation.kind === 'processing' ? 'PROCESSING' : presetNeutral ? 'UNCHANGED' : 'EDITED' }}</span></div><div v-if="document" class="inspection-controls" aria-label="Image inspection controls"><button type="button" :aria-pressed="placingPoint" :disabled="controlsBusy" @click="placingPoint = !placingPoint; showing = 'edited'">{{ placingPoint ? 'Click image…' : 'Place point' }}</button><button type="button" @click="fit">Fit</button><button type="button" @click="oneToOne">100%</button><button type="button" aria-label="Zoom out" @click="zoomAt(-1)">−</button><span class="preview-scale">{{ zoomLabel }}</span><button type="button" aria-label="Zoom in" @click="zoomAt(1)">+</button><span class="inspection-divider"></span><button type="button" :aria-pressed="showing === 'original'" @click="showing = 'original'">Original</button><button type="button" :aria-pressed="showing === 'edited'" @click="showing = 'edited'">Edited</button></div><span v-else class="preview-scale">No image loaded</span></div>
         <section ref="stage" class="preview-stage" :class="{ 'has-image': document }" aria-label="Image preview" :tabindex="document ? 0 : -1" @keydown="stageKeydown" @pointerdown="pointerDown" @pointermove="pointerMove" @pointerup="endDrag" @pointercancel="endDrag" @lostpointercapture="endDrag" @dblclick="zoomAt($event.shiftKey ? -1 : 1, pointerPosition($event))">
           <div class="image-plane" v-show="document" :style="imageStyle"><canvas ref="canvas" v-show="showing === 'edited'" aria-label="Edited full resolution image canvas"></canvas><canvas ref="originalCanvas" v-show="showing === 'original'" aria-label="Original full resolution image canvas"></canvas></div>
           <BulgeOverlay v-if="document && view && imageSize && showing === 'edited'" :points="bulgePoints" :selected-id="selectedPointId" :view="view" :pane="pane" :image="imageSize" @select="selectedPointId = $event" @change="movePoint" @delete="deletePoint" @gesture-begin="beginGesture" @gesture-end="endGesture" />

@@ -120,10 +120,10 @@ h2 { font-size: 27px; letter-spacing: -.8px; font-weight: 500; margin: 13px 0 14
 .export-button { background: var(--accent); color: #29170d; min-width: 184px; flex-shrink: 0; }
 .export-button:hover:enabled { background: #ffbd8c; }
 @media (max-height: 700px) { .sidebar { padding-top: 22px; } h1 { margin-top: 16px; } .intro { margin-bottom: 20px; } .format-note { margin-bottom: 20px; } .empty-art { width: 85px; height: 85px; margin-bottom: 20px; } .edition { padding-top: 18px; } }
-.recipe-looks { padding: 16px 0; margin: 8px 0 20px; border-bottom: 1px solid #393633; display: grid; gap: 10px; }
-.recipe-looks .controls-heading { margin: 0 0 4px; }
+.preset-looks { padding: 16px 0; margin: 8px 0 20px; border-bottom: 1px solid #393633; display: grid; gap: 10px; }
+.preset-looks .controls-heading { margin: 0 0 4px; }
 .look-choice, .fry-amount { display: grid; gap: 7px; color: #c5c0ba; font-size: 11px; }
-.recipe-looks button, .recipe-looks select, .variation-actions button { padding: 7px 10px; border: 1px solid #55483c; border-radius: 5px; background: #292522; color: #f7d0b0; font: inherit; font-size: 11px; }
+.preset-looks button, .preset-looks select, .variation-actions button { padding: 7px 10px; border: 1px solid #55483c; border-radius: 5px; background: #292522; color: #f7d0b0; font: inherit; font-size: 11px; }
 .fry-amount .amount-value { justify-self: end; margin-top: -20px; }
 .fry-amount input { width: 100%; accent-color: var(--accent); }
 .random-locks { color: #c5c0ba; font-size: 11px; }

@@ -1,21 +1,21 @@
 import { onUnmounted, ref, type Ref } from 'vue'
 import type { EditableDocument, RecoveryOffer } from '../../shared/documents'
 import type { OpenImage } from '../../shared/image'
-import { newRecipe, type Recipe } from '../../shared/recipe'
+import { newPreset, type Preset } from '../../shared/preset'
 
 export type FileOperation = 'opening' | 'exporting'
 type Notice = { kind: 'info' | 'success' | 'error'; text: string }
 type DocumentOwner = {
   busy: Readonly<Ref<boolean>>
   source: () => OpenImage | null
-  recipe: () => Recipe
+  preset: () => Preset
   ready: () => boolean
   gestureActive: () => boolean
   setOperation: (operation: FileOperation | 'idle') => void
   finishOperation: () => void
   report: (notice: Notice) => void
-  publish: (source: OpenImage, recipe: Recipe) => Promise<void>
-  applyRecipe: (recipe: Recipe) => void
+  publish: (source: OpenImage, preset: Preset) => Promise<void>
+  applyPreset: (preset: Preset) => void
 }
 
 export function describeError(error: unknown): string {
@@ -34,7 +34,7 @@ export function useDocumentFiles(owner: DocumentOwner) {
   }
   function current(): EditableDocument | null {
     const source = owner.source()
-    return source ? { source: { name: source.name, mime: source.mime, bytes: source.bytes }, recipe: owner.recipe() } : null
+    return source ? { source: { name: source.name, mime: source.mime, bytes: source.bytes }, preset: owner.preset() } : null
   }
   async function run(operation: FileOperation, action: () => Promise<void>, allowRecovery = false): Promise<void> {
     if (recoveryState === 'checking' || owner.busy.value || recoveryOffer.value && !allowRecovery) return
@@ -46,7 +46,7 @@ export function useDocumentFiles(owner: DocumentOwner) {
   async function load(provider: () => Promise<OpenImage | null>): Promise<void> {
     await run('opening', async () => {
       const source = await provider()
-      if (source) { await owner.publish(source, newRecipe()); scheduleCheckpoint() }
+      if (source) { await owner.publish(source, newPreset()); scheduleCheckpoint() }
     })
   }
   function scheduleCheckpoint(): void {
@@ -68,7 +68,7 @@ export function useDocumentFiles(owner: DocumentOwner) {
     await run('opening', async () => {
       const document = await window.documentBridge.openProject()
       if (!document) return
-      await owner.publish(document.source, document.recipe)
+      await owner.publish(document.source, document.preset)
       scheduleCheckpoint()
     })
   }
@@ -83,18 +83,18 @@ export function useDocumentFiles(owner: DocumentOwner) {
   }
   async function loadPreset(): Promise<void> {
     if (!owner.source()) return
-    let candidate: Recipe | null = null
+    let candidate: Preset | null = null
     await run('opening', async () => {
       candidate = await window.documentBridge.openPreset()
     })
-    if (candidate) owner.applyRecipe(candidate)
+    if (candidate) owner.applyPreset(candidate)
   }
   async function savePreset(): Promise<void> {
     if (!owner.ready()) return
     await run('exporting', async () => {
       const document = current()
       if (!document) return
-      const result = await window.documentBridge.savePreset(document.recipe, document.source.name)
+      const result = await window.documentBridge.savePreset(document.preset, document.source.name)
       if (result.kind === 'saved') owner.report({ kind: 'success', text: `Saved ${result.name}. This preset contains settings and its saved seed, without the source image.` })
     })
   }
@@ -112,7 +112,7 @@ export function useDocumentFiles(owner: DocumentOwner) {
   async function restoreRecovery(): Promise<void> {
     await run('opening', async () => {
       const document = await window.documentBridge.restoreRecovery()
-      await owner.publish(document.source, document.recipe)
+      await owner.publish(document.source, document.preset)
       recoveryOffer.value = null
       scheduleCheckpoint()
     }, true)
