@@ -6,7 +6,7 @@ import RecipeLooks from './RecipeLooks.vue'
 import BulgeOverlay from './BulgeOverlay.vue'
 import DocumentControls from './DocumentControls.vue'
 import { describeError, useDocumentFiles } from './document-files'
-import { prepareProjectFrame } from './prepare-project'
+import { renderRecipeFrame } from './render-recipe-frame'
 import { isNeutralEffect, newEffect, newRecipe, recipeSchema, replaceEffect, type Recipe } from '../../shared/recipe'
 import { snapshotRecipe, useRecipeHistory } from './recipe-history'
 import type { WorkerRequest, WorkerResponse } from './effects-worker'
@@ -166,7 +166,7 @@ async function publishImage(source: OpenImage, savedRecipe: Recipe): Promise<voi
     }
     const candidateDocument = { ...source, bitmap: candidate }
     const candidateRecipe = recipeSchema.parse(savedRecipe)
-    const editedPixels = await prepareProjectFrame(pixels, candidateRecipe)
+    const editedPixels = await renderRecipeFrame(pixels, candidateRecipe)
     const candidateView = fitView({ width: candidate.width, height: candidate.height }, pane.value)
     if (previous) previousFrame = context.getImageData(0, 0, canvas.value.width, canvas.value.height)
     const request: WorkerRequest = { kind: 'source', sourceId: imageVersion.value + 1, width: candidate.width, height: candidate.height, pixels: workerPixels, preview }
