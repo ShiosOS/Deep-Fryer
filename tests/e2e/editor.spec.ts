@@ -166,7 +166,7 @@ test('independent color controls preview and export combined settings while pres
     await page.getByRole('spinbutton', { name: 'Color levels value' }).fill('256')
     await expect(page.getByRole('status')).toContainText('Color changes are ready')
 
-    const preview = await page.locator('canvas').evaluate((canvas) => {
+    const preview = await page.getByLabel('Edited full resolution image canvas').evaluate((canvas) => {
       if (!(canvas instanceof HTMLCanvasElement)) throw new Error('Preview canvas missing')
       const context = canvas.getContext('2d')
       if (!context) throw new Error('Preview context missing')

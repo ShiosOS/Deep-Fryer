@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref, shallowRef } from 'vue'
 import { validateDimensions, type OpenImage } from '../../shared/image'
 import ColorControls from './ColorControls.vue'
 import { neutralColorSettings, renderColorImage, type ColorSettings } from './color'
+import { actualSize, fitView, imageOrigin, pan, resizeView, zoom, type InspectionView, type Point, type Size } from './inspection-geometry'
 
 type ImageDocument = Readonly<OpenImage & { bitmap: ImageBitmap }>
 type Operation = { kind: 'idle' } | { kind: 'opening' } | { kind: 'processing' } | { kind: 'exporting' }
@@ -12,6 +13,11 @@ const document = shallowRef<ImageDocument | null>(null)
 const operation = ref<Operation>({ kind: 'idle' })
 const notice = ref<Notice>({ kind: 'info', text: 'Open an image to preview and export it.' })
 const canvas = ref<HTMLCanvasElement | null>(null)
+const originalCanvas = ref<HTMLCanvasElement | null>(null)
+const stage = ref<HTMLElement | null>(null)
+const pane = ref<Size>({ width: 0, height: 0 })
+const view = ref<InspectionView | null>(null)
+const showing = ref<'edited' | 'original'>('edited')
 const colorSettings = ref<ColorSettings>(neutralColorSettings)
 let renderedSettings: ColorSettings = neutralColorSettings
 const imageVersion = ref(0)
@@ -24,6 +30,78 @@ const fileSize = computed(() => {
   const size = document.value?.bytes.byteLength ?? 0
   return size < 1024 * 1024 ? `${(size / 1024).toFixed(1)} KB` : `${(size / 1024 / 1024).toFixed(1)} MB`
 })
+const imageSize = computed<Size | null>(() => document.value ? { width: document.value.bitmap.width, height: document.value.bitmap.height } : null)
+const imageStyle = computed(() => {
+  if (!view.value || !imageSize.value) return {}
+  const origin = imageOrigin(view.value, pane.value)
+  return {
+    width: `${imageSize.value.width}px`, height: `${imageSize.value.height}px`,
+    transform: `translate(${origin.x}px, ${origin.y}px) scale(${view.value.scale})`
+  }
+})
+const zoomLabel = computed(() => view.value ? `${Math.round(view.value.scale * 100)}%` : 'No image loaded')
+
+let drag: { pointerId: number; position: Point } | null = null
+let resizeObserver: ResizeObserver | null = null
+
+function measurePane(): void {
+  if (!stage.value) return
+  const size = { width: stage.value.clientWidth, height: stage.value.clientHeight }
+  if (size.width <= 0 || size.height <= 0) return
+  pane.value = size
+  if (view.value && imageSize.value) view.value = resizeView(view.value, imageSize.value, size)
+}
+
+function zoomAt(direction: 1 | -1, anchor: Point = { x: pane.value.width / 2, y: pane.value.height / 2 }): void {
+  if (view.value && imageSize.value) view.value = zoom(view.value, direction, anchor, imageSize.value, pane.value)
+}
+
+function fit(): void {
+  if (imageSize.value && pane.value.width > 0 && pane.value.height > 0) view.value = fitView(imageSize.value, pane.value)
+}
+
+function oneToOne(): void {
+  if (view.value && imageSize.value) view.value = actualSize(view.value, imageSize.value, pane.value)
+}
+
+function pointerPosition(event: MouseEvent): Point {
+  const bounds = stage.value?.getBoundingClientRect()
+  return { x: event.clientX - (bounds?.left ?? 0), y: event.clientY - (bounds?.top ?? 0) }
+}
+
+function pointerDown(event: PointerEvent): void {
+  if (!document.value || event.button !== 0 || !stage.value) return
+  stage.value.focus()
+  drag = { pointerId: event.pointerId, position: { x: event.clientX, y: event.clientY } }
+  stage.value.setPointerCapture(event.pointerId)
+}
+
+function pointerMove(event: PointerEvent): void {
+  if (!drag || drag.pointerId !== event.pointerId || !view.value || !imageSize.value) return
+  const position = { x: event.clientX, y: event.clientY }
+  view.value = pan(view.value, { x: position.x - drag.position.x, y: position.y - drag.position.y }, imageSize.value, pane.value)
+  drag.position = position
+}
+
+function endDrag(): void {
+  drag = null
+}
+
+function stageKeydown(event: KeyboardEvent): void {
+  if (!view.value || !imageSize.value || event.ctrlKey || event.metaKey || event.altKey) return
+  switch (event.key) {
+    case '+': case '=': zoomAt(1); break
+    case '-': case '_': zoomAt(-1); break
+    case '0': fit(); break
+    case '1': oneToOne(); break
+    case 'ArrowLeft': view.value = pan(view.value, { x: 40, y: 0 }, imageSize.value, pane.value); break
+    case 'ArrowRight': view.value = pan(view.value, { x: -40, y: 0 }, imageSize.value, pane.value); break
+    case 'ArrowUp': view.value = pan(view.value, { x: 0, y: 40 }, imageSize.value, pane.value); break
+    case 'ArrowDown': view.value = pan(view.value, { x: 0, y: -40 }, imageSize.value, pane.value); break
+    default: return
+  }
+  event.preventDefault()
+}
 
 function describeError(error: unknown): string {
   return error instanceof Error ? error.message.replace(/^Error invoking remote method '[^']+': Error: /, '') : 'Something went wrong. Try again.'
@@ -39,15 +117,22 @@ async function openImage(): Promise<void> {
     candidate = await createImageBitmap(new Blob([new Uint8Array(source.bytes).buffer], { type: source.mime }), { imageOrientation: 'from-image' })
     validateDimensions(candidate.width, candidate.height)
     const context = canvas.value?.getContext('2d')
-    if (!context || !canvas.value) throw new Error('The image preview is unavailable. Reopen the app and try again.')
+    const originalContext = originalCanvas.value?.getContext('2d')
+    if (!context || !canvas.value || !originalContext || !originalCanvas.value) throw new Error('The image preview is unavailable. Reopen the app and try again.')
     const pixels = renderColorImage(candidate, neutralColorSettings)
     const previous = document.value
     canvas.value.width = candidate.width
     canvas.value.height = candidate.height
+    originalCanvas.value.width = candidate.width
+    originalCanvas.value.height = candidate.height
+    originalContext.putImageData(pixels, 0, 0)
     context.putImageData(pixels, 0, 0)
     document.value = { ...source, bitmap: candidate }
     colorSettings.value = neutralColorSettings
     renderedSettings = neutralColorSettings
+    showing.value = 'edited'
+    endDrag()
+    view.value = fitView({ width: candidate.width, height: candidate.height }, pane.value)
     imageVersion.value += 1
     candidate = null
     previous?.bitmap.close()
@@ -114,9 +199,17 @@ function onKeydown(event: KeyboardEvent): void {
   }
 }
 
-onMounted(() => window.addEventListener('keydown', onKeydown))
+onMounted(() => {
+  window.addEventListener('keydown', onKeydown)
+  window.addEventListener('blur', endDrag)
+  resizeObserver = new ResizeObserver(measurePane)
+  if (stage.value) resizeObserver.observe(stage.value)
+  measurePane()
+})
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeydown)
+  window.removeEventListener('blur', endDrag)
+  resizeObserver?.disconnect()
   document.value?.bitmap.close()
 })
 </script>
@@ -151,9 +244,9 @@ onUnmounted(() => {
       </aside>
 
       <main class="main-area">
-        <div class="preview-toolbar"><div><span class="preview-label">Preview</span><span v-if="document" class="original-badge">{{ colorNeutral ? 'ORIGINAL' : 'COLOR ADJUSTED' }}</span></div><span class="preview-scale">{{ operation.kind === 'processing' ? 'Processing…' : document ? 'Fit to view' : 'No image loaded' }}</span></div>
-        <section class="preview-stage" :class="{ 'has-image': document }" aria-label="Image preview">
-          <canvas ref="canvas" v-show="document" aria-label="Full resolution image canvas"></canvas>
+        <div class="preview-toolbar"><div><span class="preview-label">Preview</span><span v-if="document" class="original-badge">{{ showing === 'original' ? 'ORIGINAL' : colorNeutral ? 'ORIGINAL COLORS' : 'COLOR ADJUSTED' }}</span></div><div v-if="document" class="inspection-controls" aria-label="Image inspection controls"><button type="button" @click="fit">Fit</button><button type="button" @click="oneToOne">100%</button><button type="button" aria-label="Zoom out" @click="zoomAt(-1)">−</button><span class="preview-scale">{{ zoomLabel }}</span><button type="button" aria-label="Zoom in" @click="zoomAt(1)">+</button><span class="inspection-divider"></span><button type="button" :aria-pressed="showing === 'original'" @click="showing = 'original'">Original</button><button type="button" :aria-pressed="showing === 'edited'" @click="showing = 'edited'">Edited</button></div><span v-else class="preview-scale">No image loaded</span></div>
+        <section ref="stage" class="preview-stage" :class="{ 'has-image': document }" aria-label="Image preview" :tabindex="document ? 0 : -1" @keydown="stageKeydown" @pointerdown="pointerDown" @pointermove="pointerMove" @pointerup="endDrag" @pointercancel="endDrag" @lostpointercapture="endDrag" @dblclick="zoomAt($event.shiftKey ? -1 : 1, pointerPosition($event))">
+          <div class="image-plane" v-show="document" :style="imageStyle"><canvas ref="canvas" v-show="showing === 'edited'" aria-label="Edited full resolution image canvas"></canvas><canvas ref="originalCanvas" v-show="showing === 'original'" aria-label="Original full resolution image canvas"></canvas></div>
           <div class="empty-state" v-if="!document">
             <div class="empty-art" aria-hidden="true"><svg viewBox="0 0 100 100"><rect x="18" y="21" width="64" height="58" rx="8" /><circle cx="63" cy="40" r="7" /><path d="m20 67 20-22 21 23 10-10 10 10" /></svg><span class="spark spark-one">✧</span><span class="spark spark-two">+</span></div>
             <span class="eyebrow">IMAGE PREVIEW</span><h2>Open your first image.</h2><p>Your image appears here at its original orientation.<br>Export it as a new PNG when you're ready.</p><button class="text-button" :disabled="busy" @click="openImage">Choose an image <span aria-hidden="true">↗</span></button>
