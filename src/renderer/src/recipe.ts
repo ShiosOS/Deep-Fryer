@@ -8,7 +8,8 @@ const effectSchema = z.discriminatedUnion('kind', [
   z.object({ ...base, kind: z.literal('levels'), value: z.number().int().min(2).max(256) }),
   z.object({ ...base, kind: z.literal('sharpen'), value: z.number().int().min(0).max(200) }),
   z.object({ ...base, kind: z.literal('noise'), value: z.number().int().min(0).max(100) }),
-  z.object({ ...base, kind: z.literal('jpeg'), quality: z.number().int().min(1).max(100), passes: z.number().int().min(0).max(8), background: z.string().regex(/^#[0-9a-fA-F]{6}$/) })
+  z.object({ ...base, kind: z.literal('jpeg'), quality: z.number().int().min(1).max(100), passes: z.number().int().min(0).max(8), background: z.string().regex(/^#[0-9a-fA-F]{6}$/) }),
+  z.object({ ...base, kind: z.literal('bulge'), x: z.number().min(0).max(1), y: z.number().min(0).max(1), radius: z.number().min(0.01).max(1), strength: z.number().int().min(-100).max(100) })
 ])
 
 export const recipeSchema = z.object({
@@ -27,7 +28,8 @@ export const effectOptions: ReadonlyArray<{ kind: EffectKind; label: string; min
   { kind: 'levels', label: 'Color levels', min: 2, max: 256 },
   { kind: 'sharpen', label: 'Sharpen', min: 0, max: 200 },
   { kind: 'noise', label: 'Noise', min: 0, max: 100 },
-  { kind: 'jpeg', label: 'JPEG damage' }
+  { kind: 'jpeg', label: 'JPEG damage' },
+  { kind: 'bulge', label: 'Bulge / pinch' }
 ]
 
 export function newEffect(kind: EffectKind, id = crypto.randomUUID()): Effect {
@@ -40,6 +42,7 @@ export function newEffect(kind: EffectKind, id = crypto.randomUUID()): Effect {
     case 'sharpen': return { ...common, kind, value: 0 }
     case 'noise': return { ...common, kind, value: 0 }
     case 'jpeg': return { ...common, kind, quality: 50, passes: 0, background: '#ffffff' }
+    case 'bulge': return { ...common, kind, x: 0.5, y: 0.5, radius: 0.25, strength: 50 }
   }
 }
 
@@ -56,6 +59,7 @@ export function isNeutralEffect(effect: Effect): boolean {
     case 'contrast': case 'saturation': return effect.value === 100
     case 'levels': return effect.value === 256
     case 'jpeg': return effect.passes === 0
+    case 'bulge': return effect.strength === 0
   }
 }
 

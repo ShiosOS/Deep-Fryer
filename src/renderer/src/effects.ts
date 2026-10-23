@@ -1,4 +1,5 @@
 import { isNeutralEffect, type Effect, type Recipe } from './recipe'
+import { applyBulge } from './bulge'
 
 function clamp(value: number): number { return Math.max(0, Math.min(255, value)) }
 
@@ -17,7 +18,7 @@ function noiseValue(seed: number, pixel: number): number {
   return ((hash ^ (hash >>> 16)) >>> 0) / 0xffffffff * 2 - 1
 }
 
-export function applyPixelEffect(input: ImageData, effect: Exclude<Effect, { kind: 'jpeg' }>, seed: number): ImageData {
+export function applyPixelEffect(input: ImageData, effect: Exclude<Effect, { kind: 'jpeg' } | { kind: 'bulge' }>, seed: number): ImageData {
   const output = new Uint8ClampedArray(input.data)
   if (!effect.enabled || effect.mix === 0) return new ImageData(output, input.width, input.height)
   const mix = effect.mix / 100
@@ -136,7 +137,7 @@ export async function renderRecipe(source: ImageData, recipe: Recipe): Promise<I
   let result = new ImageData(new Uint8ClampedArray(source.data), source.width, source.height)
   for (const effect of recipe.effects) {
     if (isNeutralEffect(effect)) continue
-    result = effect.kind === 'jpeg' ? await applyJpeg(result, effect) : applyPixelEffect(result, effect, recipe.seed)
+    result = effect.kind === 'jpeg' ? await applyJpeg(result, effect) : effect.kind === 'bulge' ? applyBulge(result, effect) : applyPixelEffect(result, effect, recipe.seed)
   }
   return result
 }

@@ -61,3 +61,10 @@ export function imageToPane(view: InspectionView, point: Point, pane: Size): Poi
 export function imageOrigin(view: InspectionView, pane: Size): Point {
   return imageToPane(view, { x: 0, y: 0 }, pane)
 }
+
+export function paneToImage(view: InspectionView, point: Point, pane: Size): Point {
+  return {
+    x: view.center.x + (point.x - pane.width / 2) / view.scale,
+    y: view.center.y + (point.y - pane.height / 2) / view.scale
+  }
+}
