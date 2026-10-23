@@ -35,7 +35,7 @@ test('place, drag, edit, undo, redo, and export a bulge in Electron', async () =
     await page.getByRole('button', { name: 'Undo', exact: true }).click()
     await expect(brightness).toHaveValue('0')
     await expect(page.getByRole('button', { name: 'Export PNG' })).toBeEnabled()
-    await page.getByRole('button', { name: 'Zoom in' }).click()
+    for (let step = 0; step < 4; step += 1) await page.getByRole('button', { name: 'Zoom in' }).click()
     await page.getByRole('button', { name: 'Place point' }).click()
     const stage = page.getByRole('region', { name: 'Image preview' })
     const bounds = await stage.boundingBox()
