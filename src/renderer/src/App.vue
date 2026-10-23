@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, shallowRef } from 'vue'
 import { validateDimensions, type OpenImage } from '../../shared/image'
 import EffectsPanel from './EffectsPanel.vue'
+import RecipeLooks from './RecipeLooks.vue'
 import BulgeOverlay from './BulgeOverlay.vue'
 import { isNeutralEffect, newEffect, newRecipe, recipeSchema, replaceEffect, type Recipe } from './recipe'
 import { snapshotRecipe, useRecipeHistory } from './recipe-history'
@@ -350,6 +351,7 @@ async function exportPng(): Promise<void> {
 }
 
 function onKeydown(event: KeyboardEvent): void {
+  if (window.document.querySelector('dialog[open]')) return
   if (!(event.ctrlKey || event.metaKey) || event.altKey) return
   if (event.key.toLowerCase() === 'o' && !event.shiftKey) {
     event.preventDefault()
@@ -407,6 +409,7 @@ onUnmounted(() => {
         </section>
 
         <div v-if="document" class="history-controls" aria-label="Edit history"><button type="button" :disabled="!history.canUndo.value || controlsBusy" aria-keyshortcuts="Control+Z Meta+Z" @click="restoreFromHistory('undo')">Undo</button><button type="button" :disabled="!history.canRedo.value || controlsBusy" aria-keyshortcuts="Control+Shift+Z Control+Y Meta+Shift+Z" @click="restoreFromHistory('redo')">Redo</button></div>
+        <RecipeLooks v-if="document" :key="imageVersion" :recipe="recipe" :bitmap="document.bitmap" :restore-version="restoreVersion" :disabled="controlsBusy" @change="changeRecipe" @gesture-begin="history.begin" @gesture-end="history.end" />
         <EffectsPanel v-if="document" :key="imageVersion" :recipe="recipe" :restore-version="restoreVersion" :selected-point-id="selectedPointId" :disabled="controlsBusy" @change="changeRecipe" @gesture-begin="history.begin" @gesture-end="history.end" @select-point="selectedPointId = $event; showing = 'edited'" />
 
         <div class="sidebar-bottom"><div class="original-note"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6z" /><path d="m8 12 3 3 5-6" /></svg><span>Your original is safe.<small>Exports always use a new file.</small></span></div><span class="edition">DEEP FRYER / VERSION 0.1</span></div>

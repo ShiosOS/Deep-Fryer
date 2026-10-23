@@ -26,6 +26,7 @@ function accept(next: Recipe): void {
 }
 
 function label(kind: EffectKind): string { return effectOptions.find((item) => item.kind === kind)?.label ?? kind }
+function pointNumber(id: string): number { return props.recipe.effects.filter((effect) => effect.kind === 'bulge').findIndex((effect) => effect.id === id) + 1 }
 function limits(kind: EffectKind): { min: number; max: number } {
   const option = effectOptions.find((item) => item.kind === kind)
   return { min: option?.min ?? 0, max: option?.max ?? 100 }
@@ -112,7 +113,7 @@ function resetColor(): void {
         <p class="jpeg-note">JPEG flattens transparency against this color when passes are above zero.</p>
       </template>
       <template v-else>
-        <button type="button" class="point-select" :aria-label="`Select distortion point ${index + 1}`" :aria-pressed="selectedPointId === effect.id" @click="emit('selectPoint', effect.id)">Point {{ index + 1 }} · Select on image</button>
+        <button type="button" class="point-select" :aria-label="`Select distortion point ${pointNumber(effect.id)}`" :aria-pressed="selectedPointId === effect.id" @click="emit('selectPoint', effect.id)">Point {{ pointNumber(effect.id) }} · Select on image</button>
         <p class="jpeg-note">{{ effect.strength >= 0 ? 'Bulge' : 'Pinch' }} · center and radius use image percentages.</p>
         <div v-for="field in (['x', 'y', 'radius', 'strength'] as const)" :key="field" class="color-control">
           <label :for="`${effect.id}-${field}`">{{ field === 'x' ? 'X position %' : field === 'y' ? 'Y position %' : field === 'radius' ? 'Radius %' : 'Strength' }}</label>
