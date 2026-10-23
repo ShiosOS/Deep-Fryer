@@ -39,7 +39,20 @@ dl { margin: 24px 0; }
 dl > div { display: flex; justify-content: space-between; gap: 8px; margin: 14px 0; font-size: 11px; }
 dt { color: #898986; }
 dd { margin: 0; color: #d4d1cc; }
-.color-controls { padding-top: 18px; border-top: 1px solid var(--line); }
+.effects-panel { padding-top: 18px; border-top: 1px solid var(--line); }
+.effect-card { border: 1px solid #383837; border-radius: 7px; padding: 10px; margin: 9px 0; background: #222325; }
+.effect-heading { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.effect-enabled { display: flex; align-items: center; gap: 6px; min-width: 0; color: #eee8e1; font-size: 11px; font-weight: 600; }
+.effect-enabled input { accent-color: var(--accent); }
+.effect-actions { display: flex; flex-shrink: 0; }
+.effect-actions button { border: 0; background: transparent; color: #c8b9aa; padding: 2px 5px; font-size: 14px; }
+.effect-actions button:hover:enabled { color: #fff; }
+.effect-card .color-control { margin: 9px 0; }
+.mix-control { border-top: 1px solid #383837; padding-top: 7px; }
+.add-effect, .seed-control, .background-control { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #c5c0ba; font-size: 11px; margin: 12px 0; }
+.add-effect select, .seed-control input { max-width: 150px; padding: 5px; border: 1px solid #45403a; border-radius: 4px; background: #242321; color: #eee8e1; font: 11px 'Segoe UI', sans-serif; }
+.seed-control input { width: 110px; }
+.jpeg-note { color: #a7a19a; font-size: 10px; line-height: 1.4; }
 .controls-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .reset-button { border: 0; background: none; color: var(--accent); padding: 4px; font-size: 11px; }
 .reset-button:hover:enabled { color: #ffceaa; }
