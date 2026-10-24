@@ -16,15 +16,13 @@ export function validateSource(source: OpenImage): void {
   validateDimensions(size.width, size.height)
 }
 
-export function registerDocumentActions(editor: BrowserWindow, checkSender: (event: IpcMainInvokeEvent) => void, recovery: RecoveryStore): void {
-  let openingFile = false
+export function registerDocumentActions(editor: BrowserWindow, checkSender: (event: IpcMainInvokeEvent) => void, recovery: RecoveryStore, setFileAction: (active: boolean) => void): void {
   function register(name: string, action: (...args: unknown[]) => Promise<unknown>, fileAction = true): void {
     ipcMain.removeHandler(name)
     ipcMain.handle(name, async (event, ...args: unknown[]) => {
       checkSender(event)
-      if (fileAction && openingFile) throw new Error('Finish the current document action first.')
-      if (fileAction) openingFile = true
-      try { return await action(...args) } finally { if (fileAction) openingFile = false }
+      if (fileAction) setFileAction(true)
+      try { return await action(...args) } finally { if (fileAction) setFileAction(false) }
     })
   }
   async function openPath(title: string, name: string, extensions: string[]): Promise<string | null> {
