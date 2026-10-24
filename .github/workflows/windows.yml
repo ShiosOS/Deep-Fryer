@@ -37,6 +37,7 @@ jobs:
           include-hidden-files: true
           path: |
             .artifacts/*.png
+            .artifacts/copy-image/
             test-results/
           if-no-files-found: ignore
 
@@ -86,6 +87,7 @@ jobs:
           include-hidden-files: true
           path: |
             .artifacts/*.png
+            .artifacts/copy-image/
             test-results/
           if-no-files-found: ignore
 
