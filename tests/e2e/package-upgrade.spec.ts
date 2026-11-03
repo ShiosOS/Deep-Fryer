@@ -3,8 +3,9 @@ import { legacyAction, legacyExportAction, legacyPresetFilename } from '../fixtu
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
 import { createHash } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { PNG } from 'pngjs'
+import { z } from 'zod'
 import { parsePreset, parseProject } from '../../src/main/document-files'
 
 const phase = process.env.DEEP_FRYER_UPGRADE_PHASE
@@ -65,7 +66,9 @@ test('installed packages preserve prior projects and presets across upgrade, res
   const presetPath = join(folder, legacyPresetFilename)
   const continuedPath = join(folder, 'continued-in-candidate.deepfryer')
   const baselinePath = join(folder, 'previous.png')
-  let app = await launch(folder, phase === 'candidate' ? '0.3.0' : '0.2.0')
+  const manifest: unknown = JSON.parse(await readFile(resolve('package.json'), 'utf8'))
+  const candidateVersion = z.object({ version: z.string().min(1) }).parse(manifest).version
+  let app = await launch(folder, candidate ? candidateVersion : '0.2.0')
   const errors: string[] = []
   try {
     let page = await app.firstWindow()
@@ -129,7 +132,7 @@ test('installed packages preserve prior projects and presets across upgrade, res
         const continuedPixels = await pixels(page)
         await save(app, page, 'Save project as…', continuedPath)
         await app.close()
-        app = await launch(folder, '0.3.0')
+        app = await launch(folder, candidateVersion)
         page = await app.firstWindow()
         page.on('pageerror', (error) => errors.push(error.message))
         await open(app, page, 'Open project', continuedPath)
