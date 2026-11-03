@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { openImageResult, type ImageBridge } from '../shared/image'
 import { exportImageInput, exportImageResult } from '../shared/output'
+import { copyImageInput, copyImageResult } from '../shared/clipboard'
 import { editableDocumentSchema, recoveryOfferSchema, type DocumentBridge } from '../shared/documents'
 import { presetSchema } from '../shared/preset'
 import { appearanceSchema, appearanceResultSchema, type AppearanceBridge } from '../shared/appearance'
@@ -10,7 +11,9 @@ const bridge: ImageBridge = {
   pasteImage: async () => openImageResult.unwrap().parse(await ipcRenderer.invoke('image:paste')),
   dropImages: async (files) => openImageResult.unwrap().parse(await ipcRenderer.invoke('image:drop', files.map((file) => webUtils.getPathForFile(file)))),
   exportImage: async (input) =>
-    exportImageResult.parse(await ipcRenderer.invoke('image:export', exportImageInput.parse(input)))
+    exportImageResult.parse(await ipcRenderer.invoke('image:export', exportImageInput.parse(input))),
+  copyImage: async (input) =>
+    copyImageResult.parse(await ipcRenderer.invoke('image:copy', copyImageInput.parse(input)))
 }
 
 contextBridge.exposeInMainWorld('imageBridge', bridge)

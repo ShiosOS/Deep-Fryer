@@ -16,6 +16,8 @@ npm run dev
 
 Ctrl+O opens an image, Ctrl+S names a project, and Ctrl+Shift+S opens export options. Native file choosers select destinations. Project, preset, and export names are independent.
 
+Copy image beside Export, or Ctrl+Shift+C, copies the edited image as a PNG at its original oriented dimensions with transparency. These shortcuts also accept Command. Copy uses the edit even while Original is visible and ignores export settings. The header shows Image copied after the clipboard accepts the image.
+
 ## Files and safety
 
 - `.deepfryer` projects contain the original source bytes and the editable preset.
@@ -40,7 +42,7 @@ npm run package:win
 node scripts/verify-package.mjs
 ```
 
-Electron journeys use real IPC, decoding, rendering, history, recovery, and filesystem operations with native open/save selection stubbed. Immutable v1 fixtures compare every reopened RGBA byte with pixels captured by the old application. Settings restart, Help keyboard/media, 5× intensity, invalid files, naming cancellation, and frozen exports have dedicated coverage. The clipboard test runs only in CI to avoid replacing a personal clipboard. The staged installer-upgrade test requires its documented environment variables and installations; it is not part of an ordinary local run.
+Electron journeys use real IPC, decoding, rendering, history, recovery, and filesystem operations with native open/save selection stubbed. Immutable v1 fixtures compare every reopened RGBA byte with pixels captured by the old application. Settings restart, Help keyboard/media, 5× intensity, invalid files, naming cancellation, and frozen exports have dedicated coverage. Ordinary copy tests intercept Electron's final clipboard write and compare the PNG Blob against exported pixels. Native clipboard round trips run only in disposable CI to avoid replacing a personal clipboard. The staged installer-upgrade test requires its documented environment variables and installations; it is not part of an ordinary local run.
 
 Use `DEEP_FRYER_EXECUTABLE` for a packaged application or `ELECTRON_EXECUTABLE_PATH` for an alternative Electron runtime. `scripts/verify-native-dialog.mjs` exercises an actual Windows Save dialog using observed UI Automation handles, while stubbing only project opening. `scripts/verify-package.mjs` checks packaged media, runtime icons, and the actual executable icon pixels.
 

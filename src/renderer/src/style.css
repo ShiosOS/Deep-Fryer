@@ -28,13 +28,14 @@ h3 { font-size: 13px; margin: 0 0 12px; }
 .header-divider { width: 1px; height: 24px; margin: 0 5px; background: var(--line); flex-shrink: 0; }
 .filename { position: relative; padding-left: 13px; color: var(--text); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 40px; }
 .file-dot { position: absolute; left: 0; top: calc(50% - 3px); width: 6px; height: 6px; background: var(--control); border-radius: 50%; }
-.header-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.header-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-shrink: 0; }
 .header-actions button, .header-actions summary, .fry-buttons button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
 .header-actions svg, .fry-buttons svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
 .header-actions .icon-button { position: relative; width: 34px; height: 34px; padding: 0; background: transparent; border-color: transparent; color: var(--muted); }
 .header-actions .icon-button:hover:enabled { background: var(--soft); color: var(--text); }
 .settings-attention { position: absolute; right: 3px; top: 3px; width: 5px; height: 5px; border-radius: 50%; background: var(--control); }
 .export-button { min-width: 100px; min-height: 36px; }
+.copy-button { min-width: 118px; min-height: 36px; }
 .workspace { display: grid; grid-template-columns: 272px minmax(0, 1fr); flex: 1; min-height: 0; }
 .sidebar { padding: 23px 18px; background: var(--panel); border-right: 1px solid var(--line); overflow-y: auto; scrollbar-width: thin; }
 .inspector-empty { margin-top: 24px; }

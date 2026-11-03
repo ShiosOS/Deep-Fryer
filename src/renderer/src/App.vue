@@ -11,7 +11,8 @@ import { useAppearance } from './appearance'
 import appIcon from './assets/minimal-app-icon.svg'
 import BulgeOverlay from './BulgeOverlay.vue'
 import DocumentControls from './DocumentControls.vue'
-import { useDocumentFiles } from './document-files'
+import { describeError, useDocumentFiles } from './document-files'
+import { useImageCopy } from './copy-image'
 import { renderPresetFrame } from './render-preset-frame'
 import { isNeutralEffect, newEffect, newPreset, presetSchema, replaceEffect, type Preset } from '../../shared/preset'
 import { snapshotPreset, usePresetHistory } from './preset-history'
@@ -50,8 +51,12 @@ let renderTimer: ReturnType<typeof setTimeout> | null = null
 let hasPreview = false
 let confirmedFrame: ImageData | null = null
 const worker = new Worker(new URL('./effects-worker.ts', import.meta.url), { type: 'module' })
-const busy = computed(() => operation.value.kind !== 'idle')
-const controlsBusy = computed(() => operation.value.kind === 'opening' || operation.value.kind === 'exporting')
+const copy = useImageCopy()
+const copyAcknowledged = ref(false)
+let copyFeedbackTimer: ReturnType<typeof setTimeout> | null = null
+let disposed = false
+const busy = computed(() => operation.value.kind !== 'idle' || copy.phase.value !== 'idle')
+const controlsBusy = computed(() => operation.value.kind === 'opening' || operation.value.kind === 'exporting' || copy.phase.value !== 'idle')
 const presetNeutral = computed(() => preset.value.effects.every(isNeutralEffect))
 const dimensions = computed(() => document.value ? `${document.value.bitmap.width.toLocaleString()} × ${document.value.bitmap.height.toLocaleString()}` : 'No image yet')
 const imageSize = computed<Size | null>(() => document.value ? { width: document.value.bitmap.width, height: document.value.bitmap.height } : null)
@@ -95,7 +100,7 @@ function pointerPosition(event: MouseEvent): Point {
 
 function pointerDown(event: PointerEvent): void {
   if (!document.value || event.button !== 0 || !stage.value) return
-  if (placingPoint.value && view.value && imageSize.value) {
+  if (placingPoint.value && !controlsBusy.value && view.value && imageSize.value) {
     const relative = pointerPosition(event)
     const point = paneToImage(view.value, relative, pane.value)
     if (point.x >= 0 && point.x <= imageSize.value.width && point.y >= 0 && point.y <= imageSize.value.height) {
@@ -239,8 +244,8 @@ const files = useDocumentFiles({
 })
 const { openImage } = files
 
-function beginGesture(): void { gestureActive.value = true; files.cancelCheckpoint(); history.begin() }
-function endGesture(): void { history.end(); gestureActive.value = false; files.scheduleCheckpoint() }
+function beginGesture(): void { if (controlsBusy.value) return; gestureActive.value = true; files.cancelCheckpoint(); history.begin() }
+function endGesture(): void { if (controlsBusy.value) return; history.end(); gestureActive.value = false; files.scheduleCheckpoint() }
 
 function changePreset(settings: Preset): boolean {
   const source = document.value
@@ -359,6 +364,22 @@ function exportOutput(): void {
   outputPanel.value?.open()
 }
 
+async function copyImage(): Promise<void> {
+  const source = document.value
+  if (!source || busy.value || gestureActive.value || readyRevision.value !== renderRevision || window.document.querySelector('dialog[open]')) return
+  files.cancelCheckpoint()
+  copyAcknowledged.value = false
+  if (copyFeedbackTimer) clearTimeout(copyFeedbackTimer)
+  try {
+    if (await copy.run({ source, preset: preset.value }) !== 'copied') return
+    copyAcknowledged.value = true
+    notice.value = { kind: 'success', text: 'Image copied.' }
+    copyFeedbackTimer = setTimeout(() => { copyAcknowledged.value = false; copyFeedbackTimer = null }, 3000)
+  } catch (error) {
+    if (!disposed) notice.value = { kind: 'error', text: describeError(error) }
+  } finally { if (!disposed) files.scheduleCheckpoint() }
+}
+
 function openSaveName(kind: 'project' | 'preset'): void {
   if (!document.value || busy.value || readyRevision.value !== renderRevision) return
   void nameDialog.value?.open(kind, document.value.name)
@@ -379,7 +400,12 @@ function onKeydown(event: KeyboardEvent): void {
     return
   }
   if (!(event.ctrlKey || event.metaKey) || event.altKey) return
-  if (event.key.toLowerCase() === 'o' && !event.shiftKey) {
+  if (event.key.toLowerCase() === 'c' && event.shiftKey) {
+    const target = event.target
+    if (target instanceof HTMLElement && (target.isContentEditable || target.closest('input, textarea, select'))) return
+    event.preventDefault()
+    void copyImage()
+  } else if (event.key.toLowerCase() === 'o' && !event.shiftKey) {
     event.preventDefault()
     void openImage()
   } else if (event.key.toLowerCase() === 'v') {
@@ -410,6 +436,9 @@ onMounted(() => {
   void appearance.load().then(() => files.checkRecovery())
 })
 onUnmounted(() => {
+  disposed = true
+  copy.dispose()
+  if (copyFeedbackTimer) clearTimeout(copyFeedbackTimer)
   window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('blur', endDrag)
   resizeObserver?.disconnect()
@@ -431,6 +460,8 @@ onUnmounted(() => {
         <button type="button" class="icon-button" aria-label="Help" title="Help" @click="helpDialog?.open()"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 2-2.5 2-2.5 4m0 3h.01"/></svg></button>
         <button type="button" class="icon-button" aria-label="Settings" :title="appearance.notice.value ? 'Settings need attention' : 'Settings'" @click="settingsDialog?.open()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 3-.6 2.3-2 .9-2.1-.7-2 3.4 1.6 1.7v2.3l-1.6 1.7 2 3.4 2.2-.6 1.9 1 .6 2.2h4l.6-2.3 2-.9 2.1.6 2-3.4-1.6-1.7v-2.3l1.6-1.7-2-3.4-2.2.7-1.9-1L14 3Z"/><circle cx="12" cy="12" r="3"/></svg><span v-if="appearance.notice.value" class="settings-attention" aria-hidden="true"></span></button>
         <DocumentControls :busy="busy" :has-image="document !== null" :ready="readyRevision === renderRevision" :recovery-status="files.recoveryStatus.value" :recovery-offer="files.recoveryOffer.value" @open-image="openImage" @open-project="files.openProject" @save-project="openSaveName('project')" @paste-image="files.pasteImage" @restore-recovery="files.restoreRecovery" @discard-recovery="files.discardRecovery" />
+        <button type="button" class="copy-button" aria-label="Copy image" :disabled="busy || !document || readyRevision !== renderRevision" aria-keyshortcuts="Control+Shift+C Meta+Shift+C" @click="copyImage"><span aria-hidden="true">{{ copyAcknowledged ? 'Image copied' : 'Copy image' }}</span><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V3H3v13h5"/></svg></button>
+        <span class="sr-only" aria-live="polite" aria-atomic="true">{{ copyAcknowledged ? 'Image copied.' : '' }}</span>
         <button type="button" class="primary export-button" :disabled="busy || !document || readyRevision !== renderRevision" aria-keyshortcuts="Control+Shift+S Meta+Shift+S" @click="exportOutput">Export<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m-4 4 4-4 4 4M4 14v6h16v-6"/></svg></button>
       </div>
     </header>

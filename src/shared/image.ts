@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { ExportImageInput, ExportResult } from './output'
+import type { CopyImageInput, CopyImageResult } from './clipboard'
 
 export const MAX_FILE_BYTES = 64 * 1024 * 1024
 export const MAX_DIMENSION = 16_384
@@ -22,6 +23,7 @@ export type ImageBridge = {
   pasteImage: () => Promise<OpenImage>
   dropImages: (files: File[]) => Promise<OpenImage>
   exportImage: (input: ExportImageInput) => Promise<ExportResult>
+  copyImage: (input: CopyImageInput) => Promise<CopyImageResult>
 }
 
 export function validateDimensions(width: number, height: number): void {

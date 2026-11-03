@@ -4,6 +4,7 @@ import { mkdirSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { readImage } from './image-files'
 import { registerImageOutput } from './image-output'
+import { registerImageClipboard } from './image-clipboard'
 import { registerDocumentActions, validateSource } from './document-actions'
 import { RecoveryStore } from './recovery'
 import { AppearanceStore } from './appearance-store'
@@ -18,7 +19,7 @@ let quitting = false
 let preserveRecovery = false
 
 let window: BrowserWindow | null = null
-let operation: 'idle' | 'opening' | 'exporting' = 'idle'
+let fileActionActive = false
 
 function createWindow(): void {
   const rendererPath = join(__dirname, '../renderer/index.html')
@@ -53,18 +54,20 @@ function createWindow(): void {
       event.senderFrame.url !== rendererUrl) {
       throw new Error('This request did not come from the editor.')
     }
-    if (operation !== 'idle') throw new Error('Finish the current file action first.')
+    if (fileActionActive) throw new Error('Finish the current file action first.')
   }
-  registerDocumentActions(editor, checkSender, recovery)
+  function setFileAction(active: boolean): void { fileActionActive = active }
+  registerDocumentActions(editor, checkSender, recovery, setFileAction)
   for (const channel of ['appearance:load', 'appearance:save', 'appearance:reset']) ipcMain.removeHandler(channel)
   ipcMain.handle('appearance:load', (event) => { checkSender(event); return appearance.load() })
   ipcMain.handle('appearance:save', (event, input: unknown) => { checkSender(event); return appearance.save(appearanceSchema.parse(input)) })
   ipcMain.handle('appearance:reset', (event) => { checkSender(event); return appearance.save(defaultAppearance(), true) })
   ipcMain.removeHandler('image:open')
-  registerImageOutput(editor, checkSender, (active) => { operation = active ? 'exporting' : 'idle' })
+  registerImageOutput(editor, checkSender, setFileAction)
+  registerImageClipboard(checkSender, setFileAction)
   ipcMain.handle('image:open', async (event) => {
     checkSender(event)
-    operation = 'opening'
+    setFileAction(true)
     try {
       const result = await dialog.showOpenDialog(editor, {
         title: 'Open an image',
@@ -75,7 +78,7 @@ function createWindow(): void {
       if (result.canceled || path === undefined) return null
       return await readImage(path)
     } finally {
-      operation = 'idle'
+      setFileAction(false)
     }
   })
   void editor.loadURL(rendererUrl)
