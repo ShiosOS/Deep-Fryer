@@ -12,6 +12,6 @@ Include the affected version, Windows version, how the app was installed, the su
 
 There is no published backport or long-term support commitment. Check the [official releases page](https://github.com/ShiosOS/Deep-Fryer/releases) for available updates and their release notes.
 
-The 0.4.0 Windows installer is unsigned. A matching published checksum identifies the release bytes but does not authenticate a signing identity. The app validates image and document bounds and isolates renderer access, but no security audit or immunity from malformed-file bugs is claimed.
+The 0.5.0 Windows installer is unsigned. A matching published checksum identifies the release bytes but does not authenticate a signing identity. The app validates image and document bounds and isolates renderer access, but no security audit or immunity from malformed-file bugs is claimed.
 
 Projects embed the original image bytes, and recovery stores local copies. Clipboard history, backups, and folder sync remain outside the editor's control. See [local storage and privacy](docs/files-and-storage.md).
