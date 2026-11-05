@@ -2,6 +2,8 @@
 
 Deep Fryer 0.4.0 provides a single-image Windows editor with ordered effects, reusable presets, projects, Copy image, export inspection, illustrated Help, and appearance settings. See the [README](../README.md) for current capabilities and limits.
 
+The 0.5.0 source preview adds editable captions, unsaved-work protection, and ordinary project Save. These changes are not included in the published 0.4.0 installer.
+
 The items below are candidates for future work. They have no promised release date or assigned delivery commitment. An accepted issue and an implemented change are separate from this list.
 
 ## Refine the current workflow
@@ -18,6 +20,6 @@ Consider batch processing when repeated single-image export becomes a demonstrat
 
 ## Expand only with a clear use case
 
-Additional input formats, creative effects, or platform packages need representative files, usable controls, and verification on the target platform. This roadmap does not imply current support for captions, animation, video, or non-Windows installers.
+Additional input formats, crop or drawing tools, creative effects, or platform packages need representative files, usable controls, and verification on the target platform. Animation, video, and non-Windows installers remain unsupported.
 
 Use the [feature request form](https://github.com/ShiosOS/Deep-Fryer/issues/new/choose) to describe a task that the current editor cannot complete. Include the current workaround and the expected result.

@@ -80,6 +80,7 @@ Ordinary project Save updates only the project opened or saved in this session. 
 
 - Open PNG and JPEG images, one image at a time. WebP is an export format, not an input format.
 - Input must fit within 64 MiB, 16,384 pixels per side, and 24 million pixels total. Exports have the same dimension and pixel limits and a 128 MiB encoded size limit.
+- Ordinary project Save requires a local NTFS destination and verified Windows permissions. Use **Save project as…** when those checks cannot be completed.
 - Large images and long effect stacks can take time and memory. A resized export can differ from the canvas because effects run at the output size.
 - Captions in the 0.5.0 source use bundled Anton lettering, 512 UTF-16 units per field, and up to three rendered lines. Unsupported characters and text that cannot fit remain savable in projects, with finished output blocked until corrected. The full font license is available offline in **Help → Licenses**.
 - The editor has no crop, drawing tools, animation or video editing, batch processing, or cloud sync.
