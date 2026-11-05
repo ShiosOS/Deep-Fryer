@@ -1,4 +1,4 @@
-import { closeDiscardingChanges, controls, fileAction, exportImage } from './ui'
+import { closeDiscardingChanges, controls, fileAction } from './ui'
 import { legacyAction, legacyExportAction, legacyPresetFilename } from '../fixtures/legacy-ui'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
 import { createHash } from 'node:crypto'
@@ -7,6 +7,7 @@ import { join, resolve } from 'node:path'
 import { PNG } from 'pngjs'
 import { z } from 'zod'
 import { parsePreset, parseProject } from '../../src/main/document-files'
+import { saveUpgradeFile } from '../fixtures/upgrade-ui'
 
 const phase = process.env.DEEP_FRYER_UPGRADE_PHASE
 const candidate = phase === 'candidate'
@@ -25,14 +26,6 @@ async function open(app: ElectronApplication, page: Page, name: string, path: st
   await app.evaluate(({ dialog }, selected) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [selected] }) }, path)
   if (candidate) await fileAction(page, name)
   else await page.getByRole('button', { name: legacyAction(name) }).click()
-}
-
-async function save(app: ElectronApplication, page: Page, name: string, path: string): Promise<void> {
-  await app.evaluate(({ dialog }, selected) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: selected }) }, path)
-  if (candidate && name === legacyExportAction) await exportImage(page)
-  else if (candidate) await fileAction(page, name)
-  else await page.getByRole('button', { name: legacyAction(name) }).click()
-  await expect(page.locator('.notice')).toContainText(`Saved ${path.split(/[\\/]/).pop()}`)
 }
 
 async function ready(page: Page): Promise<void> { await expect(page.getByRole('button', { name: candidate ? 'Export' : legacyExportAction })).toBeEnabled() }
@@ -95,9 +88,9 @@ test('installed packages preserve prior projects and presets across upgrade, res
       await (await visibleControls(page)).getByRole('spinbutton', { name: 'Bulge strength value' }).blur()
       await ready(page)
       await expectSavedSettings(page)
-      await save(app, page, 'Save project as…', projectPath)
-      await save(app, page, 'Save preset as…', presetPath)
-      await save(app, page, legacyExportAction, baselinePath)
+      await saveUpgradeFile({ app, page, name: 'Save project as…', path: projectPath, candidate })
+      await saveUpgradeFile({ app, page, name: 'Save preset as…', path: presetPath, candidate })
+      await saveUpgradeFile({ app, page, name: legacyExportAction, path: baselinePath, candidate })
       const project = parseProject(await readFile(projectPath, 'utf8'))
       const preset = parsePreset(await readFile(presetPath, 'utf8'))
       expect(Buffer.from(project.source.bytes)).toEqual(source)
@@ -115,7 +108,7 @@ test('installed packages preserve prior projects and presets across upgrade, res
       await expectSavedSettings(page)
       expect(await pixels(page)).toEqual(Array.from(expected.data))
       const exportedPath = join(folder, `${phase}-${Date.now()}.png`)
-      await save(app, page, legacyExportAction, exportedPath)
+      await saveUpgradeFile({ app, page, name: legacyExportAction, path: exportedPath, candidate })
       const exported = PNG.sync.read(await readFile(exportedPath))
       expect([exported.width, exported.height]).toEqual([expected.width, expected.height])
       expect(exported.data).toEqual(expected.data)
@@ -134,7 +127,7 @@ test('installed packages preserve prior projects and presets across upgrade, res
         await page.getByRole('textbox', { name: 'Top caption', exact: true }).blur()
         await ready(page)
         const continuedPixels = await pixels(page)
-        await save(app, page, 'Save project as…', continuedPath)
+        await saveUpgradeFile({ app, page, name: 'Save project as…', path: continuedPath, candidate })
         const continued = JSON.parse(await readFile(continuedPath, 'utf8'))
         expect(continued.version).toBe(3)
         expect(continued.edit.composition.captions.top).toBe('UPGRADE')
