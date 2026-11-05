@@ -111,12 +111,15 @@ export class ProjectTargets {
     const temporary = join(dirname(target.path), `.deep-fryer-${randomUUID()}.tmp`)
     let file: Awaited<ReturnType<typeof open>> | null = null
     let created = false
+    let preparing = false
     let renameAttempted = false
     let renamed = false
     let lease: ProjectSecurityLease | null = null
     try {
       if (!unchanged(target.snapshot, await this.read(target.path, true))) throw new ProjectConflict('changed')
+      preparing = true
       lease = await this.security.prepare(target.path, temporary, target.security)
+      preparing = false
       created = true
       file = await this.fs.open(temporary, 'r+')
       const empty = await file.stat({ bigint: true })
@@ -146,6 +149,9 @@ export class ProjectTargets {
       }
       const failures: string[] = []
       const detail = (cause: unknown): string => describeFileError(cause, [target.path, temporary])
+      if (preparing && !created) {
+        failures.push(`A file named ${basename(temporary)} may exist in the same folder as the project. Check who owns it before removing it.`)
+      }
       if (file) {
         try { await file.close() } catch (cause) { failures.push(`Temporary file close failed: ${detail(cause)}`) }
       }

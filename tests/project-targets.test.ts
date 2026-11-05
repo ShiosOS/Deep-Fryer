@@ -52,6 +52,32 @@ async function fixture(t: TestContext) {
 
 const realDisk = { open, lstat: (path: string) => lstat(path, { bigint: true }), rename: async (_from: string, _to: string, replace: () => Promise<void>) => replace(), unlink }
 
+test('a lost preparation acknowledgement reports the possible empty file without deleting it', async (t) => {
+  const { directory, path, original, text } = await fixture(t)
+  let submitted = ''
+  let unlinks = 0
+  const security = { ...windowsProjectSecurity, prepare: async (_path: string, temporary: string) => {
+    submitted = temporary
+    await writeFile(temporary, '', { flag: 'wx' })
+    throw new Error('lost preparation acknowledgement')
+  } }
+  const targets = new ProjectTargets({ ...realDisk, unlink: async (p) => { unlinks++; await unlink(p) } }, security)
+  const opened = await targets.openProject(path, () => {})
+  assert.ok(opened.target)
+  const result = await targets.save(opened.target.id, document(987654))
+  assert.equal(result.kind, 'failed')
+  if (result.kind !== 'failed') throw new Error('Expected failed save')
+  assert.match(result.message, /lost preparation acknowledgement/)
+  assert.ok(result.message.includes(submitted.split(/[\\/]/).pop()!))
+  assert.match(result.message, /may.*exist/i)
+  assert.match(result.message, /same folder/i)
+  assert.match(result.message, /Save As/)
+  assert.equal(unlinks, 0)
+  assert.equal(await readFile(submitted, 'utf8'), '')
+  assert.equal(await readFile(path, 'utf8'), text)
+  assert.equal((await targets.saveAs(join(directory, 'copy.deepfryer'), original)).kind, 'saved')
+})
+
 async function expectCollision(targets: ProjectTargets, path: string, document: EditableDocument): Promise<void> {
   const result = await targets.saveAs(path, document)
   assert.equal(result.kind, 'failed')

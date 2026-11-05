@@ -25,6 +25,7 @@ function setup(t: TestContext) {
   const active = shallowRef(a)
   const released: string[] = []
   const events: string[] = []
+  const notices: { kind: string; text: string }[] = []
   let candidate = { document: a, target: aTarget }
   let publishFails = false
   let choice: 'save' | 'discard' | 'cancel' = 'discard'
@@ -48,7 +49,7 @@ function setup(t: TestContext) {
   function createFiles() {
     return useDocumentFiles({ busy: ref(false), fileBusy: ref(false), source: () => active.value.source, edit: () => active.value.edit,
       ready: () => true, gestureActive: () => false, finishGesture: () => {}, cancelPreparation: () => {},
-      setOperation: () => {}, finishOperation: () => {}, report: () => {}, applyPreset: () => {},
+      setOperation: () => {}, finishOperation: () => {}, report: (notice) => { notices.push(notice) }, applyPreset: () => {},
       publish: async (source, edit, confirm) => {
         if (publishFails) throw new Error('candidate preparation failed')
         if (!await confirm()) return false
@@ -68,10 +69,24 @@ function setup(t: TestContext) {
     if (previousWindow) Object.defineProperty(globalThis, 'window', previousWindow)
     else Reflect.deleteProperty(globalThis, 'window')
   })
-  return { a, b, aTarget, bTarget, active, bridge, files, released, events,
+  return { a, b, aTarget, bTarget, active, bridge, files, released, events, notices,
     candidateB: () => { candidate = { document: b, target: bTarget } },
     choose: (next: typeof choice) => { choice = next }, failPublish: () => { publishFails = true } }
 }
+
+test('a failed save shows its temporary warning and still allows Save As', async (t) => {
+  const { files, bridge, notices, aTarget, bTarget } = setup(t)
+  await files.checkRecovery()
+  await files.openProject()
+  const message = 'A file named .deep-fryer-example.tmp may exist in the same folder as the project. Use Save As.'
+  bridge.saveProject = async () => ({ kind: 'failed', message })
+  await files.saveProject()
+  assert.deepEqual(notices.at(-1), { kind: 'error', text: message })
+  assert.equal(files.target.value?.id, aTarget.id)
+  bridge.saveProjectAs = async () => ({ kind: 'saved', target: bTarget })
+  await files.saveProject('copy.deepfryer')
+  assert.equal(files.target.value?.id, bTarget.id)
+})
 
 test('a delayed acknowledgement saves only the submitted snapshot while later edits remain dirty', async (t) => {
   const { files, bridge, active, aTarget } = setup(t)
