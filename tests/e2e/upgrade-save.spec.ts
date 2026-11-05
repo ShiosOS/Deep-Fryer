@@ -6,7 +6,7 @@ import { join, resolve } from 'node:path'
 import { parseProject } from '../../src/main/document-files'
 import { editStateSchema } from '../../src/shared/edit'
 import { saveUpgradeFile } from '../fixtures/upgrade-ui'
-import { closeDiscardingChanges, controls, fileAction, projectSaved, ready, traceElectron, PROJECT_FILE_OPERATION_MS } from './ui'
+import { section, closeDiscardingChanges, controls, fileAction, projectSaved, ready, traceElectron, PROJECT_FILE_OPERATION_MS } from './ui'
 
 async function setup() {
   const folder = await mkdtemp(join(tmpdir(), 'deep-fryer-upgrade-save-'))
@@ -74,7 +74,7 @@ test('upgrade save waits for the same real acknowledgement beyond five seconds, 
     await brightness.fill('25')
     await brightness.blur()
     await ready(page)
-    await page.locator('.caption-controls > summary').click()
+    await section(page, 'Captions')
     const top = page.getByRole('textbox', { name: 'Top caption', exact: true })
     await top.fill('UPGRADE')
     await top.blur()
