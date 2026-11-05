@@ -41,6 +41,14 @@
     "electron": true,
     "esbuild": true
   },
+  "overrides": {
+    "app-builder-lib@26.15.3": {
+      "minimatch@10.2.6": "11.0.1"
+    },
+    "@electron/universal@2.0.3": {
+      "minimatch@9.0.9": "11.0.1"
+    }
+  },
   "build": {
     "appId": "com.deepfryer.desktop",
     "productName": "Deep Fryer",
