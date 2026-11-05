@@ -9,6 +9,7 @@ import SaveNameDialog from './SaveNameDialog.vue'
 import HelpDialog from './HelpDialog.vue'
 import { useAppearance } from './appearance'
 import appIcon from './assets/minimal-app-icon.svg'
+import demoImage from './assets/demo/toast-cat.png'
 import BulgeOverlay from './BulgeOverlay.vue'
 import DocumentControls from './DocumentControls.vue'
 import { describeError, useDocumentFiles } from './document-files'
@@ -29,6 +30,7 @@ const helpDialog = ref<InstanceType<typeof HelpDialog> | null>(null)
 
 const document = shallowRef<ImageDocument | null>(null)
 const operation = ref<Operation>({ kind: 'idle' })
+const lookPreviewStatus = ref<{ kind: 'building' | 'ready' | 'error'; message: string }>({ kind: 'ready', message: '' })
 const notice = ref<Notice>({ kind: 'info', text: 'Open an image to preview and export it.' })
 const canvas = ref<HTMLCanvasElement | null>(null)
 const originalCanvas = ref<HTMLCanvasElement | null>(null)
@@ -243,6 +245,13 @@ const files = useDocumentFiles({
   applyPreset: (settings) => { changePreset(settings); restoreVersion.value += 1 }
 })
 const { openImage } = files
+function tryDemo(): void {
+  void files.loadSource(async () => {
+    const response = await fetch(demoImage)
+    if (!response.ok) throw new Error('The demo image could not be loaded.')
+    return { name: 'toast-cat.png', mime: 'image/png', bytes: new Uint8Array(await response.arrayBuffer()) }
+  })
+}
 
 function beginGesture(): void { if (controlsBusy.value) return; gestureActive.value = true; files.cancelCheckpoint(); history.begin() }
 function endGesture(): void { if (controlsBusy.value) return; history.end(); gestureActive.value = false; files.scheduleCheckpoint() }
@@ -467,21 +476,21 @@ onUnmounted(() => {
     </header>
     <div class="workspace">
       <aside class="sidebar" aria-label="Image controls">
-        <PresetControls v-if="document" :key="imageVersion" :preset="preset" :bitmap="document.bitmap" :restore-version="restoreVersion" :disabled="controlsBusy" @change="changePreset" @gesture-begin="beginGesture" @gesture-end="endGesture" @load-preset="files.loadPreset" @save-preset="openSaveName('preset')" />
+        <PresetControls v-if="document" :key="imageVersion" :preset="preset" :bitmap="document.bitmap" :restore-version="restoreVersion" :disabled="controlsBusy" @preview-status="lookPreviewStatus = $event" @change="changePreset" @gesture-begin="beginGesture" @gesture-end="endGesture" @load-preset="files.loadPreset" @save-preset="openSaveName('preset')" />
         <p v-else class="inspector-empty">Open an image to choose a preset and adjust its effects.</p>
         <EffectsPanel v-if="document" :key="imageVersion" :preset="preset" :restore-version="restoreVersion" :selected-point-id="selectedPointId" :disabled="controlsBusy" @change="changePreset" @gesture-begin="beginGesture" @gesture-end="endGesture" @select-point="selectedPointId = $event; showing = 'edited'" />
-        <div class="notice" :class="notice.kind" role="status" aria-live="polite">{{ notice.text }}</div>
         <button v-if="document && readyRevision !== renderRevision" type="button" @click="cancelPending">Cancel pending changes</button>
       </aside>
       <main class="main-area">
+        <div class="notice" :class="notice.kind" role="status" aria-live="polite">{{ operation.kind === 'processing' ? 'Processing image…' : notice.kind === 'error' ? notice.text : document && lookPreviewStatus.kind !== 'ready' ? lookPreviewStatus.message : notice.text }}</div>
         <div class="preview-toolbar">
           <div class="comparison-controls"><button type="button" :disabled="!document" :aria-pressed="showing === 'original'" @click="showing = 'original'">Original</button><button type="button" :disabled="!document" :aria-pressed="showing === 'edited'" @click="showing = 'edited'">Edited</button><span class="original-badge">{{ !document ? 'Preview' : operation.kind === 'processing' ? 'Processing' : presetNeutral ? 'Unchanged' : 'Edited' }}</span></div>
           <div class="inspection-controls" aria-label="Image inspection controls"><button type="button" :aria-pressed="placingPoint" :disabled="!document || controlsBusy" @click="placingPoint = !placingPoint; showing = 'edited'">{{ placingPoint ? 'Click image…' : 'Place point' }}</button><button type="button" :disabled="!document" @click="fit">Fit</button><button type="button" :disabled="!document" @click="oneToOne">100%</button><button type="button" :disabled="!document" aria-label="Zoom out" @click="zoomAt(-1)">−</button><span class="preview-scale">{{ zoomLabel }}</span><button type="button" :disabled="!document" aria-label="Zoom in" @click="zoomAt(1)">+</button></div>
         </div>
-        <section ref="stage" class="preview-stage" :class="{ 'has-image': document }" aria-label="Image preview" :tabindex="document ? 0 : -1" @keydown="stageKeydown" @pointerdown="pointerDown" @pointermove="pointerMove" @pointerup="endDrag" @pointercancel="endDrag" @lostpointercapture="endDrag" @dblclick="zoomAt($event.shiftKey ? -1 : 1, pointerPosition($event))">
+        <section ref="stage" :aria-busy="operation.kind === 'processing'" class="preview-stage" :class="{ 'has-image': document }" aria-label="Image preview" :tabindex="document ? 0 : -1" @keydown="stageKeydown" @pointerdown="pointerDown" @pointermove="pointerMove" @pointerup="endDrag" @pointercancel="endDrag" @lostpointercapture="endDrag" @dblclick="zoomAt($event.shiftKey ? -1 : 1, pointerPosition($event))">
           <div class="image-plane" v-show="document" :style="imageStyle"><canvas ref="canvas" v-show="showing === 'edited'" aria-label="Edited full resolution image canvas"></canvas><canvas ref="originalCanvas" v-show="showing === 'original'" aria-label="Original full resolution image canvas"></canvas></div>
           <BulgeOverlay v-if="document && view && imageSize && showing === 'edited'" :points="bulgePoints" :selected-id="selectedPointId" :view="view" :pane="pane" :image="imageSize" @select="selectedPointId = $event" @change="movePoint" @delete="deletePoint" @gesture-begin="beginGesture" @gesture-end="endGesture" />
-          <div class="empty-state" v-if="!document"><img :src="appIcon" alt=""><h1>Open your first image.</h1><p>Choose a PNG or JPEG, paste an image, or drop a file here.</p><button class="primary" :disabled="busy" @click="openImage">Choose an image</button></div>
+          <div class="empty-state" v-if="!document"><img :src="appIcon" alt=""><h1>Open your first image.</h1><p>Choose a PNG or JPEG, paste an image, or drop a file here.</p><div class="empty-actions"><button class="primary" :disabled="busy" @click="openImage">Choose an image</button><button type="button" :disabled="busy" @click="tryDemo">Try demo</button></div></div>
           <span class="canvas-caption" v-if="document">{{ dimensions }} px</span>
         </section>
       </main>

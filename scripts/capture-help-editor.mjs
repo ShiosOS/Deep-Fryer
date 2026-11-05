@@ -12,7 +12,7 @@ try {
   await page.getByRole('button', { name: 'File', exact: true }).click()
   await page.getByRole('button', { name: 'Open image' }).click()
   await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeEnabled()
-  await page.getByRole('combobox', { name: 'Preset', exact: true }).selectOption('Crispy color')
+  await page.getByRole('button', { name: 'Crispy color', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeEnabled()
   const contrast = page.locator('[data-effect-kind="contrast"]')
   await contrast.locator('summary').first().click()

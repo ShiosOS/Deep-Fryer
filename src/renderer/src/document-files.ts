@@ -138,5 +138,5 @@ export function useDocumentFiles(owner: DocumentOwner) {
   onUnmounted(cancelCheckpoint)
   return { recoveryOffer, recoveryStatus, scheduleCheckpoint, cancelCheckpoint, checkRecovery, restoreRecovery, discardRecovery,
     openImage: () => load(() => window.imageBridge.openImage()), pasteImage: () => load(() => window.imageBridge.pasteImage()),
-    openProject, saveProject, loadPreset, savePreset, drop }
+    loadSource: load, openProject, saveProject, loadPreset, savePreset, drop }
 }

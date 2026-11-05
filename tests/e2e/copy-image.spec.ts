@@ -237,7 +237,8 @@ test('copy waits for acknowledgement, ignores duplicates and guarded shortcuts, 
     expect((await capture(app)).writes).toBe(1)
     await expect(page.getByRole('status')).not.toContainText('Image copied')
     const latest = join(folder, 'profile', 'recovery', 'latest.deepfryer')
-    expect(await readFile(latest, 'utf8').catch(() => '')).not.toContain('"value":25')
+    const pendingRecovery = await readFile(latest, 'utf8').catch(() => '')
+    if (pendingRecovery) expect(JSON.parse(pendingRecovery).preset.effects[0].value).not.toBe(25)
     await mkdir('.artifacts/copy-image', { recursive: true })
     await page.screenshot({ path: '.artifacts/copy-image/waiting-for-acknowledgement.png' })
     await releaseWrite(app)
@@ -246,7 +247,10 @@ test('copy waits for acknowledgement, ignores duplicates and guarded shortcuts, 
     await expect(page.locator('.app-header [aria-live="polite"]')).toHaveText('Image copied.')
     expect(await state(page)).toEqual(before)
     expect((await capture(app)).encoded).toBe(frozen.encoded)
-    await expect.poll(async () => readFile(latest, 'utf8').catch(() => '')).toContain('"value":25')
+    await expect.poll(async () => {
+      const saved = await readFile(latest, 'utf8').catch(() => '')
+      return saved ? JSON.parse(saved).preset.effects[0].value : null
+    }).toBe(25)
     const recovery = await readFile(latest)
     const generations = await readdir(join(folder, 'profile', 'recovery'))
     await mkdir('.artifacts/copy-image', { recursive: true })
