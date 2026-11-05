@@ -4,9 +4,9 @@
 
 A local Windows image editor for deep-fried memes. Push colors, add noise and JPEG damage, and warp faces with bulge or pinch points. Start with a preset, adjust the result, then copy it into another app or export an image. No account or upload required.
 
-![Deep Fryer 0.5.0 source preview with image-based looks, readable controls, unsaved-project status, and a fried demo cat](docs/images/editor-dark.png)
+![Deep Fryer 0.5.0 source preview with Look, Effects, and Captions navigation, editable top and bottom text, and a fried demo cat](docs/images/editor-dark.png)
 
-The screenshot shows the 0.5.0 source preview. The download below is the published 0.4.0 release. New source changes require a build and are not included in that installer. See the [changelog](CHANGELOG.md), [light appearance](docs/images/editor-light.png), and [minimum-window layout](docs/images/editor-minimum-light.png).
+The screenshots show the current **0.5.0 source preview**. The download below is the published **0.4.0 release**. New source changes require a build and are not included in that installer. See the [changelog](CHANGELOG.md), [Effects in light appearance](docs/images/editor-light.png), and [minimum-window Effects layout](docs/images/editor-minimum-light.png).
 
 The 0.5.0 source adds editable top/bottom meme captions, an opt-in demo, live previews of each look on your image, and Save project, Discard, or Cancel protection before leaving unsaved work. Export keeps the original aspect ratio unless you unlock it.
 
@@ -34,25 +34,27 @@ Compare it with `SHA256SUMS.txt` on the same release. If the values match and yo
 
 ## Make your first edit
 
-1. Choose **File → Open image**, paste a copied image, or drop one PNG or JPEG into the window.
-2. Choose **Crispy color**, **Noisy photocopy**, or **Overcooked**. The canvas shows the edited result. The 0.4.0 installer uses a preset menu; the 0.5.0 source has a preview gallery.
-3. Adjust **Fry level** or open an effect to change its settings. Use **Original** to compare, or Undo to restore the previous edit.
-4. Choose **Copy image** to paste the edited result into another app. Wait for **Image copied** before pasting.
-5. To save a file, choose **Export**, set its format, size, and name, then choose **Save image…** and a new destination.
+These steps follow the **0.5.0 source preview**. In the published 0.4.0 release, choose a preset from the menu and adjust effects in the sidebar. That release has no Captions section.
 
-In the 0.5.0 source, open **Captions** and enter **Top** or **Bottom** text. Text stays readable over effects and remains editable when you change looks. **Text size** adjusts its maximum size; longer captions shrink to fit up to three lines. **Clear** removes both captions and can be undone.
+1. Choose **File → Open image**, paste a copied image, or drop one PNG or JPEG into the window. To start without your own image, choose **Try demo**.
+2. In **Look**, expand **Choose a look** and select **Crispy color**, **Noisy photocopy**, or **Overcooked**. The thumbnails preview your image; the canvas shows the selected result. Adjust **Fry level** to change its strength.
+3. Choose **Effects** to adjust an individual effect or add one. Use **Original** to compare, or Undo to restore the previous edit.
+4. Choose **Captions** and type into **Top** or **Bottom**. Your text appears over the edited image and stays editable when you change looks.
+5. Choose **Copy image** to paste the edited result into another app. Wait for **Image copied** before pasting. To save a file, choose **Export**, set its format, size, and name, then choose **Save image…** and a new destination.
 
-![Editable top and bottom captions over a fried demo cat in the 0.5.0 source preview at the minimum Windows window size](docs/images/editor-captions.png)
+[Look gallery in the 0.5.0 source preview](docs/images/editor-look.png). Each section gives its controls the full sidebar. In **Captions**, expand **Text size** to adjust the maximum size; longer captions shrink to fit up to three lines. **Clear** removes both captions and can be undone.
+
+![Deep Fryer 0.5.0 source preview with editable Top and Bottom caption fields at the 900 × 620 minimum outer window size in light appearance](docs/images/editor-captions.png)
 
 In the **0.5.0 source**, use **File → Save project** or `Ctrl+S` to continue editing later. Choose a new file the first time; later saves update that project without another chooser. **Save project as…** creates a separate copy and makes it the destination for later saves. Exported images do not retain editable effects or text. The **Help** button explains effects, captions, point controls, and saving with illustrated examples.
 
 ## See what the effects do
 
-These examples come from the production effect engine. Example settings and image hashes are in the [help media manifest](src/renderer/src/assets/help/manifest.json).
+The **0.5.0 source preview** below compares the original on the left with **Crispy color** on the right. These are full-resolution canvas captures before adding captions, with the same source image and dimensions.
 
-| Original | JPEG damage, then Sharpen | 5× saturation |
-| --- | --- | --- |
-| ![Original cat photo](src/renderer/src/assets/help/original.png) | ![Cat with JPEG blocks emphasized by sharpening](src/renderer/src/assets/help/jpeg-sharpen.png) | ![Same cat with saturation increased to five times neutral](src/renderer/src/assets/help/saturation.png) |
+![Deep Fryer 0.5.0 source preview comparison, original toast cat on the left and Crispy color with stronger color, sharpening, noise, and JPEG damage on the right](docs/images/before-after.png)
+
+Open **Help → Effects** for individual effect examples. Their settings and image hashes are in the [help media manifest](src/renderer/src/assets/help/manifest.json).
 
 ## What you can do
 

@@ -1,6 +1,6 @@
 # Get help with Deep Fryer
 
-Open **Help** in the app for illustrated instructions on effects, points, and saving. The [README](README.md) covers installation, a first edit, and current limits.
+Open **Help** in the app for illustrated instructions on effects, points, and saving. The [README](README.md) covers installation, a first edit, and current limits. Its screenshots and Look, Effects, and Captions guide show the 0.5.0 source preview. The published 0.4.0 installer uses a preset menu and has no caption editor.
 
 ## Troubleshoot common problems
 
