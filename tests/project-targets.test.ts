@@ -12,6 +12,7 @@ import { projectTargetIdSchema, type EditableDocument } from '../src/shared/docu
 import { randomUUID } from 'node:crypto'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
+import { windowsProjectSecurity } from '../src/main/windows-project-security'
 
 function document(seed = 123456): EditableDocument {
   const image = new PNG({ width: 8, height: 5 })
@@ -49,7 +50,7 @@ async function fixture(t: TestContext) {
   return { directory, path, original, text }
 }
 
-const realDisk = { open, lstat: (path: string) => lstat(path, { bigint: true }), rename, unlink }
+const realDisk = { open, lstat: (path: string) => lstat(path, { bigint: true }), rename: async (_from: string, _to: string, replace: () => Promise<void>) => replace(), unlink }
 
 async function expectCollision(targets: ProjectTargets, path: string, document: EditableDocument): Promise<void> {
   const result = await targets.saveAs(path, document)
@@ -176,7 +177,7 @@ test('Windows sharing refusal prevents rename without deleting the destination o
     assert.match(output, /locked/)
     const result = await targets.save(opened.target.id, original)
     assert.equal(result.kind, 'failed')
-    if (result.kind === 'failed') assert.match(result.message, /EPERM|EACCES|EBUSY/)
+    if (result.kind === 'failed') assert.match(result.message, /EPERM|EACCES|EBUSY|code (5|32)/)
     assert.equal(await readFile(path, 'utf8'), text)
     assert.deepEqual(await readdir(directory), ['edit.deepfryer'])
   } finally {
@@ -193,9 +194,9 @@ for (const failure of ['create', 'write', 'sync', 'close', 'rename'] as const) {
     const fs = { ...realDisk }
     if (failure === 'rename') fs.rename = async () => { throw new Error('injected rename failure') }
     else fs.open = async (...args) => {
-      if (args[1] === 'wx' && failure === 'create') throw new Error('injected create failure')
+      if (String(args[0]).endsWith('.tmp') && failure === 'create') throw new Error('injected create failure')
       const file = await open(...args)
-      if (args[1] === 'wx' && failure !== 'create') {
+      if (String(args[0]).endsWith('.tmp') && failure !== 'create') {
         const method = failure === 'write' ? 'writeFile' : failure
         t.mock.method(file, method, async () => { throw new Error(`injected ${failure} failure`) }, { times: 1 })
       }
@@ -217,7 +218,7 @@ test('cleanup failure retains the write cause and identifies the surviving tempo
   const targets = new ProjectTargets({ ...realDisk,
     open: async (...args) => {
       const file = await open(...args)
-      if (args[1] === 'wx') t.mock.method(file, 'writeFile', async () => { throw new Error('injected write failure') })
+      if (String(args[0]).endsWith('.tmp')) t.mock.method(file, 'writeFile', async () => { throw new Error('injected write failure') })
       return file
     },
     unlink: async () => { throw new Error('injected cleanup failure') }
@@ -242,7 +243,7 @@ test('the final check catches a same-size edit made while the temporary file is 
   const external = text.replace('123456', '987654')
   const targets = new ProjectTargets({ ...realDisk, open: async (...args) => {
     const file = await open(...args)
-    if (args[1] === 'wx') {
+    if (String(args[0]).endsWith('.tmp')) {
       const sync = file.sync.bind(file)
       t.mock.method(file, 'sync', async () => { await sync(); await writeFile(path, external) })
     }
@@ -260,7 +261,7 @@ for (const failure of ['after-rename', 'verification'] as const) {
     const { directory, path } = await fixture(t)
     let renamed = false
     const targets = new ProjectTargets({ ...realDisk,
-      rename: async (...args) => { await rename(...args); renamed = true; if (failure === 'after-rename') throw new Error('injected after rename') },
+      rename: async (...args) => { await realDisk.rename(...args); renamed = true; if (failure === 'after-rename') throw new Error('injected after rename') },
       lstat: async (path) => { if (renamed && failure === 'verification') throw new Error('injected verification failure'); return realDisk.lstat(path) }
     })
     const opened = await targets.openProject(path, () => {})
@@ -277,7 +278,7 @@ for (const failure of ['after-rename', 'verification'] as const) {
 test('verification compares exact bytes even when a changed UTF-8 BOM decodes to the same document', async (t) => {
   const { path, original } = await fixture(t)
   const targets = new ProjectTargets({ ...realDisk, rename: async (...args) => {
-    await rename(...args)
+    await realDisk.rename(...args)
     await writeFile(path, '\ufeff' + await readFile(path, 'utf8'))
   } })
   const opened = await targets.openProject(path, () => {})
@@ -288,9 +289,9 @@ test('verification compares exact bytes even when a changed UTF-8 BOM decodes to
 
 test('an exclusive temporary collision is never removed, and file errors do not disclose target paths', async (t) => {
   const { directory, path, original, text } = await fixture(t)
-  const targets = new ProjectTargets({ ...realDisk, open: async (...args) => {
-    if (args[1] === 'wx') await writeFile(args[0], 'external temporary')
-    return open(...args)
+  const targets = new ProjectTargets(realDisk, { ...windowsProjectSecurity, prepare: async (...args) => {
+    await writeFile(args[1], 'external temporary')
+    return windowsProjectSecurity.prepare(...args)
   } })
   const opened = await targets.openProject(path, () => {})
   assert.ok(opened.target)

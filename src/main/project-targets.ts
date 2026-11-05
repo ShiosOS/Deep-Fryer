@@ -1,14 +1,15 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { lstat, open, rename, unlink } from 'node:fs/promises'
+import { lstat, open, unlink } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import type { BigIntStats } from 'node:fs'
 import { MAX_PROJECT_BYTES, projectTargetIdSchema, type EditableDocument, type ProjectSaveResult, type ProjectTarget, type ProjectTargetId } from '../shared/documents'
 import { CURRENT_PROJECT_VERSION, encodeProject, parseProject, writeDocumentExclusive } from './document-files'
+import { ProjectSecurityError, windowsProjectSecurity, type ProjectSecurityLease, type ProjectSecuritySnapshot } from './windows-project-security'
 
-const disk = { open, lstat: (path: string) => lstat(path, { bigint: true }), rename, unlink }
+const disk = { open, lstat: (path: string) => lstat(path, { bigint: true }), rename: async (_from: string, _to: string, replace: () => Promise<void>) => replace(), unlink }
 type ProjectDisk = typeof disk
 type Snapshot = { stat: BigIntStats; digest: string; text: string }
-type AuthorizedTarget = { path: string; snapshot: Snapshot }
+type AuthorizedTarget = { path: string; snapshot: Snapshot; security: ProjectSecuritySnapshot | null }
 type ConflictReason = Extract<ProjectSaveResult, { kind: 'conflict' }>['reason']
 
 function describeFileError(error: unknown, paths: string[]): string {
@@ -36,7 +37,7 @@ function regular(stat: BigIntStats): void {
 export class ProjectTargets {
   private readonly targets = new Map<ProjectTargetId, AuthorizedTarget>()
 
-  constructor(private readonly fs: ProjectDisk = disk) {}
+  constructor(private readonly fs: ProjectDisk = disk, private readonly security = windowsProjectSecurity) {}
 
   private async read(path: string, writable = false): Promise<Snapshot> {
     const before = await this.fs.lstat(path)
@@ -67,9 +68,11 @@ export class ProjectTargets {
     } finally { await file.close() }
   }
 
-  private authorize(path: string, snapshot: Snapshot): ProjectTarget {
+  private async authorize(path: string, snapshot: Snapshot): Promise<ProjectTarget> {
+    const security = await this.security.inspect(path).catch(() => null)
+    if (security && BigInt(security.fileId) !== snapshot.stat.ino) throw new ProjectConflict('changed')
     const id = projectTargetIdSchema.parse(randomUUID())
-    this.targets.set(id, { path, snapshot })
+    this.targets.set(id, { path, snapshot, security })
     return { id, name: basename(path) }
   }
 
@@ -79,7 +82,7 @@ export class ProjectTargets {
       const document = parseProject(snapshot.text)
       validate(document)
       const version: unknown = JSON.parse(snapshot.text).version
-      return { document, target: version === CURRENT_PROJECT_VERSION ? this.authorize(path, snapshot) : null }
+      return { document, target: version === CURRENT_PROJECT_VERSION ? await this.authorize(path, snapshot) : null }
     } catch (error) {
       if (error instanceof ProjectConflict) throw new Error('The project changed while opening or is not a regular, unlinked file. Your current edit is unchanged.')
       throw new Error(describeFileError(error, [path]), { cause: error })
@@ -94,7 +97,7 @@ export class ProjectTargets {
     try {
       const snapshot = await this.read(path)
       if (snapshot.digest !== createHash('sha256').update(text).digest('hex')) throw new ProjectConflict('changed')
-      return { kind: 'saved', target: this.authorize(path, snapshot) }
+      return { kind: 'saved', target: await this.authorize(path, snapshot) }
     } catch {
       return { kind: 'uncertain', message: 'The new project was written, but could not be verified. Reopen it or use Save As to make a separate copy.' }
     }
@@ -103,16 +106,22 @@ export class ProjectTargets {
   async save(id: ProjectTargetId, document: EditableDocument): Promise<ProjectSaveResult> {
     const target = this.targets.get(id)
     if (!target) return { kind: 'conflict', reason: 'stale' }
+    if (!target.security) return { kind: 'failed', message: 'Windows project permissions could not be verified. Use Save As to make a separate copy.' }
     const text = encodeProject(document)
     const temporary = join(dirname(target.path), `.deep-fryer-${randomUUID()}.tmp`)
     let file: Awaited<ReturnType<typeof open>> | null = null
     let created = false
     let renameAttempted = false
     let renamed = false
+    let lease: ProjectSecurityLease | null = null
     try {
       if (!unchanged(target.snapshot, await this.read(target.path, true))) throw new ProjectConflict('changed')
-      file = await this.fs.open(temporary, 'wx', Number(target.snapshot.stat.mode & 0o777n))
+      lease = await this.security.prepare(target.path, temporary, target.security)
       created = true
+      file = await this.fs.open(temporary, 'r+')
+      const empty = await file.stat({ bigint: true })
+      regular(empty)
+      if (empty.ino !== lease.fileId || empty.size !== 0n) throw new ProjectConflict('unsafe')
       await file.writeFile(text, 'utf8')
       await file.sync()
       const written = await file.stat({ bigint: true })
@@ -120,14 +129,17 @@ export class ProjectTargets {
       file = null
       if (!unchanged(target.snapshot, await this.read(target.path, true))) throw new ProjectConflict('changed')
       renameAttempted = true
-      await this.fs.rename(temporary, target.path)
+      const secured = lease
+      await this.fs.rename(temporary, target.path, () => secured.replace())
       renamed = true
       created = false
       const snapshot = await this.read(target.path)
       if (!identity(written, snapshot.stat) || snapshot.digest !== createHash('sha256').update(text).digest('hex')) throw new ProjectConflict('changed')
       target.snapshot = snapshot
+      target.security = { ...target.security, fileId: snapshot.stat.ino.toString() }
       return { kind: 'saved', target: { id, name: basename(target.path) } }
     } catch (error) {
+      if (error instanceof ProjectSecurityError && error.created && !lease) created = true
       let uncertain = renamed
       if (renameAttempted && !renamed) {
         try { uncertain = !unchanged(target.snapshot, await this.read(target.path)) } catch { uncertain = true }
@@ -137,6 +149,7 @@ export class ProjectTargets {
       if (file) {
         try { await file.close() } catch (cause) { failures.push(`Temporary file close failed: ${detail(cause)}`) }
       }
+      if (lease) { await lease.dispose(); lease = null }
       if (created) {
         try { await this.fs.unlink(temporary) } catch (cause) {
           if (!(cause instanceof Error && 'code' in cause && cause.code === 'ENOENT')) {
@@ -156,7 +169,7 @@ export class ProjectTargets {
         }
       }
       return { kind: 'failed', message: `Project save failed. Use Save As to make a separate copy. ${[detail(error), ...failures].join(' ')}` }
-    }
+    } finally { if (lease) await lease.dispose() }
   }
 
   release(id: ProjectTargetId): void { this.targets.delete(id) }

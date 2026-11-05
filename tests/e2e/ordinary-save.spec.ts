@@ -9,6 +9,8 @@ import { newEdit } from '../../src/shared/edit'
 import { projectTargetIdSchema } from '../../src/shared/documents'
 import { randomUUID } from 'node:crypto'
 import { chooseUnsaved, controls, fileAction, ready } from './ui'
+import { aclFixture } from '../windows-acl-fixture'
+import type { FileHandle } from 'node:fs/promises'
 
 const ownedProcesses = new WeakMap<ElectronApplication, number[]>()
 
@@ -475,4 +477,76 @@ test('preload exposes only opaque target and basename and rejects unknown or rel
       released: { kind: 'conflict', reason: 'stale' }, unknown: { kind: 'conflict', reason: 'stale' } })
     expect(await readFile(a)).toEqual(before)
   } finally { await cleanup(app, folder) }
+})
+
+test('Windows protected project keeps its DACL before first temporary write and after Ctrl+S', async () => {
+  const { folder, a, source, bytes, app, page } = await setup()
+  try {
+    await aclFixture(folder, 'broaden-directory')
+    const security = await aclFixture(a, 'private')
+    await openProject(app, page, a)
+    await forbidChooser(app)
+    await app.evaluate(async (_, { folder, path, security }) => {
+      const fs = process.getBuiltinModule('fs/promises')
+      const { join } = process.getBuiltinModule('path')
+      const { execFileSync } = process.getBuiltinModule('child_process')
+      const probe = await fs.open(path, 'r')
+      const prototype = Object.getPrototypeOf(probe)
+      const write: FileHandle['writeFile'] = prototype.writeFile
+      await probe.close()
+      const observations: { size: number; security: string }[] = []
+      prototype.writeFile = async function(this: FileHandle, ...args: Parameters<FileHandle['writeFile']>) {
+        const stat = await this.stat()
+        for (const name of await fs.readdir(folder)) {
+          if (!name.startsWith('.deep-fryer-') || !name.endsWith('.tmp')) continue
+          const temporary = join(folder, name)
+          if ((await fs.stat(temporary)).ino !== stat.ino) continue
+          const command = "[Console]::Write([IO.File]::GetAccessControl($env:DF_ACL_PATH, 'Access,Owner,Group').GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]'Access,Owner,Group'))"
+          const actual = execFileSync(join(process.env.SystemRoot ?? 'C:\\Windows', 'System32/WindowsPowerShell/v1.0/powershell.exe'),
+            ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(command, 'utf16le').toString('base64')],
+            { windowsHide: true, timeout: 10000, encoding: 'utf8', env: { ...process.env, DF_ACL_PATH: temporary } }).trim().replace(/D:(P?)(AI|AR)+/g, 'D:$1')
+          if (stat.size !== 0 || actual !== security) throw new Error('Temporary content would be written with incorrect Windows permissions')
+          observations.push({ size: stat.size, security: actual })
+          Reflect.set(globalThis, '__ordinarySaveAclProof', observations)
+        }
+        return write.apply(this, args)
+      }
+    }, { folder, path: a, security })
+    for (const value of ['25', '50']) { await edit(page, value); await save(page) }
+    expect(await aclFixture(a, 'read')).toBe(security)
+    expect(await readFile(source)).toEqual(bytes)
+    const receipt = await app.evaluate(({ app }) => ({ packaged: app.isPackaged, versions: process.versions,
+      executable: process.execPath, observed: Reflect.get(globalThis, '__ordinarySaveAclProof') }))
+    expect(receipt.observed).toEqual([{ size: 0, security }, { size: 0, security }])
+    await writeFile(test.info().outputPath('acl-security.json'), JSON.stringify({ security, ...receipt }, null, 2))
+  } finally { await cleanup(app, folder) }
+})
+
+test('unavailable Windows security helper retains the edit and baseline and permits exclusive Save As', async () => {
+  const { folder, a, app, page } = await setup()
+  let system: string | undefined
+  try {
+    await openProject(app, page, a)
+    await forbidChooser(app)
+    await edit(page, '25')
+    const before = await readFile(a)
+    system = await app.evaluate((_, folder) => { const system = process.env.SystemRoot; process.env.SystemRoot = folder; return system }, folder)
+    await page.keyboard.press('Control+s')
+    await expect(page.getByRole('status')).toContainText('Save As')
+    await expect(page.getByLabel('Unsaved project', { exact: true })).toBeVisible()
+    expect(await readFile(a)).toEqual(before)
+    expect((await readdir(folder)).filter((name) => name.endsWith('.tmp'))).toEqual([])
+    await page.getByRole('button', { name: 'Undo', exact: true }).click()
+    await ready(page)
+    await expect(page.getByLabel('Unsaved project', { exact: true })).toHaveCount(0)
+    await page.getByRole('button', { name: 'Redo', exact: true }).click()
+    await ready(page)
+    await selectSave(app, join(folder, 'copy.deepfryer'))
+    await fileAction(page, 'Save project as…')
+    await expect(page.getByLabel('Unsaved project', { exact: true })).toHaveCount(0)
+    expect(await readFile(a)).toEqual(before)
+  } finally {
+    if (system) await app.evaluate((_, system) => { process.env.SystemRoot = system }, system)
+    await cleanup(app, folder)
+  }
 })
