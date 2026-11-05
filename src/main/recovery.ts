@@ -6,6 +6,21 @@ import { encodeProject, parseProject, readDocumentText, writeDocumentExclusive }
 
 const RETENTION_MS = 7 * 24 * 60 * 60 * 1000
 
+async function renameRecoveryGeneration(source: string, destination: string): Promise<void> {
+  const delays = [100, 200, 400]
+  for (const delay of delays) {
+    try {
+      await rename(source, destination)
+      return
+    } catch (error) {
+      if (process.platform !== 'win32' || !(error instanceof Error) || !('code' in error) ||
+        !['EPERM', 'EACCES', 'EBUSY'].includes(String(error.code))) throw error
+      await new Promise<void>((resolve) => setTimeout(resolve, delay))
+    }
+  }
+  await rename(source, destination)
+}
+
 export class RecoveryStore {
   private tail: Promise<void> = Promise.resolve()
   private closing = false
@@ -64,9 +79,9 @@ export class RecoveryStore {
         this.parse(await readDocumentText(temporary, MAX_PROJECT_BYTES))
         if (current) {
           await writeDocumentExclusive(backup, current.text)
-          await rename(backup, this.previous)
+          await renameRecoveryGeneration(backup, this.previous)
         }
-        await rename(temporary, this.latest)
+        await renameRecoveryGeneration(temporary, this.latest)
       } finally {
         await rm(temporary, { force: true })
         await rm(backup, { force: true })

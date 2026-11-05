@@ -21,10 +21,19 @@ async function lock(path: string) {
   child.stderr.setEncoding('utf8').on('data', (chunk: string) => { stderr += chunk })
   const exited = new Promise<void>((resolve, reject) => {
     child.once('error', reject)
-    child.once('exit', (code, signal) => code === 0 ? resolve() : reject(new Error(`Lock helper exited ${code}/${signal}: ${stderr}`)))
+    child.once('exit', (code, signal) => {
+      if (code !== 0) reject(new Error(`Lock helper ${child.pid} exited ${code}/${signal}: ${stderr}`))
+      else { console.log(`Lock helper ${child.pid} exited 0`); resolve() }
+    })
   })
-  const [chunk] = await Promise.race([once(child.stdout, 'data'), exited.then(() => { throw new Error('Lock helper exited before handshake') })])
-  assert.match(String(chunk), /locked/)
+  try {
+    const [chunk] = await Promise.race([once(child.stdout, 'data'), exited.then(() => { throw new Error('Lock helper exited before handshake') })])
+    assert.match(String(chunk), /locked/)
+  } catch (error) {
+    child.stdin.end('\n')
+    await exited
+    throw error
+  }
   return async () => { child.stdin.end('\n'); await exited }
 }
 
