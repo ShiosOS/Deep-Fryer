@@ -12,7 +12,7 @@ try {
   await page.getByRole('button', { name: 'File', exact: true }).click()
   await page.getByRole('button', { name: 'Open image' }).click()
   await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeEnabled()
-  await page.getByRole('combobox', { name: 'Preset', exact: true }).selectOption('Crispy color')
+  await page.getByRole('button', { name: 'Crispy color', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeEnabled()
   const contrast = page.locator('[data-effect-kind="contrast"]')
   await contrast.locator('summary').first().click()
@@ -41,4 +41,13 @@ try {
   await page.getByRole('dialog', { name: 'Help', exact: true }).evaluate((element) => { element.scrollTop = 0 })
   await page.screenshot({ path: '.artifacts/implementation/help-saving.png' })
   console.log('Captured the implemented editor, point overlay, light theme and Help from Electron.')
-} finally { await app.close(); await rm(profile, { recursive: true, force: true }) }
+} finally {
+  await app.evaluate(({ dialog }) => {
+    dialog.showMessageBox = async (_window, options) => {
+      if (options.buttons?.join('|') !== 'Save project|Discard|Cancel') throw new Error('Unexpected teardown dialog')
+      return { response: 1, checkboxChecked: false }
+    }
+  })
+  await app.close()
+  await rm(profile, { recursive: true, force: true })
+}

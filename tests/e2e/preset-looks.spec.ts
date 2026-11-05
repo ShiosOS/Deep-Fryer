@@ -1,4 +1,4 @@
-import { fileAction, controls, exportImage } from './ui'
+import { closeDiscardingChanges, fileAction, controls, exportImage } from './ui'
 import { _electron as electron, expect, test } from '@playwright/test'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -36,8 +36,23 @@ test('named looks, locked randomization and five candidates commit complete repr
     await contrast.blur()
     await ready()
     const preceding = await pixels()
-    await page.getByRole('combobox', { name: 'Preset', exact: true }).selectOption('Crispy color')
+    const gallery = page.locator('.look-grid')
+    await expect(gallery).toHaveAttribute('aria-busy', 'false')
+    const thumbnailPixels = await page.getByRole('button', { name: 'Crispy color', exact: true }).locator('img').evaluate(async (image) => {
+      if (!(image instanceof HTMLImageElement)) throw new Error('Look image missing')
+      await image.decode()
+      const canvas = document.createElement('canvas')
+      canvas.width = image.naturalWidth
+      canvas.height = image.naturalHeight
+      const context = canvas.getContext('2d')!
+      context.drawImage(image, 0, 0)
+      return Array.from(context.getImageData(0, 0, canvas.width, canvas.height).data)
+    })
+    const otherThumbnail = await page.getByRole('button', { name: 'Overcooked', exact: true }).locator('img').getAttribute('src')
+    expect(otherThumbnail).not.toBe(await page.getByRole('button', { name: 'Crispy color', exact: true }).locator('img').getAttribute('src'))
+    await page.getByRole('button', { name: 'Crispy color', exact: true }).click()
     await ready()
+    expect(await pixels()).toEqual(thumbnailPixels)
     await expect(contrast).toHaveValue('1.5')
     await page.getByRole('button', { name: 'Undo', exact: true }).click()
     await ready()
@@ -49,6 +64,7 @@ test('named looks, locked randomization and five candidates commit complete repr
     await saturation.fill('0.55')
     await saturation.blur()
     await ready()
+    await expect(page.getByRole('button', { name: 'Crispy color', exact: true })).toHaveAttribute('aria-pressed', 'false')
     await page.getByText('Randomization locks', { exact: true }).click()
     await page.getByRole('checkbox', { name: 'Lock Saturation 3', exact: true }).check()
     await page.getByRole('checkbox', { name: 'Lock JPEG quality 7', exact: true }).check()
@@ -112,7 +128,7 @@ test('named looks, locked randomization and five candidates commit complete repr
     expect(await readFile(source)).toEqual(original)
     expect(errors).toEqual([])
   } finally {
-    await app.close()
+    await closeDiscardingChanges(app)
     await rm(folder, { recursive: true, force: true })
   }
 })

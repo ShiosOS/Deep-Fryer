@@ -40,6 +40,14 @@ export function registerDocumentActions(editor: BrowserWindow, checkSender: (eve
     await writeDocumentExclusive(path, text)
     return { kind: 'saved', name: basename(path) }
   }
+  register('document:confirm-unsaved', async () => {
+    const { response } = await dialog.showMessageBox(editor, {
+      type: 'warning', title: 'Unsaved project', message: 'Save your editable work before leaving this image?',
+      detail: 'An exported or copied image does not keep your editable settings.',
+      buttons: ['Save project', 'Discard', 'Cancel'], defaultId: 0, cancelId: 2, noLink: true
+    })
+    return response === 0 ? 'save' : response === 1 ? 'discard' : 'cancel'
+  })
   register('document:open-project', async () => {
     const path = await openPath('Open a portable project', 'Deep Fryer project', ['deepfryer'])
     if (!path) return null

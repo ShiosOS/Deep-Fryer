@@ -6,7 +6,7 @@ import { snapshotPreset } from './preset-history'
 import { fryAmounts, namedLooks, namedPreset, parameterKey, randomizePreset, randomParameters, scaleFry, type NamedLook } from './preset-looks'
 
 const props = defineProps<{ preset: Preset; bitmap: ImageBitmap; disabled: boolean; restoreVersion: number }>()
-const emit = defineEmits<{ change: [preset: Preset]; gestureBegin: []; gestureEnd: []; loadPreset: []; savePreset: [] }>()
+const emit = defineEmits<{ change: [preset: Preset]; gestureBegin: []; gestureEnd: []; loadPreset: []; savePreset: []; previewStatus: [state: { kind: 'building' | 'ready' | 'error'; message: string }] }>()
 const look = ref<NamedLook | ''>('')
 const amount = ref(100)
 const baseline = shallowRef(snapshotPreset(props.preset))
@@ -26,6 +26,39 @@ const neutral = computed(() => props.preset.effects.every(isNeutralEffect))
 let published = ''
 let comparisonGeneration = 0
 let comparisonCancellation: AbortController | null = null
+type LookPreview = { name: NamedLook; thumbnail: string }
+type LookPreviewState = { kind: 'building' | 'ready' | 'error'; items: LookPreview[]; message: string }
+const previews = shallowRef<LookPreviewState>({ kind: 'building', items: [], message: 'Building look previews…' })
+watch(previews, (state) => emit('previewStatus', { kind: state.kind, message: state.message }), { immediate: true })
+let lookCancellation = new AbortController()
+async function buildLookPreviews(seed: number, cancellation: AbortController): Promise<void> {
+  try {
+    const scale = Math.min(1, 160 / Math.max(props.bitmap.width, props.bitmap.height))
+    const surface = document.createElement('canvas')
+    surface.width = Math.max(1, Math.round(props.bitmap.width * scale))
+    surface.height = Math.max(1, Math.round(props.bitmap.height * scale))
+    const context = surface.getContext('2d', { willReadFrequently: true })
+    if (!context) throw new Error('Look previews are unavailable.')
+    context.drawImage(props.bitmap, 0, 0, surface.width, surface.height)
+    const source = context.getImageData(0, 0, surface.width, surface.height)
+    for (const name of namedLooks) {
+      const pixels = await renderPresetFrame(source, namedPreset(name, seed), cancellation.signal)
+      if (cancellation.signal.aborted) return
+      context.putImageData(pixels, 0, 0)
+      previews.value = { ...previews.value, items: [...previews.value.items, { name, thumbnail: surface.toDataURL('image/png') }] }
+    }
+    previews.value = { ...previews.value, kind: 'ready', message: 'Draft previews of your image.' }
+  } catch (error) {
+    if (!cancellation.signal.aborted) previews.value = { ...previews.value, kind: 'error', message: error instanceof Error ? error.message : 'Look previews could not be created.' }
+  }
+}
+watch(() => props.preset.seed, (seed) => {
+  lookCancellation.abort()
+  lookCancellation = new AbortController()
+  previews.value = { kind: 'building', items: [], message: 'Building look previews…' }
+  void buildLookPreviews(seed, lookCancellation)
+}, { immediate: true })
+
 
 function publish(preset: Preset): void {
   published = JSON.stringify(preset)
@@ -39,11 +72,7 @@ watch(() => props.preset, (preset) => {
 })
 watch(() => props.restoreVersion, () => { baseline.value = snapshotPreset(props.preset); amount.value = 100 })
 
-function applyLook(event: Event): void {
-  if (!(event.target instanceof HTMLSelectElement)) return
-  const value = event.target.value
-  const selected = namedLooks.find((name) => name === value)
-  if (!selected) return
+function applyLook(selected: NamedLook): void {
   look.value = selected
   const preset = namedPreset(selected, props.preset.seed)
   baseline.value = snapshotPreset(preset)
@@ -54,6 +83,7 @@ function changeAmount(event: Event): void {
   const target = event.target
   if (!(target instanceof HTMLInputElement)) return
   amount.value = target.valueAsNumber
+  look.value = ''
   publish(scaleFry(baseline.value, amount.value))
 }
 function toggleLock(key: string): void {
@@ -61,6 +91,7 @@ function toggleLock(key: string): void {
   else locks.value.add(key)
 }
 function randomize(): void {
+  look.value = ''
   let seed = crypto.getRandomValues(new Uint32Array(1))[0]!
   if (seed === props.preset.seed) seed = (seed + 1) >>> 0
   const preset = randomizePreset(props.preset, locks.value, seed)
@@ -114,20 +145,30 @@ async function compare(): Promise<void> {
 function applyCandidate(): void {
   const candidate = candidates.value.find((item) => item.amount === selectedAmount.value)
   if (!candidate) return
+  look.value = ''
   baseline.value = snapshotPreset(candidate.preset)
   amount.value = 100
   publish(candidate.preset)
   closeComparison()
 }
-onUnmounted(() => { comparisonGeneration += 1; comparisonCancellation?.abort() })
+onUnmounted(() => { lookCancellation.abort(); comparisonGeneration += 1; comparisonCancellation?.abort() })
 </script>
 
 <template>
   <section class="preset-looks" aria-label="Presets">
     <div class="controls-heading"><span class="eyebrow">Preset</span></div>
-    <label class="look-choice"><span class="sr-only">Preset</span><select :value="look" :disabled="disabled" aria-label="Preset" @change="applyLook"><option value="" disabled>Current settings</option><option v-for="name in namedLooks" :key="name">{{ name }}</option></select></label>
+    <details class="look-gallery" open>
+      <summary>Choose a look <span>{{ look || 'Current settings' }}</span></summary>
+      <p class="look-status" aria-hidden="true">Draft previews of your image</p>
+      <div class="look-grid" :aria-busy="previews.kind === 'building'">
+        <button v-for="name in namedLooks" :key="name" type="button" :disabled="disabled" :aria-pressed="look === name" @click="applyLook(name)">
+          <img v-if="previews.items.find(item => item.name === name)" :src="previews.items.find(item => item.name === name)?.thumbnail" alt="">
+          <span v-else class="look-placeholder" aria-hidden="true"></span><span>{{ name }}</span>
+        </button>
+      </div>
+    </details>
     <details ref="menu" class="preset-menu"><summary role="button">Preset actions</summary><div class="menu-items"><button type="button" :disabled="disabled" @click="presetFile('load')">Load preset</button><button type="button" :disabled="disabled" @click="presetFile('save')">Save preset as…</button></div></details>
-    <label class="fry-amount">Fry level <span class="amount-value" aria-hidden="true">{{ amount }}%</span><input type="range" aria-label="Fry level" min="0" max="100" :value="amount" :disabled="disabled" @pointerdown="emit('gestureBegin')" @pointerup="emit('gestureEnd')" @pointercancel="emit('gestureEnd')" @change="emit('gestureEnd')" @input="changeAmount"></label>
+    <label class="fry-amount">Fry level <span class="amount-value" aria-hidden="true">{{ amount }}%</span><input type="range" aria-label="Fry level" min="0" max="100" :value="amount" :disabled="disabled" @pointerdown="emit('gestureBegin')" @pointerup="emit('gestureEnd')" @pointercancel="emit('gestureEnd')" @change="emit('gestureEnd')" @input="changeAmount"><span class="fry-endpoints"><span>Original</span><span>Full preset</span></span></label>
     <div class="fry-buttons"><button type="button" :disabled="disabled || neutral" @click="compare"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M12 4v16m-5-8h2m6 0h2"/></svg>Compare 5</button><button type="button" :disabled="disabled" @click="randomize"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h3c4 0 8 12 12 12h3m-4-4 4 4-4 4M3 18h3c2 0 4-3 5-5m3-5c1-1 2-2 4-2h3m-4-4 4 4-4 4"/></svg>Randomize</button></div>
     <details class="random-locks"><summary>Randomization locks</summary><template v-for="(effect, index) in preset.effects" :key="effect.id"><label v-for="parameter in randomParameters(effect)" :key="parameter.key"><input type="checkbox" :aria-label="`Lock ${parameter.label} ${index + 1}`" :checked="locks.has(parameterKey(effect, parameter.key))" :disabled="disabled" @change="toggleLock(parameterKey(effect, parameter.key))">Lock {{ parameter.label }} <small>Effect {{ index + 1 }}</small></label></template></details>
 

@@ -1,4 +1,4 @@
-import { fileAction, controls } from './ui'
+import { closeDiscardingChanges, fileAction, controls } from './ui'
 import { _electron as electron, expect, test } from '@playwright/test'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -50,5 +50,5 @@ test('5x controls produce stronger pixels, expose native values, and keep effect
     await page.keyboard.press('ArrowLeft')
     await expect((await controls(page)).getByRole('spinbutton', { name: 'Contrast value' })).toHaveValue('4.99')
     expect(errors).toEqual([])
-  } finally { await app.close(); await rm(folder, { recursive: true, force: true }) }
+  } finally { await closeDiscardingChanges(app); await rm(folder, { recursive: true, force: true }) }
 })

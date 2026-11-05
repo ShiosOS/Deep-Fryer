@@ -1,4 +1,4 @@
-import { open } from 'node:fs/promises'
+import { open, rm } from 'node:fs/promises'
 import { basename } from 'node:path'
 import { MAX_FILE_BYTES, validateDimensions, type OpenImage } from '../shared/image'
 import { MAX_EXPORT_BYTES, type OutputOptions } from '../shared/output'
@@ -88,7 +88,14 @@ export async function writeImageExclusive(path: string, bytes: Uint8Array, forma
   try {
     await file.writeFile(bytes)
     await file.sync()
-  } finally {
-    await file.close()
+  } catch (error) {
+    try {
+      await file.close()
+      await rm(path, { force: true })
+    } catch (cleanupError) {
+      throw new AggregateError([error, cleanupError], 'Image export failed and the incomplete file could not be removed.', { cause: error })
+    }
+    throw error
   }
+  await file.close()
 }

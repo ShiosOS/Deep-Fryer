@@ -1,4 +1,4 @@
-import { fileAction, controls, exportImage } from './ui'
+import { chooseUnsaved, closeDiscardingChanges, fileAction, controls, exportImage } from './ui'
 import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test'
 import { createHash } from 'node:crypto'
 import { link, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -109,6 +109,7 @@ test('open, cancel, reject replacement, protect originals, and export real canva
     const orientedPath = join(folder, 'rotated.jpg')
     await writeFile(orientedPath, Buffer.concat([jpeg.subarray(0, 2), exif, jpeg.subarray(2)]))
     await selectOpen(app, orientedPath)
+    await chooseUnsaved(app, 'discard')
     await fileAction(page, 'Open image')
     await expect(page.locator('.filename')).toHaveText('rotated.jpg')
     await expect(page.locator('.canvas-caption')).toContainText('560 × 800')
@@ -120,7 +121,7 @@ test('open, cancel, reject replacement, protect originals, and export real canva
     expect([oriented.width, oriented.height]).toEqual([560, 800])
     expect(rendererErrors).toEqual([])
   } finally {
-    await app.close()
+    await closeDiscardingChanges(app)
     await rm(folder, { recursive: true, force: true })
   }
 })
@@ -210,6 +211,7 @@ test('independent color controls preview and export combined settings while pres
           }
         }
       }, failure)
+      if (failure === 'worker publication') await chooseUnsaved(app, 'discard')
       await selectOpen(app, source)
       await fileAction(page, 'Open image')
       await expect(page.getByRole('status')).toContainText(`Injected ${failure} failure`)
@@ -236,11 +238,12 @@ test('independent color controls preview and export combined settings while pres
     await (await controls(page)).getByRole('spinbutton', { name: 'Brightness value' }).fill('25')
     await expect(page.getByRole('status')).toContainText('Color changes are ready')
     await selectOpen(app, source)
+    await chooseUnsaved(app, 'discard')
     await fileAction(page, 'Open image')
     await expect((await controls(page)).getByRole('spinbutton', { name: 'Brightness value' })).toHaveValue('0')
     expect(errors).toEqual([])
   } finally {
-    await app.close()
+    await closeDiscardingChanges(app)
     await rm(folder, { recursive: true, force: true })
   }
 })

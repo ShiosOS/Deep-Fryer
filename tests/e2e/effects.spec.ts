@@ -1,4 +1,4 @@
-import { fileAction, controls, exportImage } from './ui'
+import { closeDiscardingChanges, fileAction, controls, exportImage } from './ui'
 import { _electron as electron, expect, test } from '@playwright/test'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -98,7 +98,7 @@ test('ordered texture and real JPEG damage export the current pixels', async () 
     expect(await readFile(source)).toEqual(bytes)
     expect(errors).toEqual([])
   } finally {
-    await app.close()
+    await closeDiscardingChanges(app)
     await rm(folder, { recursive: true, force: true })
   }
 })
@@ -157,7 +157,7 @@ test('maximum supported image finishes the latest full resolution edit', async (
     const afterCancel = await page.getByLabel('Edited full resolution image canvas').evaluate((element) => Array.from((element as HTMLCanvasElement).getContext('2d')!.getImageData(3000, 2000, 1, 1).data))
     expect(afterCancel).toEqual([128, 128, 128, 255])
   } finally {
-    await app.close()
+    await closeDiscardingChanges(app)
     await rm(folder, { recursive: true, force: true })
   }
 })

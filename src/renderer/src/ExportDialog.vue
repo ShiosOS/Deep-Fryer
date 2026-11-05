@@ -6,6 +6,7 @@ import type { Preset } from '../../shared/preset'
 import Modal from './Modal.vue'
 import { saveNameSchema } from '../../shared/documents'
 import { freezeOutput, type OutputResponse, type PreparedOutput } from './output'
+import { proportionalOutputSize } from './output-dimensions'
 
 const props = defineProps<{ source: (OpenImage & { bitmap: ImageBitmap }) | null; preset: Preset; disabled: boolean }>()
 const emit = defineEmits<{ notice: [notice: { kind: 'info' | 'success' | 'error'; text: string }]; saveStarted: []; saveFinished: [] }>()
@@ -14,6 +15,7 @@ const inspection = shallowRef<Inspection>({ kind: 'empty' })
 const format = ref<OutputOptions['format']>('png')
 const width = ref<number | string>('1')
 const height = ref<number | string>('1')
+const aspectRatioLocked = ref(true)
 const quality = ref<number | string>('85')
 const background = ref('#ffffff')
 const saving = ref(false)
@@ -49,10 +51,26 @@ const inspectionText = computed(() => {
 
 watch(() => props.source, (source) => {
   sourceVersion.value += 1
+  aspectRatioLocked.value = true
   if (source) { width.value = String(source.bitmap.width); height.value = String(source.bitmap.height); exportName.value = `${source.name.replace(/\.[^.]+$/, '')}-fried` }
   invalidate()
 }, { flush: 'sync', immediate: true })
 watch(currentKey, invalidate, { flush: 'sync' })
+
+function coupleDimensions(dimension: 'width' | 'height'): void {
+  if (!aspectRatioLocked.value || !props.source) return
+  const size = proportionalOutputSize({ source: props.source.bitmap, dimension, value: Number(dimension === 'width' ? width.value : height.value) })
+  if (dimension === 'width') {
+    if (Number(height.value) !== size.height) height.value = size.height
+  } else if (Number(width.value) !== size.width) width.value = size.width
+}
+
+function updateDimension(dimension: 'width' | 'height', event: Event): void {
+  if (!(event.target instanceof HTMLInputElement)) return
+  if (dimension === 'width') width.value = event.target.value
+  else height.value = event.target.value
+  coupleDimensions(dimension)
+}
 
 function invalidate(): void {
   const current = inspection.value
@@ -134,11 +152,11 @@ async function exportCurrent(): Promise<void> {
 }
 
 function saveInspection(): void {
-  if (inspection.value.kind === 'ready' && inspection.value.key === currentKey.value && !busy.value && validName.value) void save(inspection.value.output)
+  if (inspection.value.kind === 'ready' && inspection.value.key === currentKey.value && !props.disabled && !busy.value && validName.value) void save(inspection.value.output)
 }
 
 onUnmounted(() => { cancelPreparation?.(); preparation?.terminate() })
-defineExpose({ open: () => exportDialog.value?.open(), exportLabel, busy })
+defineExpose({ open: () => exportDialog.value?.open(), exportLabel, busy, cancelPreparation: () => cancelPreparation?.() })
 </script>
 
 <template>
@@ -147,7 +165,8 @@ defineExpose({ open: () => exportDialog.value?.open(), exportLabel, busy })
     <label class="name-field">File name<input v-model="exportName" aria-label="Export file name" maxlength="200"></label>
 
     <label>Format<select v-model="format" aria-label="Output format" :disabled="disabled"><option value="png">PNG</option><option value="jpeg">JPEG</option><option value="webp">WebP</option></select></label>
-    <div class="output-dimensions"><label>Width<input v-model="width" aria-label="Output width" type="number" min="1" max="16384" step="1" :disabled="disabled"></label><label>Height<input v-model="height" aria-label="Output height" type="number" min="1" max="16384" step="1" :disabled="disabled"></label></div>
+    <div class="output-dimensions"><label>Width<input :value="width" aria-label="Output width" type="number" min="1" max="16384" step="1" :disabled="disabled" @input="updateDimension('width', $event)"></label><label>Height<input :value="height" aria-label="Output height" type="number" min="1" max="16384" step="1" :disabled="disabled" @input="updateDimension('height', $event)"></label></div>
+    <label class="aspect-ratio-lock"><input v-model="aspectRatioLocked" type="checkbox" :disabled="disabled" @change="coupleDimensions('width')">Lock aspect ratio</label>
     <label v-if="format !== 'png'">Quality<input v-model="quality" aria-label="Output quality" type="number" min="1" max="100" step="1" :disabled="disabled"></label>
     <label v-if="format === 'jpeg'">Transparency background<input v-model="background" aria-label="JPEG output background" type="color" :disabled="disabled"></label>
     <p>{{ format === 'jpeg' ? 'JPEG replaces transparency with this background.' : format === 'webp' ? 'WebP keeps transparency and uses lossy color compression.' : 'PNG keeps transparency and stores pixels losslessly.' }}</p>
@@ -167,3 +186,8 @@ defineExpose({ open: () => exportDialog.value?.open(), exportLabel, busy })
     <p class="save-notice" aria-live="polite">{{ saveNotice }}</p><div class="output-dialog-actions"><button v-if="inspection.kind === 'preparing'" type="button" @click="cancelPreparation?.()">Cancel output preparation</button><button type="button" :disabled="busy || disabled || !!validationError" @click="inspect">Inspect current settings</button><button type="button" :disabled="inspection.kind !== 'ready' || busy || !validName" @click="saveInspection">Save inspected snapshot</button></div>
   </dialog>
 </template>
+
+<style scoped>
+.output-panel .aspect-ratio-lock { display: flex; align-items: center; gap: 6px; }
+.output-panel .aspect-ratio-lock input { width: auto; }
+</style>

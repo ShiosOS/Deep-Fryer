@@ -20,6 +20,7 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - run: npm run docs:check
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
@@ -36,8 +37,7 @@ jobs:
           name: application-check-output
           include-hidden-files: true
           path: |
-            .artifacts/*.png
-            .artifacts/copy-image/
+            .artifacts/
             test-results/
           if-no-files-found: ignore
 
@@ -86,8 +86,7 @@ jobs:
           name: installed-application-check-output
           include-hidden-files: true
           path: |
-            .artifacts/*.png
-            .artifacts/copy-image/
+            .artifacts/
             test-results/
           if-no-files-found: ignore
 

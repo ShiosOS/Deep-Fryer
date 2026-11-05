@@ -86,3 +86,20 @@ test('recovery expiration, abandoned temporary files, and clean exit follow the 
     assert.equal(await store.initialize(), null)
   } finally { await rm(directory, { recursive: true, force: true }) }
 })
+
+test('preserving recovery on close drains queued checkpoints and retains both generations', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'deep-fryer-preserve-unit-'))
+  try {
+    const store = new RecoveryStore(directory, (source) => { PNG.sync.read(Buffer.from(source.bytes)) })
+    await store.initialize()
+    const first = document()
+    const second = { ...first, preset: { ...first.preset, seed: 654321 } }
+    const writes = [store.checkpoint(first), store.checkpoint(second)]
+    await store.close(true)
+    await Promise.all(writes)
+    assert.deepEqual(await readProject(join(directory, 'latest.deepfryer')), second)
+    assert.deepEqual(await readProject(join(directory, 'previous.deepfryer')), first)
+    await store.checkpoint(first)
+    assert.deepEqual(await readProject(join(directory, 'latest.deepfryer')), second)
+  } finally { await rm(directory, { recursive: true, force: true }) }
+})

@@ -1,4 +1,4 @@
-import { controls } from './ui'
+import { closeDiscardingChanges, controls } from './ui'
 import { _electron as electron, expect, test, type Locator, type Page } from '@playwright/test'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -31,6 +31,7 @@ test('keyboard completes import, effect and point edits, undo, variation selecti
     const errors: string[] = []
     page.on('pageerror', (error) => errors.push(error.message))
     await app.evaluate(({ dialog }, selected) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [selected] }) }, source)
+    await expect(page.locator('.editor')).toBeVisible()
     await expect(page.locator('.open-button')).toBeEnabled()
     await page.keyboard.press('Control+o')
     const exportButton = page.getByRole('button', { name: 'Export', exact: true })
@@ -102,5 +103,5 @@ test('keyboard completes import, effect and point edits, undo, variation selecti
     expect(saved.data).not.toEqual(image.data)
     expect(await readFile(source)).toEqual(bytes)
     expect(errors).toEqual([])
-  } finally { await app.close(); await rm(folder, { recursive: true, force: true }) }
+  } finally { await closeDiscardingChanges(app); await rm(folder, { recursive: true, force: true }) }
 })

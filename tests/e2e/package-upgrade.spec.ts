@@ -1,4 +1,4 @@
-import { controls, fileAction, exportImage } from './ui'
+import { closeDiscardingChanges, controls, fileAction, exportImage } from './ui'
 import { legacyAction, legacyExportAction, legacyPresetFilename } from '../fixtures/legacy-ui'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
 import { createHash } from 'node:crypto'
@@ -131,7 +131,7 @@ test('installed packages preserve prior projects and presets across upgrade, res
         await ready(page)
         const continuedPixels = await pixels(page)
         await save(app, page, 'Save project as…', continuedPath)
-        await app.close()
+        await closeDiscardingChanges(app)
         app = await launch(folder, candidateVersion)
         page = await app.firstWindow()
         page.on('pageerror', (error) => errors.push(error.message))
@@ -165,5 +165,5 @@ test('installed packages preserve prior projects and presets across upgrade, res
     expect(errors).toEqual([])
     const record = { phase, applicationVersion: await app.evaluate(({ app }) => app.getVersion()), sourceSha256: createHash('sha256').update(await readFile(sourcePath)).digest('hex'), projectSha256: createHash('sha256').update(await readFile(projectPath)).digest('hex'), presetSha256: createHash('sha256').update(await readFile(presetPath)).digest('hex') }
     await writeFile(join(folder, `${phase}-result.json`), JSON.stringify(record, null, 2))
-  } finally { await app.close().catch(() => {}) }
+  } finally { await closeDiscardingChanges(app).catch(() => {}) }
 })

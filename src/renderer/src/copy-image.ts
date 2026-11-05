@@ -16,12 +16,13 @@ export function useImageCopy() {
   async function run({ source, preset }: { source: CopySource; preset: Preset }): Promise<CopyOutcome> {
     if (disposed || phase.value !== 'idle') return 'ignored'
     phase.value = 'preparing'
+    let cancelled = false
     try {
       const job = freezeOutput(source, preset, { format: 'png', width: source.bitmap.width, height: source.bitmap.height })
       const worker = new Worker(new URL('./output-worker.ts', import.meta.url), { type: 'module' })
       preparation = worker
       const output = await new Promise<PreparedOutput | null>((resolve, reject) => {
-        cancelPreparation = () => resolve(null)
+        cancelPreparation = () => { cancelled = true; resolve(null) }
         worker.onerror = () => reject(new Error('Copy preparation stopped. Reopen the image and try again.'))
         worker.onmessageerror = () => reject(new Error('The copied image could not be prepared. Try again.'))
         worker.onmessage = (event: MessageEvent<OutputResponse>) => {
@@ -33,7 +34,7 @@ export function useImageCopy() {
       worker.terminate()
       preparation = null
       cancelPreparation = null
-      if (disposed || !output) return 'ignored'
+      if (disposed || cancelled || !output) return 'ignored'
       phase.value = 'writing'
       await window.imageBridge.copyImage({ bytes: output.bytes })
       return disposed ? 'ignored' : 'copied'
@@ -54,5 +55,5 @@ export function useImageCopy() {
     preparation?.terminate()
   }
 
-  return { phase: readonly(phase), run, dispose }
+  return { phase: readonly(phase), run, dispose, cancelPreparation: () => { if (phase.value === 'preparing') cancelPreparation?.() } }
 }

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Help and troubleshooting
+    url: https://github.com/ShiosOS/Deep-Fryer/blob/main/SUPPORT.md
+    about: Read common solutions and instructions for safe reports.
+  - name: Security reporting policy
+    url: https://github.com/ShiosOS/Deep-Fryer/blob/main/SECURITY.md
+    about: Read the reporting options before disclosing a vulnerability.

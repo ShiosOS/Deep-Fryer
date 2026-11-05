@@ -1,3 +1,4 @@
+import { chooseUnsaved, closeDiscardingChanges, controls, exportImage, fileAction, openOutput, ready } from './ui'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
 import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
@@ -6,7 +7,6 @@ import { join, resolve } from 'node:path'
 import { PNG } from 'pngjs'
 import { encodePreset } from '../../src/main/document-files'
 import type { Preset } from '../../src/shared/preset'
-import { controls, exportImage, fileAction, openOutput, ready } from './ui'
 
 delete process.env.ELECTRON_RUN_AS_NODE
 
@@ -113,6 +113,7 @@ test('button and shortcut copy full edited PNG pixels with alpha and orientation
     for (const [index, input] of [original, Buffer.concat([jpeg.subarray(0, 2), exif, jpeg.subarray(2)])].entries()) {
       const source = join(folder, index === 0 ? 'alpha.png' : 'oriented.jpg')
       await writeFile(source, input)
+      if (index > 0) await chooseUnsaved(app, 'discard')
       await open(app, page, source)
       await app.evaluate(({ dialog }, path) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] }) }, presetPath)
       await fileAction(page, 'Load preset')
@@ -123,6 +124,7 @@ test('button and shortcut copy full edited PNG pixels with alpha and orientation
       if (index === 0) expect(Array.from(expected.data).some((value, offset) => offset % 4 === 3 && value > 0 && value < 255)).toBe(true)
       await openOutput(page)
       await page.getByLabel('Output format').selectOption('webp')
+      await page.getByRole('checkbox', { name: 'Lock aspect ratio' }).uncheck()
       await page.getByLabel('Output width', { exact: true }).fill('24')
       await page.getByLabel('Output height', { exact: true }).fill('16')
       await page.getByLabel('Output quality').fill('23')
@@ -177,7 +179,7 @@ test('button and shortcut copy full edited PNG pixels with alpha and orientation
     }
     await writeFile('.artifacts/copy-image/pixel-proof.json', JSON.stringify({ preset, proofs }, null, 2) + '\n')
     expect(errors).toEqual([])
-  } finally { await app.close(); await rm(folder, { recursive: true, force: true }) }
+  } finally { await closeDiscardingChanges(app); await rm(folder, { recursive: true, force: true }) }
 })
 
 test('copy waits for acknowledgement, ignores duplicates and guarded shortcuts, preserves recovery, and retries failures', async () => {
@@ -236,7 +238,8 @@ test('copy waits for acknowledgement, ignores duplicates and guarded shortcuts, 
     expect((await capture(app)).writes).toBe(1)
     await expect(page.getByRole('status')).not.toContainText('Image copied')
     const latest = join(folder, 'profile', 'recovery', 'latest.deepfryer')
-    expect(await readFile(latest, 'utf8').catch(() => '')).not.toContain('"value":25')
+    const pendingRecovery = await readFile(latest, 'utf8').catch(() => '')
+    if (pendingRecovery) expect(JSON.parse(pendingRecovery).preset.effects[0].value).not.toBe(25)
     await mkdir('.artifacts/copy-image', { recursive: true })
     await page.screenshot({ path: '.artifacts/copy-image/waiting-for-acknowledgement.png' })
     await releaseWrite(app)
@@ -245,7 +248,10 @@ test('copy waits for acknowledgement, ignores duplicates and guarded shortcuts, 
     await expect(page.locator('.app-header [aria-live="polite"]')).toHaveText('Image copied.')
     expect(await state(page)).toEqual(before)
     expect((await capture(app)).encoded).toBe(frozen.encoded)
-    await expect.poll(async () => readFile(latest, 'utf8').catch(() => '')).toContain('"value":25')
+    await expect.poll(async () => {
+      const saved = await readFile(latest, 'utf8').catch(() => '')
+      return saved ? JSON.parse(saved).preset.effects[0].value : null
+    }).toBe(25)
     const recovery = await readFile(latest)
     const generations = await readdir(join(folder, 'profile', 'recovery'))
     await mkdir('.artifacts/copy-image', { recursive: true })
@@ -270,7 +276,7 @@ test('copy waits for acknowledgement, ignores duplicates and guarded shortcuts, 
     await page.getByLabel('Image preview', { exact: true }).focus()
     await page.keyboard.press('Control+Shift+z')
     await expect((await controls(page)).getByLabel('Brightness value', { exact: true })).toHaveValue('25')
-  } finally { await app.close(); await rm(folder, { recursive: true, force: true }) }
+  } finally { await closeDiscardingChanges(app); await rm(folder, { recursive: true, force: true }) }
 })
 
 test('main rejects invalid clipboard bytes and untrusted senders before any write, and preload rejects invalid acknowledgements', async () => {
@@ -327,7 +333,7 @@ test('main rejects invalid clipboard bytes and untrusted senders before any writ
     await expect(page.locator('.notice.error')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Copy image', exact: true })).toHaveText('Copy image')
     expect((await capture(app)).writes).toBe(0)
-  } finally { await app.close(); await rm(folder, { recursive: true, force: true }) }
+  } finally { await closeDiscardingChanges(app); await rm(folder, { recursive: true, force: true }) }
 })
 
 test('pending preview and preparation block copying, worker failures retry, and teardown stops late clipboard submission', async () => {
@@ -398,7 +404,11 @@ test('pending preview and preparation block copying, worker failures retry, and 
     await expect(page.locator('html')).toHaveAttribute('data-copy-terminated', 'true')
     await expect(page.locator('#app')).toBeEmpty()
     expect((await capture(app)).writes).toBe(0)
-  } finally { await app.close(); await rm(folder, { recursive: true, force: true }) }
+  } finally {
+    await app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0]?.destroy() }).catch(() => {})
+    await app.close().catch(() => {})
+    await rm(folder, { recursive: true, force: true })
+  }
 })
 
 test('disposable Windows CI copies through the actual native clipboard and decodes the full PNG', async () => {
@@ -427,7 +437,7 @@ test('disposable Windows CI copies through the actual native clipboard and decod
     expect(actual.data).toEqual(expected.data)
   } finally {
     await app.evaluate(({ clipboard }) => clipboard.clear()).catch(() => {})
-    await app.close()
+    await closeDiscardingChanges(app)
     await rm(folder, { recursive: true, force: true })
   }
 })

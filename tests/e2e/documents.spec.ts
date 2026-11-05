@@ -1,4 +1,4 @@
-import { fileAction, controls, exportImage } from './ui'
+import { chooseUnsaved, closeDiscardingChanges, fileAction, controls, exportImage } from './ui'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
 import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -91,6 +91,7 @@ test('portable project moves without its source, preset scales to another image,
     await fileAction(page, 'Open image')
     await ready(page)
     await selectOpen(app, moved)
+    await chooseUnsaved(app, 'discard')
     await fileAction(page, 'Open project')
     await ready(page)
     expect(await pixels(page)).toEqual(before)
@@ -127,6 +128,7 @@ test('portable project moves without its source, preset scales to another image,
     await fileAction(page, 'Load preset')
     await expect(page.getByRole('status')).toContainText('version is not supported')
     expect(await pixels(page)).toEqual(largerPixels)
+    await chooseUnsaved(app, 'discard')
     await selectOpen(app, larger)
     await fileAction(page, 'Open image')
     await ready(page)
@@ -142,7 +144,7 @@ test('portable project moves without its source, preset scales to another image,
     await mkdir('.artifacts', { recursive: true })
     await page.screenshot({ path: '.artifacts/portable-project.png' })
     expect(errors).toEqual([])
-  } finally { await app.close(); await rm(folder, { recursive: true, force: true }) }
+  } finally { await closeDiscardingChanges(app); await rm(folder, { recursive: true, force: true }) }
 })
 
 test('unexpected process stop restores the last valid generation, falls back from corruption, and discard removes both recovery copies', async () => {
@@ -220,7 +222,7 @@ test('unexpected process stop restores the last valid generation, falls back fro
     await expect(page.getByRole('alertdialog')).toHaveCount(0)
     expect(await readdir(recovery)).toEqual([])
     await expect(page.getByRole('heading', { name: 'Open your first image.' })).toBeVisible()
-  } finally { await app.close().catch(() => {}); await rm(folder, { recursive: true, force: true }) }
+  } finally { await closeDiscardingChanges(app).catch(() => {}); await rm(folder, { recursive: true, force: true }) }
 })
 
 test('a second application cannot own or delete the live profile recovery', async () => {
@@ -258,7 +260,7 @@ test('a second application cannot own or delete the live profile recovery', asyn
     await page.getByRole('button', { name: 'Restore work' }).click()
     await ready(page)
     await expect(page.locator('.filename')).toHaveText('live-edit.png')
-  } finally { await app.close().catch(() => {}); await rm(folder, { recursive: true, force: true }) }
+  } finally { await closeDiscardingChanges(app).catch(() => {}); await rm(folder, { recursive: true, force: true }) }
 })
 
 test('paste uses stubbed clipboard contents and a real Chromium file drop uses the standard Electron file path bridge', async () => {
@@ -296,6 +298,7 @@ test('paste uses stubbed clipboard contents and a real Chromium file drop uses t
       document.body.append(input)
     })
     await page.locator('#test-file-drop').setInputFiles(dropped)
+    await chooseUnsaved(app, 'discard')
     await page.locator('.editor').evaluate((element) => {
       const input = document.getElementById('test-file-drop')
       if (!(input instanceof HTMLInputElement) || !input.files?.[0]) throw new Error('The test file was not loaded by Chromium')
@@ -307,7 +310,7 @@ test('paste uses stubbed clipboard contents and a real Chromium file drop uses t
     await ready(page)
     expect(await readFile(dropped)).toEqual(bytes)
     expect(Array.from((await exportTo(app, page, join(folder, 'dropped-export.png'))).data)).toEqual(await pixels(page))
-  } finally { await app.close(); await rm(folder, { recursive: true, force: true }) }
+  } finally { await closeDiscardingChanges(app); await rm(folder, { recursive: true, force: true }) }
 })
 
 test('a disposable CI machine pastes an actual Windows clipboard image without stubbing Electron', async () => {
@@ -332,7 +335,7 @@ test('a disposable CI machine pastes an actual Windows clipboard image without s
     await expect(page.locator('.filename')).toHaveText('Clipboard image.png')
   } finally {
     await app.evaluate(({ clipboard }) => clipboard.clear()).catch(() => {})
-    await app.close()
+    await closeDiscardingChanges(app)
     await rm(folder, { recursive: true, force: true })
   }
 })

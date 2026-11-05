@@ -1,6 +1,6 @@
+import { chooseUnsaved, closeDiscardingChanges, fileAction } from './ui'
 import { legacyPresetFixture } from '../fixtures/legacy-format'
 import { _electron as electron, expect, test } from '@playwright/test'
-import { fileAction } from './ui'
 import { createHash } from 'node:crypto'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
@@ -18,6 +18,7 @@ test('real v1 project and preset reopen with the baseline full-resolution pixels
     for (const fixture of ['v1', 'v1-rich']) {
       const expected = JSON.parse(await readFile(`tests/fixtures/${fixture}/expected.json`, 'utf8'))
       for (const [button, filename] of [['Open project', 'baseline.deepfryer'], ['Open image', 'original.png'], ['Load preset', legacyPresetFixture]] as const) {
+        if (fixture === 'v1-rich' && button === 'Open project') await chooseUnsaved(app, 'discard')
         await app.evaluate(({ dialog }, path) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] }) }, resolve(`tests/fixtures/${fixture}/${filename}`))
         await fileAction(page, button)
         await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeEnabled()
@@ -31,5 +32,5 @@ test('real v1 project and preset reopen with the baseline full-resolution pixels
       }
     }
     expect(errors).toEqual([])
-  } finally { await app.close(); await rm(folder, { recursive: true, force: true }) }
+  } finally { await closeDiscardingChanges(app); await rm(folder, { recursive: true, force: true }) }
 })
