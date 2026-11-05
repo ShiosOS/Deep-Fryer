@@ -12,7 +12,7 @@ import { chooseUnsaved, controls, fileAction, ready } from './ui'
 import { aclFixture } from '../windows-acl-fixture'
 import type { FileHandle } from 'node:fs/promises'
 
-const ownedProcesses = new WeakMap<ElectronApplication, number[]>()
+const ownedApplications = new WeakMap<ElectronApplication, { launcher: ReturnType<ElectronApplication['process']>; pids: number[] }>()
 
 async function setup() {
   const folder = await mkdtemp(join(tmpdir(), 'deep-fryer-ordinary-save-'))
@@ -29,10 +29,11 @@ async function setup() {
   const app = await electron.launch({ ...(executable ? { executablePath: executable } : {}),
     args: [...(process.env.DEEP_FRYER_EXECUTABLE ? [] : [resolve('.')]), `--user-data-dir=${join(folder, 'profile')}`],
     env: { ...process.env, ELECTRON_RENDERER_URL: '' } })
+  const launcher = app.process()
   const page = await app.firstWindow()
   const runtime = await app.evaluate(({ app }) => ({ mainPid: process.pid, executable: process.execPath, ownedPids: app.getAppMetrics().map(({ pid }) => pid) }))
-  ownedProcesses.set(app, runtime.ownedPids)
-  await writeFile(test.info().outputPath('runtime.json'), JSON.stringify({ folder, pid: app.process().pid, ...runtime }))
+  ownedApplications.set(app, { launcher, pids: runtime.ownedPids })
+  await writeFile(test.info().outputPath('runtime.json'), JSON.stringify({ folder, pid: launcher.pid, ...runtime }))
   await expect(page.locator('.open-button')).toBeEnabled()
   return { folder, source, a, b, bytes, app, page }
 }
@@ -78,7 +79,9 @@ async function caption(page: Page, top: string): Promise<void> {
 }
 
 async function cleanup(app: ElectronApplication, folder: string): Promise<void> {
-  const child = app.process()
+  const owned = ownedApplications.get(app)
+  if (!owned) throw new Error(`Electron launch ownership is missing; retained ${folder}`)
+  const child = owned.launcher
   let timeout: ReturnType<typeof setTimeout> | undefined
   try {
     await Promise.race([(async () => {
@@ -88,7 +91,7 @@ async function cleanup(app: ElectronApplication, folder: string): Promise<void> 
       timeout = setTimeout(() => reject(new Error(`Electron close timed out; retained ${folder}`)), 10_000)
     })])
     await expect.poll(() => child.exitCode !== null || child.signalCode !== null).toBe(true)
-    const ownedPids = ownedProcesses.get(app) ?? []
+    const ownedPids = owned.pids
     await expect.poll(() => ownedPids.filter(pid => {
       try { process.kill(pid, 0); return true } catch (error) {
         if (error instanceof Error && 'code' in error && error.code === 'ESRCH') return false
