@@ -10,9 +10,9 @@ const checkpointEvent = z.object({
   request: z.number().int(), brightness: z.number().finite().nullable(),
   error: z.string().max(1000).optional()
 })
-const generation = z.object({ preset: z.object({ effects: z.array(z.object({
+const generation = z.object({ edit: z.object({ preset: z.object({ effects: z.array(z.object({
   kind: z.string(), value: z.number().optional()
-})) }) })
+})) }) }) })
 type Launch = { app: ElectronApplication; launcher: ChildProcess; pids: number[] }
 type TimelineEvent = z.infer<typeof checkpointEvent> & { launch: number }
 
@@ -75,7 +75,8 @@ export class RecoveryEvidence {
       ipcMain.removeHandler('recovery:checkpoint')
       ipcMain.handle('recovery:checkpoint', async (event, input: unknown) => {
         const id = ++request
-        const preset: unknown = input && typeof input === 'object' ? Reflect.get(input, 'preset') : null
+        const edit: unknown = input && typeof input === 'object' ? Reflect.get(input, 'edit') : null
+        const preset: unknown = edit && typeof edit === 'object' ? Reflect.get(edit, 'preset') : null
         const effects: unknown = preset && typeof preset === 'object' ? Reflect.get(preset, 'effects') : null
         const effect: unknown = Array.isArray(effects) ? effects.find((item: unknown) => item && typeof item === 'object' && Reflect.get(item, 'kind') === 'brightness') : null
         const value: unknown = effect && typeof effect === 'object' ? Reflect.get(effect, 'value') : null
@@ -118,7 +119,7 @@ export class RecoveryEvidence {
         let parsed = false
         await this.attempt(`${name} scalar parse`, async () => {
           const result = generation.parse(JSON.parse(await readFile(destination, 'utf8')))
-          brightness = result.preset.effects.find((effect) => effect.kind === 'brightness')?.value ?? null
+          brightness = result.edit.preset.effects.find((effect) => effect.kind === 'brightness')?.value ?? null
           parsed = true
         })
         await writeFile(join(this.output, `${name}-stat.json`), JSON.stringify({ at: Date.now(), size: details.size,
