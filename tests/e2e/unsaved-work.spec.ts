@@ -535,11 +535,7 @@ for (const operation of ['copy', 'export'] as const) {
       await page.getByRole('button', { name: 'Copy image', exact: true }).click()
       await expect(page.getByRole('status')).toContainText('Image copied')
       expect(await app.evaluate(() => Reflect.get(globalThis, '__nativeWrites'))).toBe(1)
-    } finally {
-      await app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0]?.destroy() }).catch(() => {})
-      await app.close().catch(() => {})
-      await rm(folder, { recursive: true, force: true })
-    }
+    } finally { await cleanup(app, folder) }
   })
 
   test(`close waits for an admitted native ${operation} write before prompting`, async () => {
