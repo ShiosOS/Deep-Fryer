@@ -5,7 +5,7 @@ Open **Help** in the app for illustrated instructions on effects, points, and sa
 ## Troubleshoot common problems
 
 - If an image will not open, use PNG or JPEG within 64 MiB, 16,384 pixels per side, and 24 million pixels total. Renaming an unsupported file does not convert it.
-- If saving reports that a file exists, choose a new name. Deep Fryer protects existing destinations even when the Windows chooser offers replacement.
+- If Save As, a preset save, or image export reports that a file exists, choose a new name. These actions create new files even when the Windows chooser offers replacement. In the 0.5.0 source, ordinary **Save project** can update the project opened or saved in this session. If that save refuses a changed or unsupported destination, use **Save project as…** to keep a separate copy.
 - If an edit looks different after export, inspect the final output at its chosen dimensions. Effects run after resizing, and JPEG or WebP compression changes pixels.
 - If pasted output differs from export settings, use Export instead. Copy image always creates a PNG at the source's oriented dimensions.
 - If interrupted work is offered on restart, choose **Restore work** to resume it. Recovery is temporary. Save a project to retain an edit after a clean exit.
