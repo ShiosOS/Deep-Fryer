@@ -2,7 +2,7 @@ import { _electron as electron, expect, test } from '@playwright/test'
 import { access, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { chooseUnsaved, closeDiscardingChanges, interruptForRecovery } from './ui'
+import { chooseUnsaved, closeDiscardingChanges, interruptForRecovery, section } from './ui'
 
 function launch(profile: string) {
   const executable = process.env.DEEP_FRYER_EXECUTABLE ?? process.env.ELECTRON_EXECUTABLE_PATH
@@ -44,10 +44,12 @@ test('demo is opt-in and the editor remains usable at 900 by 620', async () => {
     await expect(page.locator('.look-gallery')).not.toHaveAttribute('open', '')
     await expect(page.locator('.look-gallery summary')).toBeFocused()
     await expect(look).toHaveAttribute('aria-pressed', 'true')
+    await section(page, 'Effects')
     const effect = await page.locator('.effect-heading').first().boundingBox()
     if (!effect) throw new Error('First effect heading is missing')
     expect(effect.y).toBeGreaterThanOrEqual(0)
     expect(effect.y + effect.height).toBeLessThanOrEqual(await page.evaluate(() => innerHeight))
+    await section(page, 'Look')
     await page.getByRole('slider', { name: 'Fry level' }).fill('50')
     await expect(look).toHaveAttribute('aria-pressed', 'false')
     await page.locator('.look-gallery summary').click()

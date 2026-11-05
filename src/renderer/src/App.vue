@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, shallowRef } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef } from 'vue'
 import { validateDimensions, type OpenImage } from '../../shared/image'
 import EffectsPanel from './EffectsPanel.vue'
 import PresetControls from './PresetControls.vue'
@@ -48,6 +48,11 @@ const { edit } = history
 const preset = computed(() => edit.value.preset)
 const captionControls = ref<InstanceType<typeof CaptionControls> | null>(null)
 const presetControls = ref<InstanceType<typeof PresetControls> | null>(null)
+const effectsPanel = ref<InstanceType<typeof EffectsPanel> | null>(null)
+type InspectorSection = 'Look' | 'Effects' | 'Captions'
+const sections: InspectorSection[] = ['Look', 'Effects', 'Captions']
+const activeSection = ref<InspectorSection>('Look')
+const sectionError = ref('')
 const captionError = ref('')
 let confirmedCaptions = false
 const restoreVersion = ref(0)
@@ -113,12 +118,14 @@ function pointerPosition(event: MouseEvent): Point {
 function pointerDown(event: PointerEvent): void {
   if (!document.value || event.button !== 0 || !stage.value) return
   if (placingPoint.value && !controlsBusy.value && view.value && imageSize.value) {
+    event.preventDefault()
     const relative = pointerPosition(event)
     const point = paneToImage(view.value, relative, pane.value)
     if (point.x >= 0 && point.x <= imageSize.value.width && point.y >= 0 && point.y <= imageSize.value.height) {
+      if (!selectSection('Effects')) return
       const effect = { ...newEffect('bulge'), x: Math.max(0, Math.min(1, point.x / Math.max(1, imageSize.value.width - 1))), y: Math.max(0, Math.min(1, point.y / Math.max(1, imageSize.value.height - 1))) }
       if (!changePreset({ ...preset.value, effects: [...preset.value.effects, effect] })) return
-      selectedPointId.value = effect.id
+      revealPoint(effect.id)
       placingPoint.value = false
     }
     return
@@ -227,6 +234,8 @@ async function publishImage(source: OpenImage, savedEdit: EditState, confirm: ()
     endDrag()
     view.value = candidateView
     imageVersion.value += 1
+    activeSection.value = candidateCaptionError ? 'Captions' : 'Look'
+    sectionError.value = ''
     candidate = null
     previous?.bitmap.close()
     notice.value = candidateCaptionError ? { kind: 'error', text: candidateCaptionError } : { kind: 'success', text: `${source.name} is ready. Your original stays untouched.` }
@@ -278,7 +287,39 @@ function tryDemo(): void {
 
 function beginGesture(): void { if (controlsBusy.value) return; gestureActive.value = true; history.begin() }
 function endGesture(): void { if (controlsBusy.value) return; history.end(); gestureActive.value = false; files.scheduleCheckpoint() }
-function finishGesture(): void { captionControls.value?.finish(); history.end(); gestureActive.value = false }
+function finishGesture(): void { effectsPanel.value?.finish(); captionControls.value?.finish(); history.end(); gestureActive.value = false }
+
+function canLeaveSection(): boolean {
+  if (controlsBusy.value || window.document.querySelector('dialog[open]')) return false
+  try { finishGesture(); sectionError.value = ''; return true }
+  catch (error) { sectionError.value = describeError(error); return false }
+}
+function guardSectionFocus(event: PointerEvent): void {
+  if (!canLeaveSection()) event.preventDefault()
+}
+function selectSection(section: InspectorSection): boolean {
+  if (!canLeaveSection()) return false
+  if (activeSection.value === section) return true
+  presetControls.value?.closeMenu()
+  for (const menu of window.document.querySelectorAll<HTMLDetailsElement>('.file-menu[open]')) menu.open = false
+  activeSection.value = section
+  return true
+}
+function selectPoint(id: string): boolean {
+  if (!selectSection('Effects')) return false
+  revealPoint(id)
+  return true
+}
+function revealPoint(id: string): void {
+  selectedPointId.value = id
+  showing.value = 'edited'
+  void nextTick(() => effectsPanel.value?.revealPoint(id))
+}
+function togglePointPlacement(): void {
+  if (!canLeaveSection()) return
+  placingPoint.value = !placingPoint.value
+  showing.value = 'edited'
+}
 
 function changeCaptions(composition: Composition): void {
   if (!document.value || controlsBusy.value || !history.change({ ...edit.value, composition })) return
@@ -532,24 +573,37 @@ onUnmounted(() => {
     </header>
     <div class="workspace">
       <aside class="sidebar" aria-label="Image controls">
-        <CaptionControls v-if="document" ref="captionControls" :key="imageVersion" :composition="edit.composition" :disabled="controlsBusy" :render-error="captionError" @change="changeCaptions" @gesture-begin="beginGesture" @gesture-end="endGesture" @opened="presetControls?.collapseGallery()" @error="notice = { kind: 'error', text: $event }" />
-        <PresetControls v-if="document" ref="presetControls" :key="imageVersion" :preset="preset" :bitmap="document.bitmap" :restore-version="restoreVersion" :disabled="controlsBusy" @preview-status="lookPreviewStatus = $event" @change="changePreset" @gesture-begin="beginGesture" @gesture-end="endGesture" @load-preset="files.loadPreset" @save-preset="openSaveName('preset')" />
+        <template v-if="document">
+          <nav class="inspector-navigation segmented" aria-label="Editor sections">
+            <button v-for="section in sections" :key="section" type="button" :aria-pressed="activeSection === section" :aria-controls="`inspector-${section.toLowerCase()}`" :disabled="controlsBusy" @pointerdown="guardSectionFocus" @click="selectSection(section)">{{ section }}</button>
+          </nav>
+          <p v-if="sectionError" class="section-error control-error" role="alert">{{ sectionError }}</p>
+          <div v-show="activeSection === 'Look'" id="inspector-look" class="inspector-section">
+            <PresetControls ref="presetControls" :key="imageVersion" :preset="preset" :bitmap="document.bitmap" :restore-version="restoreVersion" :disabled="controlsBusy" @preview-status="lookPreviewStatus = $event" @change="changePreset" @gesture-begin="beginGesture" @gesture-end="endGesture" @load-preset="files.loadPreset" @save-preset="openSaveName('preset')" />
+          </div>
+          <div v-show="activeSection === 'Effects'" id="inspector-effects" class="inspector-section">
+            <EffectsPanel ref="effectsPanel" :key="imageVersion" :preset="preset" :restore-version="restoreVersion" :selected-point-id="selectedPointId" :disabled="controlsBusy" @change="changePreset" @gesture-begin="beginGesture" @gesture-end="endGesture" @select-point="selectPoint" />
+          </div>
+          <div v-show="activeSection === 'Captions'" id="inspector-captions" class="inspector-section">
+            <CaptionControls ref="captionControls" :key="imageVersion" :composition="edit.composition" :disabled="controlsBusy" :render-error="captionError" @change="changeCaptions" @gesture-begin="beginGesture" @gesture-end="endGesture" @error="notice = { kind: 'error', text: $event }" />
+          </div>
+        </template>
         <p v-else class="inspector-empty">Open an image to choose a preset and adjust its effects.</p>
-        <EffectsPanel v-if="document" :key="imageVersion" :preset="preset" :restore-version="restoreVersion" :selected-point-id="selectedPointId" :disabled="controlsBusy" @change="changePreset" @gesture-begin="beginGesture" @gesture-end="endGesture" @select-point="selectedPointId = $event; showing = 'edited'" />
-        <button v-if="document && operation.kind === 'processing'" type="button" @click="cancelPending">{{ edit.composition.captions || confirmedCaptions ? 'Stop preview' : 'Cancel pending changes' }}</button>
-        <button v-if="document && captionError && operation.kind !== 'processing'" type="button" :disabled="controlsBusy" @click="scheduleRender(document)">Retry preview</button>
       </aside>
       <main class="main-area">
-        <div class="notice" :class="files.savingProject.value ? 'info' : notice.kind" role="status" aria-live="polite">{{ files.savingProject.value ? 'Saving project…' : operation.kind === 'processing' ? 'Processing image…' : notice.kind === 'error' ? notice.text : document && lookPreviewStatus.kind !== 'ready' ? lookPreviewStatus.message : notice.text }}</div>
+        <div class="preview-status"><div class="notice" :class="files.savingProject.value ? 'info' : notice.kind" role="status" aria-live="polite">{{ files.savingProject.value ? 'Saving project…' : operation.kind === 'processing' ? 'Processing image…' : notice.kind === 'error' ? notice.text : document && lookPreviewStatus.kind !== 'ready' ? lookPreviewStatus.message : notice.text }}</div>
+          <span v-if="document" class="image-dimensions">{{ dimensions }} px</span>
+          <button v-if="document && operation.kind === 'processing'" type="button" @click="cancelPending">{{ edit.composition.captions || confirmedCaptions ? 'Stop preview' : 'Cancel pending changes' }}</button>
+          <button v-if="document && captionError && operation.kind !== 'processing'" type="button" :disabled="controlsBusy" @click="scheduleRender(document)">Retry preview</button>
+        </div>
         <div class="preview-toolbar">
           <div class="comparison-controls"><button type="button" :disabled="!document" :aria-pressed="showing === 'original'" @click="showing = 'original'">Original</button><button type="button" :disabled="!document" :aria-pressed="showing === 'edited'" @click="showing = 'edited'">Edited</button><span class="original-badge">{{ !document ? 'Preview' : operation.kind === 'processing' ? 'Processing' : presetNeutral ? 'Unchanged' : 'Edited' }}</span></div>
-          <div class="inspection-controls" aria-label="Image inspection controls"><button type="button" :aria-pressed="placingPoint" :disabled="!document || controlsBusy" @click="placingPoint = !placingPoint; showing = 'edited'">{{ placingPoint ? 'Click image…' : 'Place point' }}</button><button type="button" :disabled="!document" @click="fit">Fit</button><button type="button" :disabled="!document" @click="oneToOne">100%</button><button type="button" :disabled="!document" aria-label="Zoom out" @click="zoomAt(-1)">−</button><span class="preview-scale">{{ zoomLabel }}</span><button type="button" :disabled="!document" aria-label="Zoom in" @click="zoomAt(1)">+</button></div>
+          <div class="inspection-controls" aria-label="Image inspection controls"><button type="button" :aria-pressed="placingPoint" :disabled="!document || controlsBusy" @pointerdown="guardSectionFocus" @click="togglePointPlacement">{{ placingPoint ? 'Click image…' : 'Place point' }}</button><button type="button" :disabled="!document" @click="fit">Fit</button><button type="button" :disabled="!document" @click="oneToOne">100%</button><button type="button" :disabled="!document" aria-label="Zoom out" @click="zoomAt(-1)">−</button><span class="preview-scale">{{ zoomLabel }}</span><button type="button" :disabled="!document" aria-label="Zoom in" @click="zoomAt(1)">+</button></div>
         </div>
         <section ref="stage" :aria-busy="operation.kind === 'processing'" class="preview-stage" :class="{ 'has-image': document }" aria-label="Image preview" :tabindex="document ? 0 : -1" @keydown="stageKeydown" @pointerdown="pointerDown" @pointermove="pointerMove" @pointerup="endDrag" @pointercancel="endDrag" @lostpointercapture="endDrag" @dblclick="zoomAt($event.shiftKey ? -1 : 1, pointerPosition($event))">
           <div class="image-plane" v-show="document" :style="imageStyle"><canvas ref="canvas" v-show="showing === 'edited'" aria-label="Edited full resolution image canvas"></canvas><canvas ref="originalCanvas" v-show="showing === 'original'" aria-label="Original full resolution image canvas"></canvas></div>
-          <BulgeOverlay v-if="document && view && imageSize && showing === 'edited'" :points="bulgePoints" :selected-id="selectedPointId" :view="view" :pane="pane" :image="imageSize" @select="selectedPointId = $event" @change="movePoint" @delete="deletePoint" @gesture-begin="beginGesture" @gesture-end="endGesture" />
+          <BulgeOverlay v-if="document && view && imageSize && showing === 'edited'" :points="bulgePoints" :selected-id="selectedPointId" :view="view" :pane="pane" :image="imageSize" :select-point="selectPoint" @change="movePoint" @delete="deletePoint" @gesture-begin="beginGesture" @gesture-end="endGesture" />
           <div class="empty-state" v-if="!document"><img :src="appIcon" alt=""><h1>Open your first image.</h1><p>Choose a PNG or JPEG, paste an image, or drop a file here.</p><div class="empty-actions"><button class="primary" :disabled="busy" @click="openImage">Choose an image</button><button type="button" :disabled="busy" @click="tryDemo">Try demo</button></div></div>
-          <span class="canvas-caption" v-if="document && !edit.composition.captions">{{ dimensions }} px</span>
         </section>
       </main>
     </div>

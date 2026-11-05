@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
@@ -15,8 +14,7 @@ assert.ok(args.length === 0 || (args.length === 2 && args[0] === '--output'), 'U
 const output = resolve(args[1] ?? join(root, '.artifacts', `product-${new Date().toISOString().replaceAll(':', '-')}`))
 await mkdir(dirname(output), { recursive: true })
 await mkdir(output)
-const demo = join(root, 'src/renderer/src/assets/demo/toast-cat.png')
-const source = existsSync(demo) ? demo : join(root, 'src/renderer/src/assets/help/source.jpg')
+const source = join(root, 'src/renderer/src/assets/demo/toast-cat.png')
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex')
 const report = {
   startedAt: new Date().toISOString(), output, preset: 'Crispy color', seed: 3328622589,
@@ -57,6 +55,7 @@ try {
     if (!window) throw new Error('Editor window missing')
     return { pid: process.pid, executable: process.execPath, version: app.getVersion(), packaged: app.isPackaged, profile: app.getPath('userData'), url: window.webContents.getURL() }
   })
+  ownedPids.push(...await app.evaluate(({ app }) => [...new Set([process.pid, ...app.getAppMetrics().map(({ pid }) => pid)])]))
   assert.equal(resolve(report.doctor.profile), profile)
   assert.equal(report.doctor.packaged, report.mode === 'packaged')
   assert.ok(report.doctor.url.startsWith('file:'), 'Capture must drive built renderer files')
@@ -66,7 +65,7 @@ try {
     const size = await app.evaluate(({ BrowserWindow }, minimum) => {
       const window = BrowserWindow.getAllWindows()[0]
       if (minimum) window.setSize(...window.getMinimumSize())
-      else window.setContentSize(1120, 720)
+      else window.setSize(1120, 760)
       return window.getContentSize()
     }, minimum)
     await expect.poll(() => page.evaluate(() => [innerWidth, innerHeight])).toEqual(size)
@@ -111,13 +110,13 @@ try {
   const before = await canvas('Original full resolution image canvas', 'before.png')
   await screenshot('02-cat-original-dark.png')
   const look = page.getByRole('button', { name: report.preset, exact: true })
-  if (await look.count()) await look.click()
-  else await page.getByRole('combobox', { name: 'Preset', exact: true }).selectOption(report.preset)
+  await look.click()
   await ready()
+  await page.getByRole('navigation', { name: 'Editor sections' }).getByRole('button', { name: 'Effects', exact: true }).click()
   await page.getByRole('spinbutton', { name: 'Noise pattern', exact: true }).fill(String(report.seed))
   await page.getByRole('spinbutton', { name: 'Noise pattern', exact: true }).blur()
   await ready()
-  await page.locator('.sidebar').evaluate((element) => element.scrollTo(0, 0))
+  await page.locator('#inspector-effects').evaluate((element) => element.scrollTo(0, 0))
   const after = await canvas('Edited full resolution image canvas', 'after.png')
   assert.deepEqual([before.width, before.height], [after.width, after.height])
   assert.notEqual(hash(before.data), hash(after.data), 'Preset must change actual rendered pixels')
@@ -131,7 +130,34 @@ try {
   await screenshot('04-cat-crispy-light.png')
   await resize(true)
   await screenshot('05-minimum-light.png')
+  await theme('Dark')
+  await screenshot('05-minimum-dark.png')
+  const section = async name => {
+    const button = page.getByRole('navigation', { name: 'Editor sections' }).getByRole('button', { name, exact: true })
+    await button.click()
+    await expect(button).toHaveAttribute('aria-pressed', 'true')
+  }
+  await section('Captions')
+  await page.getByRole('textbox', { name: 'Top caption', exact: true }).fill('WHEN THE TOAST')
+  await page.getByRole('textbox', { name: 'Bottom caption', exact: true }).fill('FIGHTS BACK')
+  await page.getByRole('textbox', { name: 'Bottom caption', exact: true }).blur()
+  await ready()
+  for (const minimum of [true, false]) {
+    await resize(minimum)
+    for (const mode of ['Light', 'Dark']) {
+      await theme(mode)
+      for (const name of ['Captions', 'Look', 'Effects']) {
+        await section(name)
+        const panel = page.locator(`#inspector-${name.toLowerCase()}`)
+        await panel.evaluate(element => { element.scrollTop = 0 })
+        await expect(page.locator('.image-dimensions')).toBeInViewport()
+        await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeInViewport()
+        await screenshot(`sections-${minimum ? '900x620' : '1120x760'}-${mode.toLowerCase()}-${name.toLowerCase()}.png`)
+      }
+    }
+  }
   await resize()
+  await theme('Light')
   await page.getByRole('button', { name: 'Export', exact: true }).click()
   await expect(page.getByRole('dialog', { name: 'Export image', exact: true })).toBeVisible()
   await expect(page.getByLabel('Output width', { exact: true })).toHaveValue(String(after.width))
@@ -145,7 +171,7 @@ try {
 } finally {
   if (app) {
     try {
-      ownedPids.push(...await app.evaluate(({ app }) => app.getAppMetrics().map(({ pid }) => pid)))
+      ownedPids.push(...await app.evaluate(({ app }) => [...new Set([process.pid, ...app.getAppMetrics().map(({ pid }) => pid)])]))
       await app.evaluate(({ dialog }) => {
         const chooseDiscard = (options) => {
           const response = options.buttons?.findIndex((button) => /^(discard(?: changes)?|don['’]t save)$/i.test(button.replaceAll('&', '')))
@@ -176,9 +202,9 @@ try {
     report.teardown.exitCode = child?.exitCode
     report.teardown.signal = child?.signalCode
   }
-  if (profile && (!app || report.teardown.processExited)) {
+  if (profile && report.errors.length === 0 && (!app || report.teardown.processExited)) {
     try {
-      await rm(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
+      await rm(profile, { recursive: true, force: true })
       report.teardown.profileRemoved = await stat(profile).then(() => false, (error) => { if (error.code === 'ENOENT') return true; throw error })
     } catch (error) { report.errors.push(`Profile cleanup: ${error.message}`) }
   }

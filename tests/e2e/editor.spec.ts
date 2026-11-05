@@ -112,7 +112,7 @@ test('open, cancel, reject replacement, protect originals, and export real canva
     await chooseUnsaved(app, 'discard')
     await fileAction(page, 'Open image')
     await expect(page.locator('.filename')).toHaveText('rotated.jpg')
-    await expect(page.locator('.canvas-caption')).toContainText('560 × 800')
+    await expect(page.locator('.image-dimensions')).toContainText('560 × 800')
     const orientedOutput = join(folder, 'oriented.png')
     await selectSave(app, orientedOutput)
     await exportImage(page)
@@ -185,7 +185,7 @@ test('independent color controls preview and export combined settings while pres
     await page.setViewportSize({ width: 1244, height: 950 })
     await page.evaluate(() => {
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
-      document.querySelector('.sidebar')?.scrollTo(0, 0)
+      document.querySelector('.inspector-section:not([style*="display: none"])')?.scrollTo(0, 0)
     })
     await mkdir('.artifacts', { recursive: true })
     await page.screenshot({ path: '.artifacts/color-controls.png' })

@@ -39,7 +39,7 @@ try {
   await ready()
   const pixels = () => page.getByLabel('Edited full resolution image canvas').evaluate(async canvas => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data))).join(','))
   report.beforePixels = await pixels()
-  await page.locator('.caption-controls > summary').click()
+  await page.getByRole('navigation', { name: 'Editor sections' }).getByRole('button', { name: 'Captions', exact: true }).click()
   await page.getByRole('textbox', { name: 'Top caption', exact: true }).fill('BUNDLED FONT')
   await page.getByRole('textbox', { name: 'Bottom caption', exact: true }).fill('Café without a network font')
   await page.getByRole('textbox', { name: 'Bottom caption', exact: true }).blur()

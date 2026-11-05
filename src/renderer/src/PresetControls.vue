@@ -15,7 +15,7 @@ const locks = ref(new Set<string>())
 const dialog = ref<HTMLDialogElement | null>(null)
 const menu = ref<HTMLDetailsElement | null>(null)
 const gallery = ref<HTMLDetailsElement | null>(null)
-defineExpose({ collapseGallery: () => { if (gallery.value) gallery.value.open = false } })
+defineExpose({ closeMenu: () => { if (menu.value) menu.value.open = false } })
 function presetFile(action: 'load' | 'save'): void {
   if (menu.value) { menu.value.open = false; menu.value.querySelector<HTMLElement>('summary')?.focus() }
   if (action === 'load') emit('loadPreset')
@@ -159,8 +159,8 @@ onUnmounted(() => { lookCancellation.abort(); comparisonGeneration += 1; compari
 </script>
 
 <template>
-  <section class="preset-looks" aria-label="Presets">
-    <div class="controls-heading"><span class="eyebrow">Preset</span></div>
+  <section class="preset-looks" aria-label="Look">
+    <div class="controls-heading"><h2 class="eyebrow">Look</h2></div>
     <details ref="gallery" class="look-gallery" open>
       <summary>Choose a look <span>{{ look || 'Current settings' }}</span></summary>
       <p class="look-status" aria-hidden="true">Draft previews of your image</p>

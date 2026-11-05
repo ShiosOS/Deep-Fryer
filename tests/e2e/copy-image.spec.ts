@@ -172,7 +172,7 @@ test('button and shortcut copy full edited PNG pixels with alpha and orientation
       await page.getByRole('button', { name: 'Close export', exact: true }).click()
       if (index === 0) {
         await page.setViewportSize({ width: 900, height: 620 })
-        await page.locator('.sidebar').evaluate((element) => { element.scrollTop = 0 })
+        await page.locator('.inspector-section:visible').evaluate((element) => { element.scrollTop = 0 })
         await page.screenshot({ path: '.artifacts/copy-image/header-900.png' })
         expect(await page.locator('.header-actions').evaluate((element) => element.getBoundingClientRect().right <= window.innerWidth)).toBe(true)
       }

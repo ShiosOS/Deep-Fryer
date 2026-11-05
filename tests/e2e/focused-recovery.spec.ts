@@ -6,7 +6,7 @@ import { PNG } from 'pngjs'
 import { parseProject } from '../../src/main/document-files'
 import type { WorkerResponse } from '../../src/renderer/src/effects-worker'
 import { RecoveryEvidence } from './recovery-evidence'
-import { controls, fileAction, interruptForRecovery, ready } from './ui'
+import { section, controls, fileAction, interruptForRecovery, ready } from './ui'
 
 type RecoveryEdit = {
   app: ElectronApplication
@@ -90,7 +90,7 @@ for (const mode of ['pending', 'failed'] as const) {
           return original(input, options)
         }
       }, mode)
-      await page.locator('.caption-controls > summary').click()
+      await section(page, 'Captions')
       const top = page.getByRole('textbox', { name: 'Top caption', exact: true })
       await top.fill('GO')
       await expect.poll(() => worker.evaluate(() => Reflect.get(globalThis, '__idleRecoveryFontRequested') === true)).toBe(true)
@@ -191,6 +191,8 @@ test('invalid numeric drafts preserve the last accepted schema-valid recovery pr
       await expect(brightness).toBeFocused()
     }
     await testInfo.attach('invalid-draft-checkpoint-50', { path: checkpoint, contentType: 'application/json' })
+    await brightness.fill('50')
+    await brightness.blur()
   })
 })
 

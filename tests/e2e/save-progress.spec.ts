@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { parseProject } from '../../src/main/document-files'
 import { editStateSchema } from '../../src/shared/edit'
-import { chooseUnsaved, closeDiscardingChanges, fileAction, fileOperationComplete, ready, traceElectron, PROJECT_FILE_OPERATION_MS } from './ui'
+import { section, chooseUnsaved, closeDiscardingChanges, fileAction, fileOperationComplete, ready, traceElectron, PROJECT_FILE_OPERATION_MS } from './ui'
 
 type OwnedApplication = { launcher: ReturnType<ElectronApplication['process']>; pids: number[] }
 
@@ -209,7 +209,7 @@ for (const missingFont of [false, true]) {
           globalThis.fetch = async (input, options) => String(input).endsWith('.ttf')
             ? new Response('Missing test font', { status: 404 }) : original(input, options)
         })
-        await page.locator('.caption-controls > summary').click()
+        await section(page, 'Captions')
         const top = page.getByRole('textbox', { name: 'Top caption', exact: true })
         await top.fill('Keep these words')
         await top.blur()
@@ -220,7 +220,7 @@ for (const missingFont of [false, true]) {
       for (const channel of ['document:save-project-as', 'document:save-project']) {
         const artifactName = channel.replaceAll(':', '-')
         if (channel === 'document:save-project') {
-          if (!await page.locator('.caption-controls').getAttribute('open').then(value => value !== null)) await page.locator('.caption-controls > summary').click()
+          await section(page, 'Captions')
           const top = page.getByRole('textbox', { name: 'Top caption', exact: true })
           await top.fill('Second exact edit')
           await top.blur()
