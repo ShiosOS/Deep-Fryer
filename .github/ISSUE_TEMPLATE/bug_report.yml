@@ -1,0 +1,52 @@
+name: Bug report
+description: Report a reproducible problem in the Windows editor.
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search existing issues first. Do not attach private images, credentials, or sensitive project files. Projects embed the original image bytes. Read SECURITY.md for vulnerability reporting.
+  - type: input
+    id: version
+    attributes:
+      label: Deep Fryer version and installation
+      description: Include the release version or commit, and installer or development build.
+      placeholder: 0.4.0, Windows installer
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version and architecture
+      placeholder: Windows 11, x64
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include the file type, dimensions, preset, and output settings when relevant.
+      placeholder: |
+        1. Open a PNG.
+        2. Choose a preset.
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result and error text
+      description: Include what appears on screen and whether the problem repeats.
+    validations:
+      required: true
+  - type: textarea
+    id: sample
+    attributes:
+      label: Optional safe sample or screenshot
+      description: Share only files you have permission to publish. Remove personal data.

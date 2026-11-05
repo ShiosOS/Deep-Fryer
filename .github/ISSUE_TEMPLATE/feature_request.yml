@@ -1,0 +1,28 @@
+name: Feature request
+description: Describe a task that the current editor cannot complete.
+title: "[Feature] "
+body:
+  - type: textarea
+    id: task
+    attributes:
+      label: What are you trying to do?
+      description: Describe the problem and who encounters it.
+    validations:
+      required: true
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Current workaround
+      description: Explain how you do this now and where that falls short.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Expected result
+      description: Describe the useful outcome. Include an example if possible.
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: Requests are considered alongside reliability and usability work. Submitting a request does not establish a release date or delivery commitment.
