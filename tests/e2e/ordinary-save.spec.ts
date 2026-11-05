@@ -8,7 +8,9 @@ import { newPreset } from '../../src/shared/preset'
 import { newEdit } from '../../src/shared/edit'
 import { projectTargetIdSchema } from '../../src/shared/documents'
 import { randomUUID } from 'node:crypto'
-import { chooseUnsaved, closeDiscardingChanges, controls, fileAction, ready } from './ui'
+import { chooseUnsaved, controls, fileAction, ready } from './ui'
+
+const ownedProcesses = new WeakMap<ElectronApplication, number[]>()
 
 async function setup() {
   const folder = await mkdtemp(join(tmpdir(), 'deep-fryer-ordinary-save-'))
@@ -26,7 +28,9 @@ async function setup() {
     args: [...(process.env.DEEP_FRYER_EXECUTABLE ? [] : [resolve('.')]), `--user-data-dir=${join(folder, 'profile')}`],
     env: { ...process.env, ELECTRON_RENDERER_URL: '' } })
   const page = await app.firstWindow()
-  await writeFile(test.info().outputPath('runtime.json'), JSON.stringify({ folder, pid: app.process().pid, executable: await app.evaluate(() => process.execPath) }))
+  const runtime = await app.evaluate(({ app }) => ({ mainPid: process.pid, executable: process.execPath, ownedPids: app.getAppMetrics().map(({ pid }) => pid) }))
+  ownedProcesses.set(app, runtime.ownedPids)
+  await writeFile(test.info().outputPath('runtime.json'), JSON.stringify({ folder, pid: app.process().pid, ...runtime }))
   await expect(page.locator('.open-button')).toBeEnabled()
   return { folder, source, a, b, bytes, app, page }
 }
@@ -64,11 +68,34 @@ async function save(page: Page): Promise<void> {
   await expect(page.getByRole('dialog', { name: 'Save project as', exact: true })).toHaveCount(0)
 }
 
+async function caption(page: Page, top: string): Promise<void> {
+  if (await page.locator('.caption-controls').getAttribute('open') === null) await page.locator('.caption-controls > summary').click()
+  await page.getByRole('textbox', { name: 'Top caption', exact: true }).fill(top)
+  await page.getByRole('textbox', { name: 'Bottom caption', exact: true }).fill('BOTTOM')
+  await page.getByRole('textbox', { name: 'Bottom caption', exact: true }).blur()
+}
+
 async function cleanup(app: ElectronApplication, folder: string): Promise<void> {
   const child = app.process()
-  await closeDiscardingChanges(app)
-  await expect.poll(() => child.exitCode).not.toBeNull()
-  await rm(folder, { recursive: true, force: true })
+  let timeout: ReturnType<typeof setTimeout> | undefined
+  try {
+    await Promise.race([(async () => {
+      if (app.windows().length) await chooseUnsaved(app, 'discard')
+      await app.close()
+    })(), new Promise<never>((_, reject) => {
+      timeout = setTimeout(() => reject(new Error(`Electron close timed out; retained ${folder}`)), 10_000)
+    })])
+    await expect.poll(() => child.exitCode !== null || child.signalCode !== null).toBe(true)
+    const ownedPids = ownedProcesses.get(app) ?? []
+    await expect.poll(() => ownedPids.filter(pid => {
+      try { process.kill(pid, 0); return true } catch (error) {
+        if (error instanceof Error && 'code' in error && error.code === 'ESRCH') return false
+        throw error
+      }
+    })).toEqual([])
+    await rm(folder, { recursive: true, force: true })
+    await writeFile(test.info().outputPath('teardown.json'), JSON.stringify({ pid: child.pid, ownedPids, exitCode: child.exitCode, signal: child.signalCode, profileRemoved: true }))
+  } finally { clearTimeout(timeout) }
 }
 
 test('first Ctrl+S chooses a project, repeated Ctrl+S saves exact edits and undo returns to the saved baseline', async () => {
@@ -132,6 +159,140 @@ test('native Open authorizes Save and explicit Save As switches the target only 
     await save(page)
     expect(await readFile(a)).toEqual(aSaved)
     expect(parseProject(await readFile(copy, 'utf8')).edit.preset.effects[0]).toMatchObject({ value: 50 })
+  } finally { await cleanup(app, folder) }
+})
+
+test('caption-only ordinary Save is clean, reopens exact text, and keeps caption undo history', async () => {
+  const { folder, a, bytes, app, page } = await setup()
+  try {
+    await openProject(app, page, a)
+    const before = parseProject(await readFile(a, 'utf8'))
+    await forbidChooser(app)
+    await caption(page, 'CAPTION ONLY')
+    await ready(page)
+    await expect(page.getByLabel('Unsaved project', { exact: true })).toBeVisible()
+    await save(page)
+    const saved = parseProject(await readFile(a, 'utf8'))
+    expect(saved.edit.composition.captions).toMatchObject({ top: 'CAPTION ONLY', bottom: 'BOTTOM' })
+    expect(saved.edit.preset).toEqual(before.edit.preset)
+    expect(Buffer.from(saved.source.bytes)).toEqual(bytes)
+    await page.getByRole('button', { name: 'Undo', exact: true }).click()
+    await ready(page)
+    await expect(page.getByLabel('Unsaved project', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Redo', exact: true }).click()
+    await ready(page)
+    await expect(page.getByLabel('Unsaved project', { exact: true })).toHaveCount(0)
+    await openProject(app, page, a)
+    await expect(page.getByRole('textbox', { name: 'Top caption', exact: true })).toHaveValue('CAPTION ONLY')
+    await expect(page.getByRole('textbox', { name: 'Bottom caption', exact: true })).toHaveValue('BOTTOM')
+    expect(parseProject(await readFile(a, 'utf8'))).toEqual(saved)
+    await page.screenshot({ path: test.info().outputPath('caption-ordinary-save.png') })
+  } finally { await cleanup(app, folder) }
+})
+
+test('a delayed Save As writes the complete caption snapshot and later edits stay unsaved', async () => {
+  const { folder, a, bytes, app, page } = await setup()
+  try {
+    await openProject(app, page, a)
+    const original = await readFile(a)
+    await caption(page, 'SNAPSHOT')
+    await ready(page)
+    const copy = join(folder, 'delayed.deepfryer')
+    await app.evaluate(({ dialog }, path) => {
+      dialog.showSaveDialog = () => new Promise(resolve => {
+        Reflect.set(globalThis, '__releaseSave', () => resolve({ canceled: false, filePath: path }))
+      })
+    }, copy)
+    await fileAction(page, 'Save project as…')
+    await expect.poll(() => app.evaluate(() => typeof Reflect.get(globalThis, '__releaseSave'))).toBe('function')
+    await expect(page.getByRole('textbox', { name: 'Top caption', exact: true })).toBeDisabled()
+    await expect(page.getByLabel('Unsaved project', { exact: true })).toBeVisible()
+    expect(await readFile(copy).then(() => true).catch(() => false)).toBe(false)
+    await app.evaluate(() => {
+      const release = Reflect.get(globalThis, '__releaseSave')
+      if (typeof release !== 'function') throw new Error('Save chooser was not pending')
+      release()
+    })
+    await expect(page.getByRole('status')).toContainText('Saved delayed.deepfryer')
+    await expect(page.getByLabel('Unsaved project', { exact: true })).toHaveCount(0)
+    const submitted = parseProject(await readFile(copy, 'utf8'))
+    expect(submitted.edit.composition.captions).toMatchObject({ top: 'SNAPSHOT', bottom: 'BOTTOM' })
+    expect(Buffer.from(submitted.source.bytes)).toEqual(bytes)
+    await caption(page, 'LATER EDIT')
+    await ready(page)
+    await expect(page.getByLabel('Unsaved project', { exact: true })).toBeVisible()
+    expect(parseProject(await readFile(copy, 'utf8'))).toEqual(submitted)
+    expect(await readFile(a)).toEqual(original)
+  } finally { await cleanup(app, folder) }
+})
+
+test('unrenderable captions ordinary-save and reopen clean with all words retained', async () => {
+  const { folder, a, app, page } = await setup()
+  try {
+    await openProject(app, page, a)
+    await forbidChooser(app)
+    const text = 'Keep\nfour\nlines\nand 🙂'
+    await caption(page, text)
+    await expect(page.locator('.caption-controls [role=alert]')).toContainText('Anton does not include')
+    await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeDisabled()
+    await fileAction(page, 'Save project')
+    await expect(page.getByRole('status')).toContainText('Saved a.deepfryer')
+    await expect(page.getByLabel('Unsaved project', { exact: true })).toHaveCount(0)
+    expect(parseProject(await readFile(a, 'utf8')).edit.composition.captions).toMatchObject({ top: text, bottom: 'BOTTOM' })
+    await selectOpen(app, a)
+    await fileAction(page, 'Open project')
+    await expect(page.getByRole('status')).toContainText('Anton does not include')
+    await expect(page.getByRole('textbox', { name: 'Top caption', exact: true })).toHaveValue(text)
+    await expect(page.getByRole('textbox', { name: 'Bottom caption', exact: true })).toHaveValue('BOTTOM')
+    await expect(page.getByLabel('Unsaved project', { exact: true })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeDisabled()
+    await caption(page, 'REPAIRED TEXT')
+    await ready(page)
+    await save(page)
+    expect(parseProject(await readFile(a, 'utf8')).edit.composition.captions?.top).toBe('REPAIRED TEXT')
+  } finally { await cleanup(app, folder) }
+})
+
+test('ordinary Save refuses an incomplete IME composition and invalid caption draft without changing disk', async () => {
+  const { folder, a, app, page } = await setup()
+  try {
+    await openProject(app, page, a)
+    await forbidChooser(app)
+    await caption(page, 'VALID')
+    await ready(page)
+    await save(page)
+    const before = await readFile(a)
+    const top = page.getByRole('textbox', { name: 'Top caption', exact: true })
+    await top.focus()
+    await top.press('Control+a')
+    const session = await app.context().newCDPSession(page)
+    await session.send('Input.imeSetComposition', { text: 'café', selectionStart: 4, selectionEnd: 4 })
+    await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true })))
+    await expect(page.getByRole('status')).toContainText('Finish composing the caption')
+    expect(await readFile(a)).toEqual(before)
+    await expect(top).toHaveValue('café')
+    await session.send('Input.insertText', { text: 'café' })
+    await top.blur()
+    await ready(page)
+    await save(page)
+    const valid = await readFile(a)
+    await top.evaluate(element => {
+      if (!(element instanceof HTMLTextAreaElement)) throw new Error('Caption field missing')
+      element.value = 'x'.repeat(513)
+      element.dispatchEvent(new InputEvent('input', { bubbles: true }))
+    })
+    await page.keyboard.press('Control+s')
+    await expect(page.locator('.caption-controls [role=alert]')).toContainText('512')
+    expect(await readFile(a)).toEqual(valid)
+    await expect(top).toHaveValue('x'.repeat(513))
+    await app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0]?.close() })
+    await expect(top).toHaveValue('x'.repeat(513))
+    expect(page.isClosed()).toBe(false)
+    expect(await readFile(a)).toEqual(valid)
+    await top.fill('café')
+    await top.blur()
+    await ready(page)
+    await expect(page.getByLabel('Unsaved project', { exact: true })).toHaveCount(0)
   } finally { await cleanup(app, folder) }
 })
 
@@ -217,11 +378,11 @@ for (const change of ['same-size', 'missing', 'readonly'] as const) {
   })
 }
 
-test('v1 Ctrl+S creates a current-version copy and never writes the legacy project', async () => {
+for (const version of ['v1', 'v2']) test(`${version} Ctrl+S creates a v3 copy and never writes the legacy project`, async () => {
   const { folder, app, page } = await setup()
   try {
     const legacy = join(folder, 'legacy.deepfryer')
-    await copyFile('tests/fixtures/v1/baseline.deepfryer', legacy)
+    await copyFile(`tests/fixtures/${version}/baseline.deepfryer`, legacy)
     const original = await readFile(legacy)
     await openProject(app, page, legacy)
     await edit(page, '25')
@@ -241,7 +402,6 @@ test('v1 Ctrl+S creates a current-version copy and never writes the legacy proje
 
 test('Save in the File menu updates the authorized project and a native close uses the same target', async () => {
   const { folder, a, app, page } = await setup()
-  const child = app.process()
   try {
     await openProject(app, page, a)
     await forbidChooser(app)
@@ -256,13 +416,9 @@ test('Save in the File menu updates the authorized project and a native close us
     await expect(page.getByLabel('Unsaved project', { exact: true })).toBeVisible()
     await chooseUnsaved(app, 'save')
     await app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0]?.close() }).catch(() => {})
-    await expect.poll(() => child.exitCode).not.toBeNull()
+    await expect.poll(() => page.isClosed()).toBe(true)
     expect(parseProject(await readFile(a, 'utf8')).edit.preset.effects[0]).toMatchObject({ value: 50 })
-  } finally {
-    if (child.exitCode === null) await closeDiscardingChanges(app)
-    await expect.poll(() => child.exitCode).not.toBeNull()
-    await rm(folder, { recursive: true, force: true })
-  }
+  } finally { await cleanup(app, folder) }
 })
 
 test('close queued while candidate B is selected saves A before adopting B and closes cleanly', async () => {
@@ -272,6 +428,11 @@ test('close queued while candidate B is selected saves A before adopting B and c
     await openProject(app, page, a)
     await forbidChooser(app)
     await edit(page, '25')
+    await caption(page, 'KEEP A')
+    await ready(page)
+    const candidate = parseProject(await readFile(b, 'utf8'))
+    candidate.edit.composition = { captions: { kind: 'top-bottom-v1', font: 'anton-regular-v1', top: 'KEEP B', bottom: 'B BOTTOM', size: 0.1 } }
+    await writeFile(b, encodeProject(candidate))
     const bBefore = await readFile(b)
     await app.evaluate(({ dialog }, path) => {
       dialog.showOpenDialog = () => new Promise((resolve) => {
@@ -288,14 +449,11 @@ test('close queued while candidate B is selected saves A before adopting B and c
       if (typeof release !== 'function') throw new Error('Missing candidate chooser')
       release()
     })
-    await expect.poll(() => child.exitCode).not.toBeNull()
+    await expect.poll(() => page.isClosed()).toBe(true)
     expect(parseProject(await readFile(a, 'utf8')).edit.preset.effects[0]).toMatchObject({ value: 25 })
+    expect(parseProject(await readFile(a, 'utf8')).edit.composition.captions).toMatchObject({ top: 'KEEP A', bottom: 'BOTTOM' })
     expect(await readFile(b)).toEqual(bBefore)
-  } finally {
-    if (child.exitCode === null) await closeDiscardingChanges(app)
-    await expect.poll(() => child.exitCode).not.toBeNull()
-    await rm(folder, { recursive: true, force: true })
-  }
+  } finally { await cleanup(app, folder) }
 })
 
 test('preload exposes only opaque target and basename and rejects unknown or released save authority', async () => {

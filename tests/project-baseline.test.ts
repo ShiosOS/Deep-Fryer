@@ -5,7 +5,11 @@ import { createRenderer, ref, shallowRef } from 'vue'
 import { useDocumentFiles } from '../src/renderer/src/document-files'
 import { projectTargetIdSchema, type DocumentBridge, type EditableDocument, type ProjectSaveResult, type ProjectTarget } from '../src/shared/documents'
 import { newPreset } from '../src/shared/preset'
-import { newEdit } from '../src/shared/edit'
+import { newEdit, type EditState } from '../src/shared/edit'
+
+function withCaptions(edit: EditState, top: string): EditState {
+  return { ...edit, composition: { captions: { kind: 'top-bottom-v1', font: 'anton-regular-v1', top, bottom: 'Bottom', size: 0.1 } } }
+}
 
 function document(name: string): EditableDocument {
   return { source: { name, mime: 'image/png', bytes: new Uint8Array([1, 2, 3]) }, edit: newEdit({ ...newPreset(), seed: 123456 }) }
@@ -74,7 +78,7 @@ test('a delayed acknowledgement saves only the submitted snapshot while later ed
   await files.checkRecovery()
   await files.openProject()
   assert.equal(files.dirty.value, false)
-  active.value = { ...active.value, edit: newEdit({ ...active.value.edit.preset, seed: 234567 }) }
+  active.value = { ...active.value, edit: withCaptions(newEdit({ ...active.value.edit.preset, seed: 234567 }), 'Submitted caption') }
   let acknowledge: (result: ProjectSaveResult) => void = () => { throw new Error('Save did not start') }
   let submitted: EditableDocument | undefined
   bridge.saveProject = async (input) => {
@@ -85,11 +89,36 @@ test('a delayed acknowledgement saves only the submitted snapshot while later ed
   assert.equal(files.locked.value, true)
   active.value.source.bytes[0] = 99
   active.value.edit.preset.seed = 345678
+  assert.ok(active.value.edit.composition.captions)
+  active.value.edit.composition.captions.top = 'Later caption'
+  active.value.edit.composition.captions.size = 0.16
   assert.ok(submitted)
   assert.equal(submitted.source.bytes[0], 1)
   assert.equal(submitted.edit.preset.seed, 234567)
+  assert.equal(submitted.edit.composition.captions?.top, 'Submitted caption')
+  assert.equal(submitted.edit.composition.captions?.size, 0.1)
   acknowledge({ kind: 'saved', target: aTarget })
   await saving
+  assert.equal(files.dirty.value, true)
+  active.value = submitted
+  assert.equal(files.dirty.value, false)
+})
+
+test('caption-only ordinary Save establishes the complete saved baseline without replacing the preset', async (t) => {
+  const { files, bridge, active, aTarget } = setup(t)
+  await files.checkRecovery()
+  await files.openProject()
+  const before = active.value
+  active.value = { ...before, edit: withCaptions(before.edit, 'Caption only') }
+  assert.equal(files.dirty.value, true)
+  let submitted: EditableDocument | undefined
+  bridge.saveProject = async input => { submitted = input.document; return { kind: 'saved', target: aTarget } }
+  await files.saveProject()
+  assert.ok(submitted)
+  assert.equal(submitted.edit.composition.captions?.top, 'Caption only')
+  assert.deepEqual(submitted.edit.preset, before.edit.preset)
+  assert.equal(files.dirty.value, false)
+  active.value = before
   assert.equal(files.dirty.value, true)
   active.value = submitted
   assert.equal(files.dirty.value, false)
@@ -101,7 +130,9 @@ for (const outcome of ['cancel', 'failed-publication', 'save', 'conflict'] as co
     await files.checkRecovery()
     await files.openProject()
     const savedA = active.value
-    active.value = { ...active.value, edit: newEdit({ ...active.value.edit.preset, seed: 234567 }) }
+    active.value = { ...active.value, edit: withCaptions(active.value.edit, 'Keep A captions') }
+    const submitted: EditableDocument[] = []
+    bridge.saveProject = async input => { submitted.push(input.document); events.push(`save:${input.target}`); return { kind: 'saved', target: aTarget } }
     candidateB()
     choose(outcome === 'save' || outcome === 'conflict' ? 'save' : 'cancel')
     if (outcome === 'failed-publication') failPublish()
@@ -114,10 +145,12 @@ for (const outcome of ['cancel', 'failed-publication', 'save', 'conflict'] as co
       assert.ok(events.indexOf('publish:b.png') < events.indexOf(`release:${aTarget.id}`))
       assert.equal(files.target.value?.id, bTarget.id)
       assert.equal(files.dirty.value, false)
+      assert.equal(submitted[0]?.edit.composition.captions?.top, 'Keep A captions')
     } else {
       assert.deepEqual(released, [bTarget.id])
       assert.equal(files.target.value?.id, aTarget.id)
       assert.equal(files.dirty.value, true)
+      assert.equal(active.value.edit.composition.captions?.top, 'Keep A captions')
       active.value = savedA
       assert.equal(files.dirty.value, false)
     }

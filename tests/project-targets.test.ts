@@ -77,11 +77,11 @@ test('capabilities are independent, session scoped, validated before issue, and 
   assert.equal(await readFile(path, 'utf8'), text)
 })
 
-test('legacy projects have no update capability and Save As creates the current version exclusively', async (t) => {
+for (const version of ['v1', 'v2']) test(`${version} projects have no update capability and Save As creates v3 exclusively`, async (t) => {
   const { directory } = await fixture(t)
   const targets = new ProjectTargets()
   const legacy = join(directory, 'legacy.deepfryer')
-  await copyFile('tests/fixtures/v1/baseline.deepfryer', legacy)
+  await copyFile(`tests/fixtures/${version}/baseline.deepfryer`, legacy)
   const original = await readFile(legacy)
   const opened = await targets.openProject(legacy, () => {})
   assert.equal(opened.target, null)
