@@ -242,7 +242,6 @@ const files = useDocumentFiles({
   busy, fileBusy: computed(() => fileBusy.value || outputPanel.value?.busy === true),
   source: () => document.value, preset: () => snapshotPreset(preset.value),
   ready: () => document.value !== null && readyRevision.value === renderRevision,
-  gestureActive: () => gestureActive.value,
   finishGesture: () => { history.end(); gestureActive.value = false },
   cancelPreparation: () => { copy.cancelPreparation(); outputPanel.value?.cancelPreparation() },
   setOperation: (kind) => { operation.value = { kind } },
@@ -259,7 +258,7 @@ function tryDemo(): void {
   })
 }
 
-function beginGesture(): void { if (controlsBusy.value) return; gestureActive.value = true; files.cancelCheckpoint(); history.begin() }
+function beginGesture(): void { if (controlsBusy.value) return; gestureActive.value = true; history.begin() }
 function endGesture(): void { if (controlsBusy.value) return; history.end(); gestureActive.value = false; files.scheduleCheckpoint() }
 
 function changePreset(settings: Preset): boolean {
