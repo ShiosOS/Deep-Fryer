@@ -320,6 +320,7 @@ function scheduleRender(source: ImageDocument): void {
     const request: WorkerRequest = { kind: 'render', sourceId: imageVersion.value, revision, edit: accepted, quality: 'full' }
     worker.postMessage(request)
   }, 100)
+  files.scheduleCheckpoint()
 }
 
 function movePoint(id: string, x: number, y: number): void {
