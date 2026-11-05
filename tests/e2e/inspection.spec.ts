@@ -79,7 +79,7 @@ test('zoom, pan, compare, resize, and export full Edited pixels while Original i
     await expect(page.locator('.inspection-controls .preview-scale')).toHaveText('200%')
 
     await (await controls(page)).getByRole('spinbutton', { name: 'Brightness value' }).fill('30')
-    await expect(page.getByRole('status')).toContainText('Color changes are ready')
+    await expect(page.getByRole('status')).toContainText('Your edit is ready')
     const editedTransform = await plane.evaluate((element) => getComputedStyle(element).transform)
     await page.keyboard.press('ArrowRight')
     expect(await plane.evaluate((element) => getComputedStyle(element).transform)).toBe(editedTransform)
@@ -124,7 +124,7 @@ test('zoom, pan, compare, resize, and export full Edited pixels while Original i
     displayed = await page.getByLabel('Edited full resolution image canvas').boundingBox()
     expect([displayed?.width, displayed?.height]).toEqual([80, 40])
     await (await controls(page)).getByRole('spinbutton', { name: 'Brightness value' }).fill('30')
-    await expect(page.getByRole('status')).toContainText('Color changes are ready')
+    await expect(page.getByRole('status')).toContainText('Your edit is ready')
     await page.getByRole('button', { name: 'Original' }).click()
     await app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0]?.setSize(1260, 840) })
     await expect.poll(async () => (await stage.boundingBox())?.width).toBeGreaterThan(800)

@@ -409,8 +409,7 @@ worker.onmessage = (event: MessageEvent<WorkerResponse>): void => {
   readyRevision.value = result.revision
   files.scheduleCheckpoint()
   operation.value = { kind: 'idle' }
-  const textured = preset.value.effects.some((effect) => effect.enabled && effect.mix > 0 && ((effect.kind === 'sharpen' || effect.kind === 'noise') && effect.value > 0 || effect.kind === 'jpeg' && effect.passes > 0 || effect.kind === 'bulge' && effect.strength !== 0))
-  notice.value = { kind: 'success', text: textured ? 'Effects are ready to export.' : 'Color changes are ready to export.' }
+  notice.value = { kind: 'success', text: 'Your edit is ready to export.' }
 }
 
 worker.onerror = (): void => {

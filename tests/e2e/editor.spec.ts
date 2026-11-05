@@ -158,9 +158,9 @@ test('independent color controls preview and export combined settings while pres
     await expect((await controls(page)).getByRole('spinbutton', { name: 'Color levels value' })).toHaveValue('256')
 
     await (await controls(page)).getByRole('spinbutton', { name: 'Contrast value' }).fill('1.5')
-    await expect(page.getByRole('status')).toContainText('Color changes are ready')
+    await expect(page.getByRole('status')).toContainText('Your edit is ready')
     await (await controls(page)).getByRole('spinbutton', { name: 'Saturation value' }).fill('0')
-    await expect(page.getByRole('status')).toContainText('Color changes are ready')
+    await expect(page.getByRole('status')).toContainText('Your edit is ready')
     await expect((await controls(page)).getByRole('spinbutton', { name: 'Contrast value' })).toHaveValue('1.5')
     await expect((await controls(page)).getByRole('spinbutton', { name: 'Brightness value' })).toHaveValue('0')
     await expect((await controls(page)).getByRole('spinbutton', { name: 'Color levels value' })).toHaveValue('256')
@@ -168,7 +168,7 @@ test('independent color controls preview and export combined settings while pres
     await expect((await controls(page)).getByRole('spinbutton', { name: 'Color levels value' })).toHaveAttribute('aria-invalid', 'true')
     await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeEnabled()
     await (await controls(page)).getByRole('spinbutton', { name: 'Color levels value' }).fill('256')
-    await expect(page.getByRole('status')).toContainText('Color changes are ready')
+    await expect(page.getByRole('status')).toContainText('Your edit is ready')
 
     const preview = await page.getByLabel('Edited full resolution image canvas').evaluate((canvas) => {
       if (!(canvas instanceof HTMLCanvasElement)) throw new Error('Preview canvas missing')
@@ -232,11 +232,11 @@ test('independent color controls preview and export combined settings while pres
     expect(createHash('sha256').update(await readFile(source)).digest('hex')).toBe(createHash('sha256').update(bytes).digest('hex'))
 
     await page.getByRole('button', { name: 'Reset color' }).click()
-    await expect(page.getByRole('status')).toContainText('Color changes are ready')
+    await expect(page.getByRole('status')).toContainText('Your edit is ready')
     await expect((await controls(page)).getByRole('spinbutton', { name: 'Contrast value' })).toHaveValue('1')
     await expect((await controls(page)).getByRole('spinbutton', { name: 'Saturation value' })).toHaveValue('1')
     await (await controls(page)).getByRole('spinbutton', { name: 'Brightness value' }).fill('25')
-    await expect(page.getByRole('status')).toContainText('Color changes are ready')
+    await expect(page.getByRole('status')).toContainText('Your edit is ready')
     await selectOpen(app, source)
     await chooseUnsaved(app, 'discard')
     await fileAction(page, 'Open image')
