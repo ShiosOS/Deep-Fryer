@@ -33,3 +33,5 @@ Ordinary copy tests intercept Electron's final clipboard write and compare the p
 ## Alternative executables
 
 Set `DEEP_FRYER_EXECUTABLE` to exercise a packaged executable. Set `ELECTRON_EXECUTABLE_PATH` for an alternative Electron runtime. Record the executable, commit, command, and skipped checks when reporting results. A successful unpacked run does not replace installing and exercising an installer.
+
+For a bounded packaged caption/font/license check, run `node scripts/verify-caption-package.mjs "path/to/Deep Fryer.exe" ".artifacts/caption-package-proof-NEW"`. It verifies package mode, bundled font bytes, rendered captions, complete offline license text, and actual minimum-window dimensions, then records hashes and clean process exit. It does not install the app, enforce network isolation, or access the native clipboard.
