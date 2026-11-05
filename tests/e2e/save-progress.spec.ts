@@ -11,7 +11,7 @@ import { section, chooseUnsaved, closeDiscardingChanges, fileAction, fileOperati
 
 type OwnedApplication = { launcher: ReturnType<ElectronApplication['process']>; pids: number[] }
 
-async function cleanup(app: ElectronApplication, folder: string, owned: OwnedApplication): Promise<void> {
+async function cleanup(app: ElectronApplication, folder: string, owned: OwnedApplication, passed = false): Promise<void> {
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
     await Promise.race([closeDiscardingChanges(app), new Promise<never>((_, reject) => {
@@ -24,9 +24,9 @@ async function cleanup(app: ElectronApplication, folder: string, owned: OwnedApp
         throw error
       }
     }), { message: 'Owned Electron processes must exit before profile removal' }).toEqual([])
-    await rm(folder, { recursive: true, force: true })
+    if (passed) await rm(folder, { recursive: true, force: true })
     await writeFile(test.info().outputPath('teardown.json'), JSON.stringify({
-      profileRemoved: true, pid: owned.launcher.pid, pids: owned.pids,
+      profileRemoved: passed, pid: owned.launcher.pid, pids: owned.pids,
       exitCode: owned.launcher.exitCode, signal: owned.launcher.signalCode
     }))
   } finally { clearTimeout(timer) }
@@ -124,6 +124,7 @@ test('canceled, failed, uncertain and rejected saves clear progress before direc
     pids: [...new Set([process.pid, ...app.getAppMetrics().map(({ pid }) => pid)])] }))
   const owned = { launcher, pids: runtime.pids }
   await writeFile(test.info().outputPath('runtime.json'), JSON.stringify({ folder, pid: launcher.pid, ...runtime }))
+  let passed = false
   try {
     const page = await app.firstWindow()
     await page.getByRole('button', { name: 'Try demo', exact: true }).click()
@@ -162,8 +163,9 @@ test('canceled, failed, uncertain and rejected saves clear progress before direc
         await ready(page)
       }
     }
+    passed = true
   } finally {
-    await cleanup(app, folder, owned)
+    await cleanup(app, folder, owned, passed)
   }
 })
 
@@ -198,12 +200,13 @@ for (const missingFont of [false, true]) {
       pids: [...new Set([process.pid, ...app.getAppMetrics().map(({ pid }) => pid)])] }))
     const owned = { launcher, pids: runtime.pids }
     await writeFile(test.info().outputPath('runtime.json'), JSON.stringify({ folder, pid: launcher.pid, ...runtime }))
+    let passed = false
     try {
+      if (missingFont) await prepareMissingCaptionFont(page)
       await page.getByRole('button', { name: 'Try demo', exact: true }).click()
       await ready(page)
       if (missingFont) {
         await expect(page.locator('.look-grid')).toHaveAttribute('aria-busy', 'false')
-        await prepareMissingCaptionFont(page)
         await section(page, 'Captions')
         const top = page.getByRole('textbox', { name: 'Top caption', exact: true })
         await top.fill('Keep these words')
@@ -245,9 +248,10 @@ for (const missingFont of [false, true]) {
         if (missingFont) await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeDisabled()
         else await ready(page)
       }
+      passed = true
     } finally {
       await releaseSave(app)
-      await cleanup(app, folder, owned)
+      await cleanup(app, folder, owned, passed)
     }
   })
 }
