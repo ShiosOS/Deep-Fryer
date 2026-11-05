@@ -182,6 +182,33 @@ test('button and shortcut copy full edited PNG pixels with alpha and orientation
   } finally { await closeDiscardingChanges(app); await rm(folder, { recursive: true, force: true }) }
 })
 
+test('deferred Help close preserves newly focused input and its copy shortcut guard', async () => {
+  const folder = await mkdtemp(join(tmpdir(), 'deep-fryer-copy-focus-'))
+  const source = join(folder, 'source.png')
+  await writeFile(source, fixture())
+  const app = await launch(folder)
+  try {
+    const page = await app.firstWindow()
+    await interceptClipboard(app)
+    await open(app, page, source)
+    await controls(page)
+    await page.getByRole('button', { name: 'Help', exact: true }).click()
+    await page.evaluate(async () => {
+      const dialog = document.querySelector('dialog[open]')
+      const input = document.querySelector('[aria-label="Brightness value"]')
+      if (!(dialog instanceof HTMLDialogElement) || !(input instanceof HTMLInputElement)) throw new Error('Help or brightness input missing.')
+      const closed = new Promise<void>((resolve) => dialog.addEventListener('close', () => queueMicrotask(resolve), { once: true }))
+      dialog.close()
+      input.focus()
+      await closed
+    })
+    await page.keyboard.press('Control+Shift+c')
+    await expect(page.getByRole('button', { name: 'Copy image', exact: true })).toBeEnabled()
+    expect((await capture(app)).writes).toBe(0)
+    await expect(page.getByLabel('Brightness value', { exact: true })).toBeFocused()
+  } finally { await closeDiscardingChanges(app); await rm(folder, { recursive: true, force: true }) }
+})
+
 test('copy waits for acknowledgement, ignores duplicates and guarded shortcuts, preserves recovery, and retries failures', async () => {
   const folder = await mkdtemp(join(tmpdir(), 'deep-fryer-copy-lifetime-'))
   const source = join(folder, 'source.png')
