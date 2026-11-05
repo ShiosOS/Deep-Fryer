@@ -1,7 +1,7 @@
 {
   "name": "deep-fryer",
   "version": "0.5.0",
-  "description": "A local desktop image editor.",
+  "description": "A local Windows image editor for deep-fried memes.",
   "private": true,
   "main": "out/main/index.js",
   "author": "Deep Fryer",
@@ -63,5 +63,14 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
     }
-  }
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShiosOS/Deep-Fryer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ShiosOS/Deep-Fryer/issues"
+  },
+  "homepage": "https://github.com/ShiosOS/Deep-Fryer"
 }
