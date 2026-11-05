@@ -12,7 +12,13 @@ export const savePresetInput = z.object({ preset: presetSchema, suggestedName: s
 
 export const recoveryOfferSchema = z.object({ name: z.string(), savedAt: z.string(), directory: z.string() }).nullable()
 export type RecoveryOffer = z.infer<typeof recoveryOfferSchema>
+export const unsavedChoiceSchema = z.enum(['save', 'discard', 'cancel'])
+export const closeRequestSchema = z.string().uuid()
+export const closeReplySchema = z.object({ request: closeRequestSchema, decision: z.enum(['cancel', 'close', 'preserve-recovery']) })
 export type DocumentBridge = {
+  confirmUnsaved: () => Promise<z.infer<typeof unsavedChoiceSchema>>
+  onCloseRequested: (listener: (request: string) => void) => () => void
+  replyToClose: (reply: z.infer<typeof closeReplySchema>) => Promise<void>
   openProject: () => Promise<EditableDocument | null>
   saveProject: (input: z.infer<typeof saveProjectInput>) => Promise<import('./output').ExportResult>
   openPreset: () => Promise<z.infer<typeof presetSchema> | null>

@@ -1,4 +1,22 @@
-import { expect, type Page } from '@playwright/test'
+import { expect, type ElectronApplication, type Page } from '@playwright/test'
+import type { BaseWindow, MessageBoxOptions } from 'electron'
+
+export async function chooseUnsaved(app: ElectronApplication, choice: 'save' | 'discard' | 'cancel'): Promise<void> {
+  await app.evaluate(({ dialog }, choice) => {
+    const original = dialog.showMessageBox
+    dialog.showMessageBox = async (windowOrOptions: BaseWindow | MessageBoxOptions, suppliedOptions?: MessageBoxOptions) => {
+      dialog.showMessageBox = original
+      const options = suppliedOptions ?? windowOrOptions
+      if (!('buttons' in options) || options.buttons?.join('|') !== 'Save project|Discard|Cancel') throw new Error('Unexpected native prompt')
+      return { response: choice === 'save' ? 0 : choice === 'discard' ? 1 : 2, checkboxChecked: false }
+    }
+  }, choice)
+}
+
+export async function closeDiscardingChanges(app: ElectronApplication): Promise<void> {
+  await chooseUnsaved(app, 'discard')
+  await app.close()
+}
 
 export async function fileAction(page: Page, name: string): Promise<void> {
   const menu = page.locator(name.includes('preset') ? '.preset-menu' : '.file-menu')

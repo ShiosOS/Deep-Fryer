@@ -82,8 +82,9 @@ export class RecoveryStore {
     await rm(this.previous, { force: true })
   }
 
-  async close(): Promise<void> {
+  async close(preserve = false): Promise<void> {
     this.closing = true
-    await this.discard()
+    await this.tail
+    if (!preserve) await this.discard()
   }
 }

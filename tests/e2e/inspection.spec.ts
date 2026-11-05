@@ -1,4 +1,4 @@
-import { fileAction, controls, exportImage } from './ui'
+import { chooseUnsaved, closeDiscardingChanges, fileAction, controls, exportImage } from './ui'
 import { _electron as electron, expect, test } from '@playwright/test'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -112,6 +112,7 @@ test('zoom, pan, compare, resize, and export full Edited pixels while Original i
     await app.evaluate(({ dialog }, selectedPath) => {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [selectedPath] })
     }, smallPath)
+    await chooseUnsaved(app, 'discard')
     await fileAction(page, 'Open image')
     await expect(page.locator('.filename')).toHaveText('small.png')
     await expect(page.locator('.inspection-controls .preview-scale')).toHaveText('100%')
@@ -142,7 +143,7 @@ test('zoom, pan, compare, resize, and export full Edited pixels while Original i
     expect(await readFile(largePath)).toEqual(largeBytes)
     expect(errors).toEqual([])
   } finally {
-    await app.close()
+    await closeDiscardingChanges(app)
     await rm(folder, { recursive: true, force: true })
   }
 })

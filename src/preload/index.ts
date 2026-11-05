@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { openImageResult, type ImageBridge } from '../shared/image'
 import { exportImageInput, exportImageResult } from '../shared/output'
 import { copyImageInput, copyImageResult } from '../shared/clipboard'
-import { editableDocumentSchema, recoveryOfferSchema, type DocumentBridge } from '../shared/documents'
+import { closeReplySchema, closeRequestSchema, editableDocumentSchema, recoveryOfferSchema, unsavedChoiceSchema, type DocumentBridge } from '../shared/documents'
 import { presetSchema } from '../shared/preset'
 import { appearanceSchema, appearanceResultSchema, type AppearanceBridge } from '../shared/appearance'
 
@@ -19,6 +19,14 @@ const bridge: ImageBridge = {
 contextBridge.exposeInMainWorld('imageBridge', bridge)
 
 const documents: DocumentBridge = {
+  confirmUnsaved: async () => unsavedChoiceSchema.parse(await ipcRenderer.invoke('document:confirm-unsaved')),
+  onCloseRequested: (listener) => {
+    const receive = (_event: Electron.IpcRendererEvent, input: unknown): void => { listener(closeRequestSchema.parse(input)) }
+    ipcRenderer.on('document:close-request', receive)
+    void ipcRenderer.invoke('document:close-ready')
+    return () => { ipcRenderer.removeListener('document:close-request', receive) }
+  },
+  replyToClose: async (reply) => { await ipcRenderer.invoke('document:close-reply', closeReplySchema.parse(reply)) },
   openProject: async () => editableDocumentSchema.nullable().parse(await ipcRenderer.invoke('document:open-project')),
   saveProject: async (input) => exportImageResult.parse(await ipcRenderer.invoke('document:save-project', input)),
   openPreset: async () => presetSchema.nullable().parse(await ipcRenderer.invoke('document:open-preset')),

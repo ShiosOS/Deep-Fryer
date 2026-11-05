@@ -1,4 +1,4 @@
-import { fileAction, controls, exportImage, openOutput } from './ui'
+import { closeDiscardingChanges, fileAction, controls, exportImage, openOutput } from './ui'
 import { _electron as electron, expect, test, type Page } from '@playwright/test'
 import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -298,7 +298,7 @@ test('PNG, JPEG and WebP save the inspected bytes at explicit output size and de
     expect(await readFile(source)).toEqual(originalBytes)
     expect(errors).toEqual([])
   } finally {
-    await app.close()
+    await closeDiscardingChanges(app)
     await rm(folder, { recursive: true, force: true })
   }
 })
@@ -348,7 +348,7 @@ test('a delayed save uses the frozen export and cancellation never reports a com
     await expect(page.getByRole('status')).toContainText('Export canceled. No file was saved.')
     expect(await readFile(source)).toEqual(original)
   } finally {
-    await app.close()
+    await closeDiscardingChanges(app)
     await rm(folder, { recursive: true, force: true })
   }
 })

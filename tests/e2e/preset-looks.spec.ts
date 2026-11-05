@@ -1,4 +1,4 @@
-import { fileAction, controls, exportImage } from './ui'
+import { closeDiscardingChanges, fileAction, controls, exportImage } from './ui'
 import { _electron as electron, expect, test } from '@playwright/test'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -128,7 +128,7 @@ test('named looks, locked randomization and five candidates commit complete repr
     expect(await readFile(source)).toEqual(original)
     expect(errors).toEqual([])
   } finally {
-    await app.close()
+    await closeDiscardingChanges(app)
     await rm(folder, { recursive: true, force: true })
   }
 })

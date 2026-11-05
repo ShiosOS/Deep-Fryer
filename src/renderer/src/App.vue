@@ -57,8 +57,9 @@ const copy = useImageCopy()
 const copyAcknowledged = ref(false)
 let copyFeedbackTimer: ReturnType<typeof setTimeout> | null = null
 let disposed = false
-const busy = computed(() => operation.value.kind !== 'idle' || copy.phase.value !== 'idle')
-const controlsBusy = computed(() => operation.value.kind === 'opening' || operation.value.kind === 'exporting' || copy.phase.value !== 'idle')
+const fileBusy = computed(() => operation.value.kind === 'opening' || operation.value.kind === 'exporting' || copy.phase.value !== 'idle')
+const busy = computed(() => operation.value.kind !== 'idle' || copy.phase.value !== 'idle' || files.locked.value)
+const controlsBusy = computed(() => fileBusy.value || files.locked.value)
 const presetNeutral = computed(() => preset.value.effects.every(isNeutralEffect))
 const dimensions = computed(() => document.value ? `${document.value.bitmap.width.toLocaleString()} × ${document.value.bitmap.height.toLocaleString()}` : 'No image yet')
 const imageSize = computed<Size | null>(() => document.value ? { width: document.value.bitmap.width, height: document.value.bitmap.height } : null)
@@ -145,7 +146,7 @@ function stageKeydown(event: KeyboardEvent): void {
   event.preventDefault()
 }
 
-async function publishImage(source: OpenImage, savedPreset: Preset): Promise<void> {
+async function publishImage(source: OpenImage, savedPreset: Preset, confirm: () => Promise<boolean>): Promise<boolean> {
   let candidate: ImageBitmap | null = null
   const previous = document.value
   const previousReadyRevision = readyRevision.value
@@ -181,6 +182,7 @@ async function publishImage(source: OpenImage, savedPreset: Preset): Promise<voi
     const candidatePreset = presetSchema.parse(savedPreset)
     const editedPixels = await renderPresetFrame(pixels, candidatePreset)
     const candidateView = fitView({ width: candidate.width, height: candidate.height }, pane.value)
+    if (!await confirm()) return false
     if (previous) previousFrame = context.getImageData(0, 0, canvas.value.width, canvas.value.height)
     const request: WorkerRequest = { kind: 'source', sourceId: imageVersion.value + 1, width: candidate.width, height: candidate.height, pixels: workerPixels, preview }
     publishing = true
@@ -210,6 +212,7 @@ async function publishImage(source: OpenImage, savedPreset: Preset): Promise<voi
     candidate = null
     previous?.bitmap.close()
     notice.value = { kind: 'success', text: `${source.name} is ready. Your original stays untouched.` }
+    return true
   } catch (error) {
     if (publishing && previous && previousFrame && canvas.value && originalCanvas.value) {
       try {
@@ -236,13 +239,16 @@ async function publishImage(source: OpenImage, savedPreset: Preset): Promise<voi
 }
 
 const files = useDocumentFiles({
-  busy, source: () => document.value, preset: () => snapshotPreset(preset.value),
+  busy, fileBusy: computed(() => fileBusy.value || outputPanel.value?.busy === true),
+  source: () => document.value, preset: () => snapshotPreset(preset.value),
   ready: () => document.value !== null && readyRevision.value === renderRevision,
   gestureActive: () => gestureActive.value,
+  finishGesture: () => { history.end(); gestureActive.value = false },
+  cancelPreparation: () => { copy.cancelPreparation(); outputPanel.value?.cancelPreparation() },
   setOperation: (kind) => { operation.value = { kind } },
   finishOperation: () => { if (operation.value.kind === 'opening' || operation.value.kind === 'exporting') operation.value = { kind: 'idle' } },
   report: (message) => { notice.value = message }, publish: publishImage,
-  applyPreset: (settings) => { changePreset(settings); restoreVersion.value += 1 }
+  applyPreset: (settings) => { commitPreset(settings); restoreVersion.value += 1 }
 })
 const { openImage } = files
 function tryDemo(): void {
@@ -264,8 +270,12 @@ function changePreset(settings: Preset): boolean {
     notice.value = { kind: 'error', text: parsed.error.issues[0]?.message ?? 'Check the effect settings.' }
     return false
   }
-  if (!history.change(parsed.data)) return false
-  scheduleRender(source)
+  return commitPreset(parsed.data)
+}
+
+function commitPreset(settings: Preset): boolean {
+  if (!document.value || !history.change(settings)) return false
+  scheduleRender(document.value)
   return true
 }
 
@@ -307,7 +317,7 @@ function restoreFromHistory(direction: 'undo' | 'redo'): void {
 }
 
 function cancelPending(): void {
-  if (!document.value || !confirmedFrame || readyRevision.value === renderRevision) return
+  if (controlsBusy.value || !document.value || !confirmedFrame || readyRevision.value === renderRevision) return
   renderRevision += 1
   if (renderTimer) { clearTimeout(renderTimer); renderTimer = null }
   history.rollback()
@@ -462,6 +472,7 @@ onUnmounted(() => {
     <header class="app-header">
       <svg class="app-mark" viewBox="0 0 64 64" role="img" aria-label="Deep Fryer"><g transform="rotate(-11 32 24)"><rect x="20" y="7" width="25" height="30" rx="4" fill="currentColor"/><circle cx="27" cy="15" r="2.2" fill="var(--panel)"/><path d="M24 29l6-8 5 5 4-4 3 8Z" fill="var(--panel)"/></g><path d="M10 35h44v9c0 9-6 14-15 14H25c-9 0-15-5-15-14Z" fill="currentColor"/><path d="M15 40c6-4 10 4 16 0s10 4 18 0" stroke="var(--panel)" stroke-width="3.5" fill="none" stroke-linecap="round"/></svg>
       <span class="filename" :title="document?.name"><span class="file-dot" aria-hidden="true"></span>{{ document?.name ?? 'Untitled' }}</span>
+      <span v-if="files.dirty.value" class="unsaved-indicator" aria-label="Unsaved project" title="Save a project to keep editable work">Unsaved</span>
       <div class="header-actions">
         <button type="button" class="icon-button" aria-label="Undo" title="Undo" :disabled="!history.canUndo.value || controlsBusy" aria-keyshortcuts="Control+Z Meta+Z" @click="restoreFromHistory('undo')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5 3 10l5 5M3 10h10a7 7 0 0 1 0 14" transform="translate(1 -3)"/></svg></button>
         <button type="button" class="icon-button" aria-label="Redo" title="Redo" :disabled="!history.canRedo.value || controlsBusy" aria-keyshortcuts="Control+Shift+Z Control+Y Meta+Shift+Z" @click="restoreFromHistory('redo')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m16 5 5 5-5 5m5-5H11a7 7 0 0 0 0 14" transform="translate(-1 -3)"/></svg></button>

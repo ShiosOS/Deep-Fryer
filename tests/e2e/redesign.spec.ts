@@ -1,8 +1,8 @@
+import { closeDiscardingChanges, fileAction, openOutput, ready } from './ui'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { fileAction, openOutput, ready } from './ui'
 import type { BaseWindow, SaveDialogOptions } from 'electron'
 
 async function launch(profile: string): Promise<ElectronApplication> {
@@ -57,7 +57,7 @@ test('appearance persists six independent custom colors, System and pink selecti
     await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeFocused()
     await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeDisabled()
     expect(await readFile(checkpoint)).toEqual(savedEdit)
-    await app.close()
+    await closeDiscardingChanges(app)
     app = await launch(profile)
     page = await app.firstWindow()
     recordErrors(page, errors)
@@ -72,7 +72,7 @@ test('appearance persists six independent custom colors, System and pink selecti
     await mkdir('.artifacts/implementation', { recursive: true })
     await page.screenshot({ path: '.artifacts/implementation/settings-custom.png' })
     expect(errors).toEqual([])
-  } finally { await app.close(); await rm(folder, { recursive: true, force: true }) }
+  } finally { await closeDiscardingChanges(app); await rm(folder, { recursive: true, force: true }) }
 })
 
 test('Help tabs, engine-rendered media, reduced motion, focus return and minimum window are usable', async () => {
@@ -117,7 +117,7 @@ test('Help tabs, engine-rendered media, reduced motion, focus return and minimum
     expect(bounds).toEqual({ scroll: 900, width: 900, inspector: 272, header: 62 })
     expect(await page.locator('.export-bar, .preset-strip, .brand').count()).toBe(0)
     expect(errors).toEqual([])
-  } finally { await app.close(); await rm(folder, { recursive: true, force: true }) }
+  } finally { await closeDiscardingChanges(app); await rm(folder, { recursive: true, force: true }) }
 })
 
 test('project, preset and export names are independent and canceling names or native choosers keeps the edit and source', async () => {
@@ -168,7 +168,7 @@ test('project, preset and export names are independent and canceling names or na
     expect(await page.getByLabel('Edited full resolution image canvas').evaluate((canvas) => canvas instanceof HTMLCanvasElement ? canvas.toDataURL() : '')).toBe(before)
     expect(await readFile(join(folder, 'Weekend edit.deepfryer'), 'utf8')).not.toContain('appearance')
     expect(errors).toEqual([])
-  } finally { await app.close(); await rm(folder, { recursive: true, force: true }) }
+  } finally { await closeDiscardingChanges(app); await rm(folder, { recursive: true, force: true }) }
 })
 
 test('unreadable settings show defaults and remain intact until Reset saved settings', async () => {
@@ -185,5 +185,5 @@ test('unreadable settings show defaults and remain intact until Reset saved sett
     await page.getByRole('button', { name: 'Reset saved settings', exact: true }).click()
     await expect(page.getByRole('alert')).toHaveCount(0)
     expect(JSON.parse(await readFile(file, 'utf8')).version).toBe(1)
-  } finally { await app.close(); await rm(profile, { recursive: true, force: true }) }
+  } finally { await closeDiscardingChanges(app); await rm(profile, { recursive: true, force: true }) }
 })

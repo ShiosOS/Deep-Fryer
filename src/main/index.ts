@@ -9,6 +9,7 @@ import { registerDocumentActions, validateSource } from './document-actions'
 import { RecoveryStore } from './recovery'
 import { AppearanceStore } from './appearance-store'
 import { appearanceSchema, defaultAppearance } from '../shared/appearance'
+import { closeReplySchema } from '../shared/documents'
 
 const profile = app.commandLine.getSwitchValue('user-data-dir')
 if (profile) { mkdirSync(profile, { recursive: true }); app.setPath('userData', profile) }
@@ -16,10 +17,28 @@ const ownsProfile = app.requestSingleInstanceLock()
 const recovery = new RecoveryStore(join(app.getPath('userData'), 'recovery'), validateSource)
 const appearance = new AppearanceStore(app.getPath('userData'))
 let quitting = false
-let preserveRecovery = false
+let closeState: { kind: 'idle' } | { kind: 'requested'; request: string } | { kind: 'closing' } = { kind: 'idle' }
+let rendererReady = false
+let rendererGone = false
 
 let window: BrowserWindow | null = null
 let fileActionActive = false
+
+function finishClose(preserveRecovery: boolean): void {
+  if (closeState.kind === 'closing') return
+  closeState = { kind: 'closing' }
+  void Promise.all([recovery.close(preserveRecovery), appearance.drain()]).finally(() => {
+    quitting = true
+    app.quit()
+  })
+}
+
+function requestClose(): void {
+  if (!window || rendererGone) { finishClose(true); return }
+  if (closeState.kind !== 'idle') return
+  closeState = { kind: 'requested', request: crypto.randomUUID() }
+  if (rendererReady) window.webContents.send('document:close-request', closeState.request)
+}
 
 function createWindow(): void {
   const rendererPath = join(__dirname, '../renderer/index.html')
@@ -42,20 +61,46 @@ function createWindow(): void {
     }
   })
   window = editor
+  rendererReady = false
+  rendererGone = false
+  editor.on('close', (event) => {
+    if (quitting) return
+    event.preventDefault()
+    requestClose()
+  })
   editor.on('closed', () => { window = null })
   editor.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   editor.webContents.on('will-navigate', (event) => event.preventDefault())
   editor.webContents.on('will-attach-webview', (event) => event.preventDefault())
   editor.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
   editor.webContents.session.setPermissionCheckHandler(() => false)
-  editor.webContents.on('render-process-gone', () => { preserveRecovery = true })
-  function checkSender(event: IpcMainInvokeEvent): void {
+  editor.webContents.on('render-process-gone', () => {
+    rendererGone = true
+    if (closeState.kind === 'requested') finishClose(true)
+  })
+  function authenticate(event: IpcMainInvokeEvent): void {
     if (event.sender !== editor.webContents || event.senderFrame !== editor.webContents.mainFrame ||
       event.senderFrame.url !== rendererUrl) {
       throw new Error('This request did not come from the editor.')
     }
+  }
+  function checkSender(event: IpcMainInvokeEvent): void {
+    authenticate(event)
     if (fileActionActive) throw new Error('Finish the current file action first.')
   }
+  for (const channel of ['document:close-ready', 'document:close-reply']) ipcMain.removeHandler(channel)
+  ipcMain.handle('document:close-ready', (event) => {
+    authenticate(event)
+    rendererReady = true
+    if (closeState.kind === 'requested') editor.webContents.send('document:close-request', closeState.request)
+  })
+  ipcMain.handle('document:close-reply', (event, input: unknown) => {
+    authenticate(event)
+    const reply = closeReplySchema.parse(input)
+    if (closeState.kind !== 'requested' || reply.request !== closeState.request) return
+    if (reply.decision === 'cancel') closeState = { kind: 'idle' }
+    else finishClose(reply.decision === 'preserve-recovery')
+  })
   function setFileAction(active: boolean): void { fileActionActive = active }
   registerDocumentActions(editor, checkSender, recovery, setFileAction)
   for (const channel of ['appearance:load', 'appearance:save', 'appearance:reset']) ipcMain.removeHandler(channel)
@@ -99,7 +144,6 @@ if (ownsProfile) {
   app.on('before-quit', (event) => {
     if (quitting) return
     event.preventDefault()
-    quitting = true
-    void Promise.all([preserveRecovery ? Promise.resolve() : recovery.close(), appearance.drain()]).finally(() => app.quit())
+    requestClose()
   })
 } else { app.quit() }

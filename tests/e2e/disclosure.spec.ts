@@ -1,8 +1,8 @@
+import { chooseUnsaved, closeDiscardingChanges, controls, fileAction, ready } from './ui'
 import { _electron as electron, expect, test } from '@playwright/test'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { controls, fileAction, ready } from './ui'
 
 test('effect controls wait for a replacement image before expanding its cards', async () => {
   const folder = await mkdtemp(join(tmpdir(), 'deep-fryer-disclosure-'))
@@ -18,6 +18,7 @@ test('effect controls wait for a replacement image before expanding its cards', 
     await ready(page)
     await controls(page)
     const oldPanel = await page.locator('.effects-panel').elementHandle()
+    await chooseUnsaved(app, 'discard')
     await app.evaluate(({ dialog }, path) => {
       dialog.showOpenDialog = () => new Promise((resolve) => {
         Reflect.set(globalThis, 'releaseReopen', () => resolve({ canceled: false, filePaths: [path] }))
@@ -37,5 +38,5 @@ test('effect controls wait for a replacement image before expanding its cards', 
       await expect(card.locator('.more-controls')).toHaveAttribute('open', '')
       await expect(card.locator('.effect-actions')).toBeVisible()
     }
-  } finally { await app.close(); await rm(folder, { recursive: true, force: true }) }
+  } finally { await closeDiscardingChanges(app); await rm(folder, { recursive: true, force: true }) }
 })

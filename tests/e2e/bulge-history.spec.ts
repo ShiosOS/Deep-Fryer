@@ -1,4 +1,4 @@
-import { fileAction, controls, exportImage } from './ui'
+import { closeDiscardingChanges, fileAction, controls, exportImage } from './ui'
 import { _electron as electron, expect, test } from '@playwright/test'
 import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -76,7 +76,7 @@ test('place, drag, edit, undo, redo, and export a bulge in Electron', async () =
     expect(createHash('sha256').update(await readFile(source)).digest('hex')).toBe(createHash('sha256').update(original).digest('hex'))
     expect(errors).toEqual([])
   } finally {
-    await app.close()
+    await closeDiscardingChanges(app)
     await rm(folder, { recursive: true, force: true })
   }
 })

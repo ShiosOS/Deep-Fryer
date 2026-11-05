@@ -152,11 +152,11 @@ async function exportCurrent(): Promise<void> {
 }
 
 function saveInspection(): void {
-  if (inspection.value.kind === 'ready' && inspection.value.key === currentKey.value && !busy.value && validName.value) void save(inspection.value.output)
+  if (inspection.value.kind === 'ready' && inspection.value.key === currentKey.value && !props.disabled && !busy.value && validName.value) void save(inspection.value.output)
 }
 
 onUnmounted(() => { cancelPreparation?.(); preparation?.terminate() })
-defineExpose({ open: () => exportDialog.value?.open(), exportLabel, busy })
+defineExpose({ open: () => exportDialog.value?.open(), exportLabel, busy, cancelPreparation: () => cancelPreparation?.() })
 </script>
 
 <template>
