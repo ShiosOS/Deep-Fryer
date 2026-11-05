@@ -1,5 +1,7 @@
 # Held Save and caption integration
 
+Historical checkpoint, recorded November 4, 2026. The hold below describes `d4f7eab`, before the Windows permission repair. Later repair `fb7a0b4` passed independent security review, including two packaged security journeys. The coordinator integrated it at `f30d428`. Current combined acceptance is recorded in the [decision trail](../.audit/product-hillclimb.tsv); it is separate from this report's failed and incomplete runs. The independent security receipt is retained at `C:/Users/emofo/.t3/worktrees/Deep-Fryer/review-fb7a0b4-security/.artifacts/security-review/report.md`.
+
 The goal is ordinary Save for the complete caption editor without losing editable text, legacy source files, or the saved baseline. This candidate is held for the separate Windows ACL repair in issue #29 and fresh independent security review. Passing integration checks do not establish ACL safety or release acceptance.
 
 ## Scope and provenance
