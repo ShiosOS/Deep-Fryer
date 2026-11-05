@@ -112,7 +112,7 @@ test('open, cancel, reject replacement, protect originals, and export real canva
     await chooseUnsaved(app, 'discard')
     await fileAction(page, 'Open image')
     await expect(page.locator('.filename')).toHaveText('rotated.jpg')
-    await expect(page.locator('.canvas-caption')).toContainText('560 × 800')
+    await expect(page.locator('.image-dimensions')).toContainText('560 × 800')
     const orientedOutput = join(folder, 'oriented.png')
     await selectSave(app, orientedOutput)
     await exportImage(page)
