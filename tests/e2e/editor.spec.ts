@@ -1,5 +1,5 @@
 import { openImageWithShortcut } from './open-image-shortcut'
-import { chooseUnsaved, closeDiscardingChanges, fileAction, controls, exportImage } from './ui'
+import { chooseUnsaved, closeDiscardingChanges, fileAction, controls, exportImage, traceElectron } from './ui'
 import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test'
 import { createHash } from 'node:crypto'
 import { link, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -58,8 +58,13 @@ test('open, cancel, reject replacement, protect originals, and export real canva
     args: [...(process.env.DEEP_FRYER_EXECUTABLE ? [] : [resolve('.')]), `--user-data-dir=${join(folder, 'profile')}`],
     env: { ...process.env, ELECTRON_RENDERER_URL: '' }
   })
+  const launcher = app.process()
+  const pids = await app.evaluate(({ app }) => [...new Set([process.pid, ...app.getAppMetrics().map(({ pid }) => pid)])])
+  await writeFile(test.info().outputPath('runtime.json'), JSON.stringify({ folder, pid: launcher.pid, pids }))
+  let passed = false
   try {
     const page = await app.firstWindow()
+    await traceElectron(app)
     const rendererErrors: string[] = []
     page.on('pageerror', (error) => rendererErrors.push(error.message))
     await expect(page.getByRole('heading', { name: 'Open your first image.' })).toBeVisible()
@@ -121,9 +126,19 @@ test('open, cancel, reject replacement, protect originals, and export real canva
     const oriented = PNG.sync.read(await readFile(orientedOutput))
     expect([oriented.width, oriented.height]).toEqual([560, 800])
     expect(rendererErrors).toEqual([])
+    passed = true
   } finally {
     await closeDiscardingChanges(app)
-    await rm(folder, { recursive: true, force: true })
+    await expect.poll(() => launcher.exitCode !== null || launcher.signalCode !== null).toBe(true)
+    await expect.poll(() => pids.filter(pid => {
+      try { process.kill(pid, 0); return true } catch (error) {
+        if (error instanceof Error && 'code' in error && error.code === 'ESRCH') return false
+        throw error
+      }
+    }), { message: 'Owned Electron processes must exit before profile removal' }).toEqual([])
+    if (passed) await rm(folder, { recursive: true, force: true })
+    await writeFile(test.info().outputPath('teardown.json'), JSON.stringify({ folder, pid: launcher.pid, pids,
+      exitCode: launcher.exitCode, signal: launcher.signalCode, profileRemoved: passed }))
   }
 })
 
