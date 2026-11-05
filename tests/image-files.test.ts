@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { link, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { link, mkdir, mkdtemp, open, readFile, rename, rm, stat, writeFile, type FileHandle } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
@@ -30,6 +30,87 @@ test('export creates a new PNG and refuses existing paths and source hard links'
       assert.deepEqual(await readFile(path), original)
     }
   } finally {
+    await rm(folder, { recursive: true, force: true })
+  }
+})
+
+const writeFailures: Array<'writeFile' | 'sync'> = ['writeFile', 'sync']
+for (const operation of writeFailures) {
+  test(`a failed export ${operation} removes only its new destination and permits retry`, async (t) => {
+    const folder = await mkdtemp(join(tmpdir(), 'deep-fryer-write-failure-'))
+    try {
+      const source = join(folder, 'source.png')
+      const alias = join(folder, 'source-alias.png')
+      const existing = join(folder, 'existing.png')
+      const destination = join(folder, 'export.png')
+      const bytes = png()
+      await writeFile(source, bytes)
+      await link(source, alias)
+      await writeFile(existing, 'existing output')
+      const probe = await open(join(folder, 'probe'), 'wx')
+      const prototype: FileHandle = Object.getPrototypeOf(probe)
+      await probe.close()
+      const failure = new Error(`injected ${operation} failure`)
+      const injected = t.mock.method(prototype, operation, async function (this: FileHandle) {
+        await this.write(bytes.subarray(0, 16), 0, 16, 0)
+        assert.deepEqual(await readFile(destination), operation === 'writeFile' ? bytes.subarray(0, 16) : bytes)
+        throw failure
+      })
+
+      await assert.rejects(writeImageExclusive(destination, bytes, 'png'), (error) => error === failure)
+      assert.equal(injected.mock.callCount(), 1)
+      await assert.rejects(readFile(destination), { code: 'ENOENT' })
+      for (const path of [source, alias, existing]) {
+        await assert.rejects(writeImageExclusive(path, bytes, 'png'), /already exists/)
+      }
+      assert.deepEqual(await readFile(source), bytes)
+      assert.deepEqual(await readFile(alias), bytes)
+      assert.equal(await readFile(existing, 'utf8'), 'existing output')
+      assert.equal(injected.mock.callCount(), 1)
+
+      injected.mock.restore()
+      await writeImageExclusive(destination, bytes, 'png')
+      assert.deepEqual(await readFile(destination), bytes)
+    } finally {
+      t.mock.restoreAll()
+      await rm(folder, { recursive: true, force: true })
+    }
+  })
+}
+
+test('failed export cleanup reports the write and removal failures without removing other data', async (t) => {
+  const folder = await mkdtemp(join(tmpdir(), 'deep-fryer-cleanup-failure-'))
+  try {
+    const destination = join(folder, 'export.png')
+    const moved = join(folder, 'incomplete.png')
+    const bytes = png()
+    const probe = await open(join(folder, 'probe'), 'wx')
+    const prototype: FileHandle = Object.getPrototypeOf(probe)
+    await probe.close()
+    const failure = new Error('injected sync failure')
+    t.mock.method(prototype, 'sync', async function (this: FileHandle) {
+      assert.deepEqual(await readFile(destination), bytes)
+      await this.close()
+      await rename(destination, moved)
+      await mkdir(destination)
+      await writeFile(join(destination, 'keep.txt'), 'other data')
+      throw failure
+    })
+
+    await assert.rejects(writeImageExclusive(destination, bytes, 'png'), (error) => {
+      assert.ok(error instanceof AggregateError)
+      assert.match(error.message, /incomplete file could not be removed/)
+      assert.equal(error.cause, failure)
+      assert.equal(error.errors.length, 2)
+      assert.equal(error.errors[0], failure)
+      assert.ok(error.errors[1] instanceof Error)
+      assert.match(error.errors[1].message, /EISDIR/)
+      return true
+    })
+    assert.equal(await readFile(join(destination, 'keep.txt'), 'utf8'), 'other data')
+    assert.deepEqual(await readFile(moved), bytes)
+  } finally {
+    t.mock.restoreAll()
     await rm(folder, { recursive: true, force: true })
   }
 })
