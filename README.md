@@ -2,39 +2,39 @@
 
 [![Windows CI](https://github.com/ShiosOS/Deep-Fryer/actions/workflows/windows.yml/badge.svg?branch=main)](https://github.com/ShiosOS/Deep-Fryer/actions/workflows/windows.yml)
 
-A local Windows image editor for deep-fried memes. Push colors, add noise and JPEG damage, and warp faces with bulge or pinch points. Start with a preset, adjust the result, then copy it into another app or export an image. No account or upload required.
+A local Windows image editor for deep-fried memes. Add captions, push colors, add noise and JPEG damage, and warp faces with bulge or pinch points. Start with a look, adjust the result, then copy it into another app or export an image. No account or upload required.
 
-![Deep Fryer 0.5.0 source preview with Look, Effects, and Captions navigation, editable top and bottom text, and a fried demo cat](docs/images/editor-dark.png)
+![Deep Fryer 0.5.0 with Look, Effects, and Captions navigation, editable top and bottom text, and a fried demo cat](docs/images/editor-dark.png)
 
-The screenshots show the current **0.5.0 source preview**. The download below is the published **0.4.0 release**. New source changes require a build and are not included in that installer. See the [changelog](CHANGELOG.md), [Effects in light appearance](docs/images/editor-light.png), and [minimum-window Effects layout](docs/images/editor-minimum-light.png).
+The screenshots show **Deep Fryer 0.5.0**, available below. See the [changelog](CHANGELOG.md), [Effects in light appearance](docs/images/editor-light.png), and [minimum-window Effects layout](docs/images/editor-minimum-light.png).
 
-The 0.5.0 source adds editable top/bottom meme captions, an opt-in demo, live previews of each look on your image, and Save project, Discard, or Cancel protection before leaving unsaved work. Export keeps the original aspect ratio unless you unlock it.
+Try the included demo, preview looks on your image, and add editable top/bottom captions. Save, Discard, or Cancel protects unsaved work before you leave it. Export keeps the original aspect ratio unless you unlock it.
 
 ## Download for Windows
 
-[Download Deep Fryer 0.4.0](https://github.com/ShiosOS/Deep-Fryer/releases/download/v0.4.0/DeepFryer-Setup-0.4.0.exe) · [Release notes](https://github.com/ShiosOS/Deep-Fryer/releases/tag/v0.4.0) · [SHA256SUMS.txt](https://github.com/ShiosOS/Deep-Fryer/releases/download/v0.4.0/SHA256SUMS.txt)
+[Download Deep Fryer 0.5.0](https://github.com/ShiosOS/Deep-Fryer/releases/download/v0.5.0/DeepFryer-Setup-0.5.0.exe) · [Release notes](https://github.com/ShiosOS/Deep-Fryer/releases/tag/v0.5.0) · [SHA256SUMS.txt](https://github.com/ShiosOS/Deep-Fryer/releases/download/v0.5.0/SHA256SUMS.txt)
 
 The installer is for Windows x64 and includes the app runtime. You do not need Node.js to use it. macOS and Linux packages are not provided.
 
-The 0.4.0 installer is **unsigned**. Windows may show an unknown-publisher or SmartScreen warning. Download only from the release above. Verify the checksum before deciding whether to run it. A matching checksum confirms the published bytes, not publisher identity or safety. Do not disable Windows security protections to install it.
+The 0.5.0 installer is **unsigned**. Windows may show an unknown-publisher or SmartScreen warning. Download only from the release above. Verify the checksum before deciding whether to run it. A matching checksum confirms the published bytes, not publisher identity or safety. Do not disable Windows security protections to install it.
 
 In PowerShell, run this command in the folder containing the download:
 
 ```powershell
-Get-FileHash -LiteralPath .\DeepFryer-Setup-0.4.0.exe -Algorithm SHA256
+Get-FileHash -LiteralPath .\DeepFryer-Setup-0.5.0.exe -Algorithm SHA256
 ```
 
 The expected SHA-256 for that exact installer is:
 
 ```text
-97e4b4f3e9192523a5ca991670cbaac20a71af872e43b8b6b77d77115ba0f27f
+39af8b53164d3f365b33e0c43fdee20562c03683988a6093925f8993bd3fa826
 ```
 
 Compare it with `SHA256SUMS.txt` on the same release. If the values match and you trust the download, run the installer and choose an installation folder. Updates require downloading and running a newer installer.
 
 ## Make your first edit
 
-These steps follow the **0.5.0 source preview**. In the published 0.4.0 release, choose a preset from the menu and adjust effects in the sidebar. That release has no Captions section.
+These steps follow **Deep Fryer 0.5.0**.
 
 1. Choose **File → Open image**, paste a copied image, or drop one PNG or JPEG into the window. To start without your own image, choose **Try demo**.
 2. In **Look**, expand **Choose a look** and select **Crispy color**, **Noisy photocopy**, or **Overcooked**. The thumbnails preview your image; the canvas shows the selected result. Adjust **Fry level** to change its strength.
@@ -42,17 +42,17 @@ These steps follow the **0.5.0 source preview**. In the published 0.4.0 release,
 4. Choose **Captions** and type into **Top** or **Bottom**. Your text appears over the edited image and stays editable when you change looks.
 5. Choose **Copy image** to paste the edited result into another app. Wait for **Image copied** before pasting. To save a file, choose **Export**, set its format, size, and name, then choose **Save image…** and a new destination.
 
-[Look gallery in the 0.5.0 source preview](docs/images/editor-look.png). Each section gives its controls the full sidebar. In **Captions**, expand **Text size** to adjust the maximum size; longer captions shrink to fit up to three lines. **Clear** removes both captions and can be undone.
+[Look gallery](docs/images/editor-look.png). Each section gives its controls the full sidebar. In **Captions**, expand **Text size** to adjust the maximum size; longer captions shrink to fit up to three lines. **Clear** removes both captions and can be undone.
 
-![Deep Fryer 0.5.0 source preview with editable Top and Bottom caption fields at the 900 × 620 minimum outer window size in light appearance](docs/images/editor-captions.png)
+![Deep Fryer 0.5.0 with editable Top and Bottom caption fields at the 900 × 620 minimum outer window size in light appearance](docs/images/editor-captions.png)
 
-In the **0.5.0 source**, use **File → Save project** or `Ctrl+S` to continue editing later. Choose a new file the first time; later saves update that project without another chooser. **Save project as…** creates a separate copy and makes it the destination for later saves. Exported images do not retain editable effects or text. The **Help** button explains effects, captions, point controls, and saving with illustrated examples.
+Use **File → Save project** or `Ctrl+S` to continue editing later. Choose a new file the first time; later saves update that project without another chooser. **Save project as…** creates a separate copy and makes it the destination for later saves. Exported images do not retain editable effects or text. The **Help** button explains effects, captions, point controls, and saving with illustrated examples.
 
 ## See what the effects do
 
-The **0.5.0 source preview** below compares the original on the left with **Crispy color** on the right. These are full-resolution canvas captures before adding captions, with the same source image and dimensions.
+The comparison below shows the original on the left with **Crispy color** on the right. These are full-resolution canvas captures before adding captions, with the same source image and dimensions.
 
-![Deep Fryer 0.5.0 source preview comparison, original toast cat on the left and Crispy color with stronger color, sharpening, noise, and JPEG damage on the right](docs/images/before-after.png)
+![Deep Fryer 0.5.0 comparison, original toast cat on the left and Crispy color with stronger color, sharpening, noise, and JPEG damage on the right](docs/images/before-after.png)
 
 Open **Help → Effects** for individual effect examples. Their settings and image hashes are in the [help media manifest](src/renderer/src/assets/help/manifest.json).
 
@@ -74,7 +74,7 @@ Deep Fryer processes images on your computer. The application has no account, im
 
 Projects embed the original source bytes, which can include source metadata. Treat a project as sharing the original image. Export creates a new image from decoded pixels rather than copying the source metadata. Copy puts image data on the Windows clipboard, where other apps and enabled clipboard history or sync services may access it.
 
-Recovery keeps two local edit checkpoints. The 0.5.0 source saves settled, accepted edits even while a control keeps focus; accepted caption text remains recoverable if font rendering is pending or fails. Invalid input and unfinished composing text stay as temporary drafts. After an interruption, checkpoints older than seven days are removed when recovery checks them. A completed clean exit or **Discard recovery** removes the recovery copies. The 0.5.0 source asks before closing or replacing unsaved work and preserves unresolved recovery copies. Save a project for durable storage. Appearance settings are stored separately. See [file formats and storage](docs/files-and-storage.md).
+Recovery keeps two local edit checkpoints. Settled, accepted edits save even while a control keeps focus; accepted caption text remains recoverable if font rendering is pending or fails. Invalid input and unfinished composing text stay as temporary drafts. After an interruption, checkpoints older than seven days are removed when recovery checks them. A completed clean exit or **Discard recovery** removes the recovery copies. The app asks before closing or replacing unsaved work and preserves unresolved recovery copies. Save a project for durable storage. Appearance settings are stored separately. See [file formats and storage](docs/files-and-storage.md).
 
 Ordinary project Save updates only the project opened or saved in this session. If it changed outside Deep Fryer, moved, became read-only, or became a link, Save refuses and retains your edit. Reopen it or use **Save project as…** for a separate copy. Save As, presets, and image exports require a new filename, even if a native chooser offers to replace one. Opening a legacy project or restoring recovery requires Save As on the first save.
 
@@ -84,9 +84,9 @@ Ordinary project Save updates only the project opened or saved in this session. 
 - Input must fit within 64 MiB, 16,384 pixels per side, and 24 million pixels total. Exports have the same dimension and pixel limits and a 128 MiB encoded size limit.
 - Ordinary project Save requires a local NTFS destination and verified Windows permissions. Use **Save project as…** when those checks cannot be completed.
 - Large images and long effect stacks can take time and memory. A resized export can differ from the canvas because effects run at the output size.
-- Captions in the 0.5.0 source use bundled Anton lettering, 512 UTF-16 units per field, and up to three rendered lines. Unsupported characters and text that cannot fit remain savable in projects, with finished output blocked until corrected. The full font license is available offline in **Help → Licenses**.
+- Captions use bundled Anton lettering, 512 UTF-16 units per field, and up to three rendered lines. Unsupported characters and text that cannot fit remain savable in projects, with finished output blocked until corrected. The full font license is available offline in **Help → Licenses**.
 - The editor has no crop, drawing tools, animation or video editing, batch processing, or cloud sync.
-- Source builds write project v3 and preset v2. Historical v1/v2 projects open without changing their image treatment. Older applications reject v3 projects. Presets exclude captions.
+- Version 0.5.0 writes project v3 and preset v2. Historical v1/v2 projects open without changing their image treatment. Older applications reject v3 projects. Presets exclude captions.
 
 ## Help and project information
 

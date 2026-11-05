@@ -2,7 +2,7 @@
 
 Published installers are listed on the [releases page](https://github.com/ShiosOS/Deep-Fryer/releases). An unreleased source change is not part of an older installer.
 
-## 0.5.0, unreleased
+## 0.5.0
 
 - Add editable top/bottom captions with bundled Anton, a black outline, size control, bounded wrapping, and one complete edit history. Looks, Fry level, and presets preserve your words.
 - Projects now write v3 with complete editable composition. Presets remain v2. Historical v1/v2 files retain their source bytes and image treatment; older readers reject v3 projects.
@@ -11,6 +11,9 @@ Published installers are listed on the [releases page](https://github.com/ShiosO
 - Preserve Windows project permissions before writing a replacement temporary. Refuse changed or unsupported destinations and retain the edit for Save As.
 - Try an original bundled demo without opening a personal image. Browse real draft previews of each named look on your current image.
 - Read larger inspector labels and processing or error feedback outside the scrolling controls.
+- Give Look, Effects, and Captions separate inspector sections so adjustments stay within reach at the minimum window size. Invalid drafts prevent navigation and distortion-point changes.
+- Keep accepted, eligible edits recoverable while controls retain focus without splitting their undo group. Retry short Windows recovery-generation rename interference within a bounded interval.
+- Show project-save progress until the write acknowledges completion. Preserve newly focused inputs when a dialog finishes closing.
 - Save, discard, or cancel before replacing or closing an unsaved project. Only a successful project save marks the edit saved. Undo to saved values restores that state.
 - Close cancels unfinished output preparation and waits for an admitted file or clipboard action to settle. Unresolved recovery copies remain available.
 - Export dimensions keep the original oriented aspect ratio by default. Unlock the ratio to stretch an image deliberately.

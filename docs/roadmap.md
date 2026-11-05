@@ -1,8 +1,8 @@
 # Roadmap candidates
 
-Deep Fryer 0.4.0 provides a single-image Windows editor with ordered effects, reusable presets, projects, Copy image, export inspection, illustrated Help, and appearance settings. See the [README](../README.md) for current capabilities and limits.
+Deep Fryer 0.5.0 provides a single-image Windows editor with editable captions, ordered effects, reusable presets, projects, Copy image, export inspection, illustrated Help, and appearance settings. See the [README](../README.md) for current capabilities and limits.
 
-The 0.5.0 source preview adds editable captions, unsaved-work protection, and ordinary project Save. These changes are not included in the published 0.4.0 installer.
+Look, Effects, and Captions have separate inspector sections. Unsaved-work protection and ordinary project Save support returning to an edit.
 
 The items below are candidates for future work. They have no promised release date or assigned delivery commitment. An accepted issue and an implemented change are separate from this list.
 
@@ -12,7 +12,7 @@ Prioritize reported problems in opening images, effect adjustment, point editing
 
 ## Make releases easier to trust
 
-Evaluate Windows code signing, clearer release provenance, and repeatable package verification. Signing requires a real signing identity and a maintained release process. The current 0.4.0 installer remains unsigned.
+Evaluate Windows code signing, clearer release provenance, and repeatable package verification. Signing requires a real signing identity and a maintained release process. The current 0.5.0 installer remains unsigned.
 
 ## Reuse presets across multiple images
 
