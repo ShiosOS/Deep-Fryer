@@ -60,8 +60,9 @@ watch(currentKey, invalidate, { flush: 'sync' })
 function coupleDimensions(dimension: 'width' | 'height'): void {
   if (!aspectRatioLocked.value || !props.source) return
   const size = proportionalOutputSize({ source: props.source.bitmap, dimension, value: Number(dimension === 'width' ? width.value : height.value) })
-  if (dimension === 'width') height.value = size.height
-  else width.value = size.width
+  if (dimension === 'width') {
+    if (Number(height.value) !== size.height) height.value = size.height
+  } else if (Number(width.value) !== size.width) width.value = size.width
 }
 
 function updateDimension(dimension: 'width' | 'height', event: Event): void {
