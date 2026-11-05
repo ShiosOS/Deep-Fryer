@@ -121,3 +121,63 @@ test('missing-font setup survives an unavailable initial driver worker inventory
     passed = true
   } finally { await cleanup(owned, passed) }
 })
+
+test('missing-font setup ignores a late worker event from the document being replaced', async () => {
+  const owned = await launch()
+  const { app } = owned
+  let passed = false
+  try {
+    const page = await app.firstWindow()
+    await expect(page.getByRole('heading', { name: 'Open your first image.' })).toBeVisible()
+    await expect.poll(() => page.workers().length).toBe(1)
+    const original = page.workers()[0]
+    if (!original) throw new Error('Original document worker unavailable for late-event injection')
+    const originalURL = await original.evaluate(() => location.href)
+    expect(originalURL).toContain('effects-worker')
+    const before = await page.evaluate(() => performance.timeOrigin)
+    let closed = false
+    original.on('close', () => { closed = true })
+    const reload = page.reload.bind(page)
+    const emit = Reflect.get(page, 'emit')
+    if (typeof emit !== 'function') throw new Error('Driver event delivery unavailable')
+    let delivered = false
+    page.reload = async (...args) => {
+      // Replay delayed driver delivery of the live original worker, then replace its document.
+      delivered = true
+      emit.call(page, 'worker', original)
+      return reload(...args)
+    }
+    let setupError: unknown = null
+    try { await prepareMissingCaptionFont(page) } catch (error) { setupError = error }
+    finally { page.reload = reload }
+    const after = await page.evaluate(() => performance.timeOrigin)
+    await writeFile(test.info().outputPath('worker-generation.json'), JSON.stringify({
+      before, after, originalURL, delivered, closed, setupError: setupError === null ? null : String(setupError)
+    }))
+    expect(delivered).toBe(true)
+    expect(after).not.toBe(before)
+    expect(closed).toBe(true)
+    if (setupError !== null) throw setupError
+    await page.getByRole('button', { name: 'Try demo', exact: true }).click()
+    await ready(page)
+    await expect(page.locator('.look-grid')).toHaveAttribute('aria-busy', 'false')
+    await section(page, 'Captions')
+    const top = page.getByRole('textbox', { name: 'Top caption', exact: true })
+    await top.fill('Keep these words')
+    await top.blur()
+    await expect(page.locator('.caption-controls [role=alert]')).toContainText('bundled Anton font could not load')
+    await expect(top).toHaveValue('Keep these words')
+    await page.reload()
+    await expect(page.getByRole('heading', { name: 'Open your first image.' })).toBeVisible()
+    await expect.poll(() => page.workers().map(worker => worker.url())).toEqual([originalURL])
+    await page.getByRole('button', { name: 'Try demo', exact: true }).click()
+    await ready(page)
+    await section(page, 'Captions')
+    await top.fill('Font works after setup is removed')
+    await top.blur()
+    await ready(page)
+    await expect(page.locator('.caption-controls [role=alert]')).toHaveCount(0)
+    await expect(top).toHaveValue('Font works after setup is removed')
+    passed = true
+  } finally { await cleanup(owned, passed) }
+})
