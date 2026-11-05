@@ -2,7 +2,7 @@ import { _electron as electron, expect, test } from '@playwright/test'
 import { access, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { chooseUnsaved, closeDiscardingChanges } from './ui'
+import { chooseUnsaved, closeDiscardingChanges, interruptForRecovery } from './ui'
 
 function launch(profile: string) {
   const executable = process.env.DEEP_FRYER_EXECUTABLE ?? process.env.ELECTRON_EXECUTABLE_PATH
@@ -68,7 +68,7 @@ test('an interrupted demo offers recovery before another demo can load', async (
     await page.getByRole('button', { name: 'Try demo' }).click()
     await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeEnabled()
     await expect.poll(() => access(join(folder, 'recovery', 'latest.deepfryer')).then(() => true, () => false)).toBe(true)
-    await app.evaluate(({ app }) => app.exit(19)).catch(() => {})
+    await interruptForRecovery(app)
     app = await launch(folder)
     page = await app.firstWindow()
     const recovery = page.getByRole('alertdialog', { name: 'Restore interrupted work?' })
