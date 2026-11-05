@@ -42,6 +42,8 @@ Compare it with `SHA256SUMS.txt` on the same release. If the values match and yo
 
 In the 0.5.0 source, open **Captions** and enter **Top** or **Bottom** text. Text stays readable over effects and remains editable when you change looks. **Text size** adjusts its maximum size; longer captions shrink to fit up to three lines. **Clear** removes both captions and can be undone.
 
+![Editable top and bottom captions over a fried demo cat in the 0.5.0 source preview at the minimum Windows window size](docs/images/editor-captions.png)
+
 To continue editing later, use **File → Save project as…**. Exported images do not retain editable effects or text. The **Help** button explains effects, captions, point controls, and saving with illustrated examples.
 
 ## See what the effects do
