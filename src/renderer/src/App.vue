@@ -581,6 +581,7 @@ onUnmounted(() => {
       </aside>
       <main class="main-area">
         <div class="preview-status"><div class="notice" :class="files.savingProject.value ? 'info' : notice.kind" role="status" aria-live="polite">{{ files.savingProject.value ? 'Saving project…' : operation.kind === 'processing' ? 'Processing image…' : notice.kind === 'error' ? notice.text : document && lookPreviewStatus.kind !== 'ready' ? lookPreviewStatus.message : notice.text }}</div>
+          <span v-if="document" class="image-dimensions">{{ dimensions }} px</span>
           <button v-if="document && operation.kind === 'processing'" type="button" @click="cancelPending">{{ edit.composition.captions || confirmedCaptions ? 'Stop preview' : 'Cancel pending changes' }}</button>
           <button v-if="document && captionError && operation.kind !== 'processing'" type="button" :disabled="controlsBusy" @click="scheduleRender(document)">Retry preview</button>
         </div>
@@ -592,7 +593,6 @@ onUnmounted(() => {
           <div class="image-plane" v-show="document" :style="imageStyle"><canvas ref="canvas" v-show="showing === 'edited'" aria-label="Edited full resolution image canvas"></canvas><canvas ref="originalCanvas" v-show="showing === 'original'" aria-label="Original full resolution image canvas"></canvas></div>
           <BulgeOverlay v-if="document && view && imageSize && showing === 'edited'" :points="bulgePoints" :selected-id="selectedPointId" :view="view" :pane="pane" :image="imageSize" @select="selectPoint" @change="movePoint" @delete="deletePoint" @gesture-begin="beginGesture" @gesture-end="endGesture" />
           <div class="empty-state" v-if="!document"><img :src="appIcon" alt=""><h1>Open your first image.</h1><p>Choose a PNG or JPEG, paste an image, or drop a file here.</p><div class="empty-actions"><button class="primary" :disabled="busy" @click="openImage">Choose an image</button><button type="button" :disabled="busy" @click="tryDemo">Try demo</button></div></div>
-          <span class="canvas-caption" v-if="document">{{ dimensions }} px</span>
         </section>
       </main>
     </div>

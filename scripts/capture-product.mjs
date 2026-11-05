@@ -150,7 +150,7 @@ try {
         await section(name)
         const panel = page.locator(`#inspector-${name.toLowerCase()}`)
         await panel.evaluate(element => { element.scrollTop = 0 })
-        await expect(page.locator('.canvas-caption')).toBeInViewport()
+        await expect(page.locator('.image-dimensions')).toBeInViewport()
         await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeInViewport()
         await screenshot(`sections-${minimum ? '900x620' : '1120x760'}-${mode.toLowerCase()}-${name.toLowerCase()}.png`)
       }

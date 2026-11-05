@@ -91,7 +91,10 @@ test('primary effect heading and adjustment occupy the usable inspector at actua
         expect(geometry.overflow).toBe(false)
         await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeInViewport()
         await expect(page.locator('.notice')).toBeInViewport()
-        await expect(page.locator('.canvas-caption')).toBeInViewport()
+        await expect(page.locator('.image-dimensions')).toBeInViewport()
+        const dimensions = await page.locator('.image-dimensions').boundingBox()
+        expect(dimensions).not.toBeNull()
+        if (dimensions) expect(dimensions.y + dimensions.height).toBeLessThanOrEqual(geometry.canvas.top)
       }
     }
     expect(await readFile(source)).toEqual(original)
