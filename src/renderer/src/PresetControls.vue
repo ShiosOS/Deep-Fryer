@@ -13,6 +13,7 @@ const baseline = shallowRef(snapshotPreset(props.preset))
 const locks = ref(new Set<string>())
 const dialog = ref<HTMLDialogElement | null>(null)
 const menu = ref<HTMLDetailsElement | null>(null)
+const gallery = ref<HTMLDetailsElement | null>(null)
 function presetFile(action: 'load' | 'save'): void {
   if (menu.value) { menu.value.open = false; menu.value.querySelector<HTMLElement>('summary')?.focus() }
   if (action === 'load') emit('loadPreset')
@@ -78,6 +79,7 @@ function applyLook(selected: NamedLook): void {
   baseline.value = snapshotPreset(preset)
   amount.value = 100
   publish(preset)
+  if (gallery.value) { gallery.value.open = false; gallery.value.querySelector<HTMLElement>('summary')?.focus() }
 }
 function changeAmount(event: Event): void {
   const target = event.target
@@ -157,7 +159,7 @@ onUnmounted(() => { lookCancellation.abort(); comparisonGeneration += 1; compari
 <template>
   <section class="preset-looks" aria-label="Presets">
     <div class="controls-heading"><span class="eyebrow">Preset</span></div>
-    <details class="look-gallery" open>
+    <details ref="gallery" class="look-gallery" open>
       <summary>Choose a look <span>{{ look || 'Current settings' }}</span></summary>
       <p class="look-status" aria-hidden="true">Draft previews of your image</p>
       <div class="look-grid" :aria-busy="previews.kind === 'building'">

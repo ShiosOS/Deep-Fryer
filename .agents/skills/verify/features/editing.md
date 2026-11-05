@@ -12,7 +12,7 @@ Build a layered fry, compare candidates, and recover previous rendered pixels wi
 
 ## How to get to it (user POV)
 
-Open an image and choose a named button such as **Crispy color** in the collapsible look gallery. Use **Add effect** for another layer. Expand an effect card to adjust its controls. Use **Randomize**, **Randomization locks**, **Fry level**, and **Compare 5** for variations. Use **Place point** or add Bulge for distortion. Use toolbar Undo/Redo or Ctrl+Z, Ctrl+Shift+Z, and Ctrl+Y.
+Open an image and choose a named button such as **Crispy color** in the collapsible look gallery. Selection collapses the gallery and returns focus to its summary so effects move into view. Reopen **Choose a look** to choose another. Use **Add effect** for another layer. Expand an effect card to adjust its controls. Use **Randomize**, **Randomization locks**, **Fry level**, and **Compare 5** for variations. Use **Place point** or add Bulge for distortion. Use toolbar Undo/Redo or Ctrl+Z, Ctrl+Shift+Z, and Ctrl+Y.
 
 ## Driving it with Playwright Electron
 

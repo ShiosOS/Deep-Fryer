@@ -68,7 +68,7 @@ h3 { font-size: 13px; margin: 0 0 12px; }
 .color-control { margin: 12px 0; }
 .color-control label, .background-control { font-size: 10px; color: var(--muted); }
 .color-inputs { display: flex; align-items: center; gap: 8px; margin-top: 5px; }
-.color-inputs input[type=number] { width: 62px; flex-shrink: 0; text-align: center; font-size: 11px; padding: 5px 2px; }
+.color-inputs input[type=number] { width: 62px; flex-shrink: 0; text-align: center; font-size: 13px; padding: 5px 2px; }
 .color-inputs input[aria-invalid=true] { outline: 2px solid var(--text); }
 .more-controls { margin-top: 13px; color: var(--muted); font-size: 10px; }
 .more-controls > summary { padding: 4px 0; }
@@ -76,7 +76,7 @@ h3 { font-size: 13px; margin: 0 0 12px; }
 .effect-actions button { flex: 1; padding: 5px; }
 .add-effect, .seed-control, .background-control { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 12px 0; font-size: 11px; }
 .add-effect select { min-width: 0; width: 146px; font-size: 11px; padding: 7px; }
-.seed-control input { width: 119px; font-size: 11px; }
+.seed-control input { width: 119px; font-size: 13px; }
 .jpeg-note { font-size: 10px; }
 .point-select { width: 100%; font-size: 10px; padding: 6px; }
 .notice { margin-top: 18px; font-size: 11px; line-height: 1.5; color: var(--muted); overflow-wrap: anywhere; }
@@ -116,9 +116,9 @@ dialog::backdrop { background: #14101999; backdrop-filter: blur(5px); }
 .modal-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 21px 23px 17px; }
 .modal-heading > button { border: none; background: transparent; font-size: 23px; padding: 0; width: 30px; height: 30px; color: var(--muted); }
 .modal-content { padding: 0 23px 23px; }
-.modal-content > p { font-size: 11px; }
+.modal-content > p { font-size: 13px; }
 .modal-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding-top: 15px; }
-.name-field { display: block; font-size: 11px; color: var(--muted); margin: 0 0 18px; }
+.name-field { display: block; font-size: 13px; color: var(--muted); margin: 0 0 18px; }
 .name-field input { display: block; width: 100%; margin-top: 8px; padding: 11px 12px !important; color: var(--text); font-size: 13px; }
 .settings-section { padding: 19px 0; border-top: 1px solid var(--line); }
 .settings-section p { font-size: 11px; margin: 10px 0 0; }
@@ -131,9 +131,9 @@ dialog::backdrop { background: #14101999; backdrop-filter: blur(5px); }
 .color-field { padding: 9px 0; font-size: 12px; }
 .color-field code { font-size: 11px; color: var(--muted); }
 .output-panel { display: grid; gap: 12px; }
-.output-panel label { display: grid; gap: 6px; font-size: 11px; }
+.output-panel label { display: grid; gap: 6px; font-size: 13px; }
 .output-panel input, .output-panel select { width: 100%; min-width: 0; }
-.output-panel p { margin: 0; font-size: 11px; }
+.output-panel p { margin: 0; font-size: 13px; }
 .output-dimensions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .output-dialog { width: min(1100px, 94vw); height: min(800px, 90vh); padding: 24px; }
 .output-dialog[open] { display: flex; flex-direction: column; }

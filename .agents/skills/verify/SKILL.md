@@ -31,7 +31,7 @@ The helper prints the manifest path. It creates a fresh temporary `deep-fryer-pr
 
 ## Doctor
 
-The helper's read-only `app.evaluate` receipt records actual PID, version, `app.isPackaged`, user-data path, and renderer URL. It requires the exact disposable profile, expected packaged mode, and a `file:` renderer. When a run looks wrong, inspect `manifest.json` and `electron-stderr.log` first. Require `errors: []` and `passed: true`. Record the tested HEAD separately from any later commit.
+The helper's read-only `app.evaluate` receipt records actual PID, version, `app.isPackaged`, user-data path, and renderer URL. It requires the exact disposable profile, expected packaged mode, and a `file:` renderer. The manifest records HEAD, working-tree status, and a hash of the tracked diff. A dirty capture is evidence for those local edits, not the committed revision alone. When a run looks wrong, inspect `manifest.json` and `electron-stderr.log` first. Require `errors: []` and `passed: true`. Record the tested HEAD separately from any later commit.
 
 Minimum size is the BrowserWindow outer size, currently 900 × 620. On Windows at 100% scaling its captured content is 884 × 581. The manifest records both sizes and device scale; it validates every screenshot's decoded PNG dimensions against the real content viewport.
 

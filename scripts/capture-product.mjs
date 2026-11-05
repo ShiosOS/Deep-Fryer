@@ -30,6 +30,8 @@ const stderr = []
 const ownedPids = []
 try {
   report.head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim()
+  report.workingTree = execFileSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' }).trim().split('\n').filter(Boolean)
+  report.trackedDiffSha256 = hash(execFileSync('git', ['diff', 'HEAD', '--binary'], { cwd: root }))
   report.helperSha256 = hash(await readFile(fileURLToPath(import.meta.url)))
   report.source = { path: source, sha256: hash(await readFile(source)) }
   profile = await mkdtemp(join(tmpdir(), 'deep-fryer-product-'))
