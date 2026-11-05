@@ -2,7 +2,7 @@ import { _electron as electron, expect, test, type ElectronApplication, type Pag
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { chooseUnsaved, closeDiscardingChanges, fileAction, openOutput, ready } from './ui'
+import { chooseUnsaved, closeDiscardingChanges, fileAction, interruptForRecovery, openOutput, ready } from './ui'
 import { PNG } from 'pngjs'
 
 async function launch(folder: string): Promise<ElectronApplication> {
@@ -142,7 +142,7 @@ test('caption-only dirty state, canceled save and native close, IME completion a
     await saveProject(app, page, join(folder, 'kept.deepfryer'))
     expect(JSON.parse(await readFile(join(folder, 'kept.deepfryer'), 'utf8')).edit.composition.captions.top).toBe(failing)
     await expect.poll(async () => readFile(join(folder, 'recovery/latest.deepfryer'), 'utf8').then(text => JSON.parse(text).edit.composition.captions?.top).catch(() => null)).toBe(failing)
-    await app.evaluate(({ app }) => app.exit(19)).catch(() => {})
+    await interruptForRecovery(app)
     app = await launch(folder)
     page = await app.firstWindow()
     await page.getByRole('button', { name: 'Restore work', exact: true }).click()

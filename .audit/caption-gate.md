@@ -26,3 +26,9 @@ Sol reviewed the separate modal range `d2cdcfd..3f0e61f`. The permanent regressi
 Compact-parent CI run `41956548235`, attempt 1, at `5b9f30a` passed build-and-test and installer upgrade. Installed-offline reported 57 passed, one failed, and one skipped. Its failure was an `EBUSY` unlink of the disposable profile's `DIPS-wal` file in the second-instance journey. That run remains failed. Diagnosis is separate from caption acceptance, and neither this local package nor a later passing run establishes its historical cause.
 
 Local selections and clipboard writes were intercepted. These checks do not establish installed-offline behavior, native chooser behavior, installer upgrade, native clipboard, or a released 0.5.0 product. The published installer remains 0.4.0 and unsigned. No installation, publishing, or personal clipboard writes occurred.
+
+## Hosted checkpoint after this report
+
+Caption head `291a2a4738783854dcfc1ce8962f070cbc563162` passed all three jobs in run `41958138926`, attempt 1. Build-and-test and installed-offline each passed 62 Electron journeys, with the dedicated upgrade journey skipped in those suites. Both actual Windows clipboard copy and paste passed on disposable runners. Previous, candidate, and return installer-upgrade phases each passed their dedicated journey. The coordinator retained the full hosted log in `.artifacts/caption-integration/ci-291a2a4.log`.
+
+This later hosted evidence is specific to `291a2a4`. It does not relabel failed compact-parent run `41956548235` or prove its historical file-lock owner. A subsequent parent merge adds the separately reviewed interrupted-launch harness correction. Review found a cleanup-after-failed-exit error path in that harness; its acceptance remains held for repair, independently of the passing caption application checkpoint.
