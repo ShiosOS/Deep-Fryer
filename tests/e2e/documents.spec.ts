@@ -1,4 +1,4 @@
-import { chooseUnsaved, closeDiscardingChanges, fileAction, controls, exportImage, interruptForRecovery } from './ui'
+import { traceElectron, fileOperationComplete, chooseUnsaved, closeDiscardingChanges, fileAction, controls, exportImage, interruptForRecovery } from './ui'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
 import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -18,6 +18,7 @@ async function launch(profile: string): Promise<ElectronApplication> {
   const app = await electron.launch({ ...(executable ? { executablePath: executable } : {}),
     args: [...(process.env.DEEP_FRYER_EXECUTABLE ? [] : [resolve('.')]), `--user-data-dir=${profile}`],
     env: { ...process.env, ELECTRON_RENDERER_URL: '' } })
+  await traceElectron(app)
   expect(await app.evaluate(({ app }) => app.getPath('userData'))).toBe(profile)
   return app
 }
@@ -74,6 +75,7 @@ test('portable project moves without its source, preset scales to another image,
     const before = await pixels(page)
     await selectSave(app, project)
     await fileAction(page, 'Save project as…')
+    await fileOperationComplete(page)
     await expect(page.getByRole('status')).toContainText('Saved edit.deepfryer')
     const savedProject = JSON.parse(await readFile(project, 'utf8'))
     expect(Buffer.from(savedProject.source.base64, 'base64')).toEqual(bytes)
@@ -93,6 +95,7 @@ test('portable project moves without its source, preset scales to another image,
     await selectOpen(app, moved)
     await chooseUnsaved(app, 'discard')
     await fileAction(page, 'Open project')
+    await fileOperationComplete(page)
     await ready(page)
     expect(await pixels(page)).toEqual(before)
     await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeDisabled()

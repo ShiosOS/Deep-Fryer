@@ -36,10 +36,11 @@ export function useDocumentFiles(owner: DocumentOwner) {
   const recoveryStatus = ref('Checking for interrupted work…')
   const baseline = shallowRef<ProjectBaseline>({ kind: 'unsaved' })
   const target = computed(() => baseline.value.kind === 'saved' ? baseline.value.target : null)
-  const active = ref(false)
+  const activity = ref<'idle' | 'file-action' | 'saving-project'>('idle')
+  const savingProject = computed(() => activity.value === 'saving-project')
   const closing = ref(false)
   const recoveryState = ref<'checking' | 'ready' | 'failed'>('checking')
-  const locked = computed(() => active.value || closing.value || recoveryState.value === 'checking')
+  const locked = computed(() => activity.value !== 'idle' || closing.value || recoveryState.value === 'checking')
   const sourceMatchesBaseline = computed(() => {
     const source = owner.source()
     if (!source || baseline.value.kind === 'unsaved') return false
@@ -71,21 +72,25 @@ export function useDocumentFiles(owner: DocumentOwner) {
     owner.finishGesture()
     const document = current()
     if (!document) return true
-    const destination = target.value
-    const result = destination && suggestedName === undefined
-      ? await window.documentBridge.saveProject({ document, target: destination.id })
-      : await window.documentBridge.saveProjectAs({ document, suggestedName: suggestedName ?? `${document.source.name.replace(/\.[^.]+$/, '')}.deepfryer` })
-    if (result.kind !== 'saved') {
-      if (result.kind === 'cancelled') owner.report({ kind: 'info', text: 'Project save canceled. Your current edit is unchanged.' })
-      else if (result.kind === 'conflict') {
-        const reasons = { changed: 'changed outside Deep Fryer', missing: 'moved or deleted', readonly: 'read-only or not writable', stale: 'no longer authorized in this session', unsafe: 'a link or no longer a regular file' }
-        owner.report({ kind: 'error', text: `The project is ${reasons[result.reason]}. Reopen it or use Save project as… to make a separate copy. Your edit is unchanged.` })
-      } else owner.report({ kind: 'error', text: result.message })
-      return false
-    }
-    await replaceBaseline({ kind: 'saved', document, target: result.target })
-    owner.report({ kind: 'success', text: `Saved ${result.target.name}.` })
-    return true
+    const previousActivity = activity.value
+    activity.value = 'saving-project'
+    try {
+      const destination = target.value
+      const result = destination && suggestedName === undefined
+        ? await window.documentBridge.saveProject({ document, target: destination.id })
+        : await window.documentBridge.saveProjectAs({ document, suggestedName: suggestedName ?? `${document.source.name.replace(/\.[^.]+$/, '')}.deepfryer` })
+      if (result.kind !== 'saved') {
+        if (result.kind === 'cancelled') owner.report({ kind: 'info', text: 'Project save canceled. Your current edit is unchanged.' })
+        else if (result.kind === 'conflict') {
+          const reasons = { changed: 'changed outside Deep Fryer', missing: 'moved or deleted', readonly: 'read-only or not writable', stale: 'no longer authorized in this session', unsafe: 'a link or no longer a regular file' }
+          owner.report({ kind: 'error', text: `The project is ${reasons[result.reason]}. Reopen it or use Save project as… to make a separate copy. Your edit is unchanged.` })
+        } else owner.report({ kind: 'error', text: result.message })
+        return false
+      }
+      await replaceBaseline({ kind: 'saved', document, target: result.target })
+      owner.report({ kind: 'success', text: `Saved ${result.target.name}.` })
+      return true
+    } finally { activity.value = previousActivity }
   }
   async function confirmLeaving(): Promise<boolean> {
     owner.finishGesture()
@@ -95,14 +100,18 @@ export function useDocumentFiles(owner: DocumentOwner) {
     if (choice === 'discard') return true
     return saveCurrent()
   }
-  async function run(operation: FileOperation, action: () => Promise<void>, allowRecovery = false, allowProcessing = false): Promise<void> {
+  async function run(operation: FileOperation | 'saving-project', action: () => Promise<void>, allowRecovery = false, allowProcessing = false): Promise<void> {
     if (locked.value || owner.fileBusy.value || owner.busy.value && !allowProcessing || recoveryOffer.value && !allowRecovery) return
     cancelCheckpoint()
     try { owner.finishGesture() } catch (error) { owner.report({ kind: 'error', text: describeError(error) }); return }
-    active.value = true
-    owner.setOperation(operation)
+    activity.value = operation === 'saving-project' ? operation : 'file-action'
+    owner.setOperation(operation === 'saving-project' ? 'idle' : operation)
     try { await action() } catch (error) { owner.report({ kind: 'error', text: describeError(error) }) }
-    finally { owner.finishOperation(); active.value = false; scheduleCheckpoint() }
+    finally {
+      if (operation !== 'saving-project') owner.finishOperation()
+      activity.value = 'idle'
+      scheduleCheckpoint()
+    }
   }
   async function load(provider: () => Promise<OpenImage | null>): Promise<void> {
     await run('opening', async () => {
@@ -144,7 +153,7 @@ export function useDocumentFiles(owner: DocumentOwner) {
   }
   async function saveProject(suggestedName?: string): Promise<void> {
     if (!owner.source()) return
-    await run('exporting', async () => {
+    await run('saving-project', async () => {
       await saveCurrent(suggestedName)
     }, false, true)
   }
@@ -208,9 +217,9 @@ export function useDocumentFiles(owner: DocumentOwner) {
     cancelCheckpoint()
     owner.cancelPreparation()
     try {
-      if (active.value || recoveryState.value !== 'checking' && owner.fileBusy.value) {
+      if (activity.value !== 'idle' || recoveryState.value !== 'checking' && owner.fileBusy.value) {
         await new Promise<void>((resolve) => {
-          const stop = watch(() => active.value || owner.fileBusy.value, (busy) => { if (!busy) { stop(); resolve() } })
+          const stop = watch(() => activity.value !== 'idle' || owner.fileBusy.value, (busy) => { if (!busy) { stop(); resolve() } })
         })
       }
       const accepted = await confirmLeaving()
@@ -226,7 +235,7 @@ export function useDocumentFiles(owner: DocumentOwner) {
   }
   const stopClose = window.documentBridge.onCloseRequested((request) => { void close(request) })
   onUnmounted(() => { cancelCheckpoint(); stopClose() })
-  return { dirty, target, locked, load, recoveryOffer, recoveryStatus, scheduleCheckpoint, cancelCheckpoint, checkRecovery, restoreRecovery, discardRecovery,
+  return { dirty, target, locked, savingProject, load, recoveryOffer, recoveryStatus, scheduleCheckpoint, cancelCheckpoint, checkRecovery, restoreRecovery, discardRecovery,
     openImage: () => load(() => window.imageBridge.openImage()), pasteImage: () => load(() => window.imageBridge.pasteImage()),
     openProject, saveProject, loadPreset, savePreset, drop }
 }

@@ -2,12 +2,14 @@ import { _electron as electron, expect, test, type ElectronApplication, type Pag
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { chooseUnsaved, closeDiscardingChanges, fileAction, interruptForRecovery, openOutput, ready } from './ui'
+import { traceElectron, fileOperationComplete, chooseUnsaved, closeDiscardingChanges, fileAction, interruptForRecovery, openOutput, ready } from './ui'
 import { PNG } from 'pngjs'
 
 async function launch(folder: string): Promise<ElectronApplication> {
   const executable = process.env.DEEP_FRYER_EXECUTABLE ?? process.env.ELECTRON_EXECUTABLE_PATH
-  return electron.launch({ ...(executable ? { executablePath: executable } : {}), args: [...(process.env.DEEP_FRYER_EXECUTABLE ? [] : [resolve('.')]), `--user-data-dir=${folder}`], env: { ...process.env, ELECTRON_RENDERER_URL: '' } })
+  const app = await electron.launch({ ...(executable ? { executablePath: executable } : {}), args: [...(process.env.DEEP_FRYER_EXECUTABLE ? [] : [resolve('.')]), `--user-data-dir=${folder}`], env: { ...process.env, ELECTRON_RENDERER_URL: '' } })
+  await traceElectron(app)
+  return app
 }
 async function demo(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Try demo', exact: true }).click()
@@ -26,6 +28,7 @@ async function pixels(page: Page): Promise<string> {
 async function saveProject(app: ElectronApplication, page: Page, path: string): Promise<void> {
   await app.evaluate(({ dialog }, path) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: path }) }, path)
   await fileAction(page, 'Save project as…')
+  await fileOperationComplete(page)
   await expect(page.getByRole('status')).toContainText('Saved')
 }
 
@@ -122,6 +125,8 @@ test('caption-only dirty state, canceled save and native close, IME completion a
     await ready(page)
     await app.evaluate(({ dialog }) => { dialog.showSaveDialog = async () => ({ canceled: true, filePath: '' }) })
     await fileAction(page, 'Save project as…')
+    await fileOperationComplete(page)
+    await expect(page.getByRole('status')).toContainText('Project save canceled')
     await expect(page.getByLabel('Unsaved project')).toBeVisible()
     await chooseUnsaved(app, 'cancel')
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.close())
@@ -285,6 +290,7 @@ test('missing and delayed worker font keeps savable text and rejects stale capti
     await top.blur()
     await app.evaluate(({ dialog }) => { dialog.showSaveDialog = async () => { throw new Error('Ordinary Save must use its existing project') } })
     await page.keyboard.press('Control+s')
+    await fileOperationComplete(page)
     await expect(page.getByRole('status')).toContainText('Saved missing-font.deepfryer')
     await expect(page.getByLabel('Unsaved project')).toHaveCount(0)
     expect(JSON.parse(await readFile(join(folder, 'missing-font.deepfryer'), 'utf8')).edit.composition.captions.top).toBe('Latest caption')

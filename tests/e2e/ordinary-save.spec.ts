@@ -8,7 +8,7 @@ import { newPreset } from '../../src/shared/preset'
 import { newEdit } from '../../src/shared/edit'
 import { projectTargetIdSchema } from '../../src/shared/documents'
 import { randomUUID } from 'node:crypto'
-import { chooseUnsaved, controls, fileAction, ready } from './ui'
+import { PROJECT_FILE_OPERATION_MS, projectSaved, traceElectron, finishElectronTrace, fileOperationComplete, chooseUnsaved, controls, fileAction, ready } from './ui'
 import { aclFixture } from '../windows-acl-fixture'
 import type { FileHandle } from 'node:fs/promises'
 
@@ -29,6 +29,7 @@ async function setup() {
   const app = await electron.launch({ ...(executable ? { executablePath: executable } : {}),
     args: [...(process.env.DEEP_FRYER_EXECUTABLE ? [] : [resolve('.')]), `--user-data-dir=${join(folder, 'profile')}`],
     env: { ...process.env, ELECTRON_RENDERER_URL: '' } })
+  await traceElectron(app)
   const launcher = app.process()
   const page = await app.firstWindow()
   const runtime = await app.evaluate(({ app }) => ({ mainPid: process.pid, executable: process.execPath, ownedPids: app.getAppMetrics().map(({ pid }) => pid) }))
@@ -45,6 +46,7 @@ async function selectOpen(app: ElectronApplication, path: string): Promise<void>
 async function openProject(app: ElectronApplication, page: Page, path: string): Promise<void> {
   await selectOpen(app, path)
   await fileAction(page, 'Open project')
+  await fileOperationComplete(page)
   await ready(page)
 }
 
@@ -66,7 +68,7 @@ async function edit(page: Page, value: string): Promise<void> {
 
 async function save(page: Page): Promise<void> {
   await page.keyboard.press('Control+s')
-  await expect(page.getByLabel('Unsaved project', { exact: true })).toHaveCount(0)
+  await projectSaved(page)
   await ready(page)
   await expect(page.getByRole('dialog', { name: 'Save project as', exact: true })).toHaveCount(0)
 }
@@ -79,6 +81,7 @@ async function caption(page: Page, top: string): Promise<void> {
 }
 
 async function cleanup(app: ElectronApplication, folder: string): Promise<void> {
+  await finishElectronTrace(app)
   const owned = ownedApplications.get(app)
   if (!owned) throw new Error(`Electron launch ownership is missing; retained ${folder}`)
   const child = owned.launcher
@@ -114,6 +117,7 @@ test('first Ctrl+S chooses a project, repeated Ctrl+S saves exact edits and undo
     await page.keyboard.press('Control+s')
     await expect(page.getByRole('dialog', { name: 'Save project as', exact: true })).toBeVisible()
     await page.getByRole('button', { name: 'Save as…', exact: true }).click()
+    await fileOperationComplete(page)
     await expect(page.getByLabel('Unsaved project', { exact: true })).toHaveCount(0)
     await forbidChooser(app)
     for (const value of ['25', '50']) {
@@ -151,6 +155,7 @@ test('native Open authorizes Save and explicit Save As switches the target only 
       const originalB = await readFile(b)
       await selectSave(app, destination)
       await fileAction(page, 'Save project as…')
+      await fileOperationComplete(page)
       await expect(page.getByRole('status')).toContainText(destination ? 'already exists' : 'Project save canceled')
       expect(await readFile(b)).toEqual(originalB)
       await expect(page.getByLabel('Unsaved project', { exact: true })).toHaveCount(0)
@@ -158,6 +163,7 @@ test('native Open authorizes Save and explicit Save As switches the target only 
     const copy = join(folder, 'copy.deepfryer')
     await selectSave(app, copy)
     await fileAction(page, 'Save project as…')
+    await fileOperationComplete(page)
     await expect(page.getByRole('status')).toContainText('Saved copy.deepfryer')
     await forbidChooser(app)
     await edit(page, '50')
@@ -218,6 +224,7 @@ test('a delayed Save As writes the complete caption snapshot and later edits sta
       if (typeof release !== 'function') throw new Error('Save chooser was not pending')
       release()
     })
+    await fileOperationComplete(page)
     await expect(page.getByRole('status')).toContainText('Saved delayed.deepfryer')
     await expect(page.getByLabel('Unsaved project', { exact: true })).toHaveCount(0)
     const submitted = parseProject(await readFile(copy, 'utf8'))
@@ -241,6 +248,7 @@ test('unrenderable captions ordinary-save and reopen clean with all words retain
     await expect(page.locator('.caption-controls [role=alert]')).toContainText('Anton does not include')
     await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeDisabled()
     await fileAction(page, 'Save project')
+    await fileOperationComplete(page)
     await expect(page.getByRole('status')).toContainText('Saved a.deepfryer')
     await expect(page.getByLabel('Unsaved project', { exact: true })).toHaveCount(0)
     expect(parseProject(await readFile(a, 'utf8')).edit.composition.captions).toMatchObject({ top: text, bottom: 'BOTTOM' })
@@ -321,6 +329,7 @@ for (const outcome of ['save', 'cancel', 'discard', 'invalid', 'publish-failure'
       } else await chooseUnsaved(app, outcome === 'save-conflict' ? 'save' : outcome)
       await selectOpen(app, b)
       await fileAction(page, 'Open project')
+      await fileOperationComplete(page)
       await ready(page)
       if (outcome === 'save' || outcome === 'discard') {
         await expect(page.locator('.filename')).toHaveText('candidate.png')
@@ -374,6 +383,7 @@ for (const change of ['same-size', 'missing', 'readonly'] as const) {
       const copy = join(folder, 'separate.deepfryer')
       await selectSave(app, copy)
       await fileAction(page, 'Save project as…')
+      await fileOperationComplete(page)
       await expect(page.getByRole('status')).toContainText('Saved separate.deepfryer')
       expect(parseProject(await readFile(copy, 'utf8')).edit.preset.effects[0]).toMatchObject({ value: 25 })
       if (change === 'missing') expect(await readFile(a).then(() => true).catch(() => false)).toBe(false)
@@ -396,6 +406,7 @@ for (const version of ['v1', 'v2']) test(`${version} Ctrl+S creates a v3 copy an
     await page.keyboard.press('Control+s')
     await expect(page.getByRole('dialog', { name: 'Save project as', exact: true })).toBeVisible()
     await page.getByRole('button', { name: 'Save as…', exact: true }).click()
+    await fileOperationComplete(page)
     await expect(page.getByLabel('Unsaved project', { exact: true })).toHaveCount(0)
     expect(JSON.parse(await readFile(copy, 'utf8')).version).toBe(CURRENT_PROJECT_VERSION)
     await forbidChooser(app)
@@ -412,6 +423,7 @@ test('Save in the File menu updates the authorized project and a native close us
     await forbidChooser(app)
     await edit(page, '25')
     await fileAction(page, 'Save project')
+    await fileOperationComplete(page)
     await expect(page.getByLabel('Unsaved project', { exact: true })).toHaveCount(0)
     expect(parseProject(await readFile(a, 'utf8')).edit.preset.effects[0]).toMatchObject({ value: 25 })
     await edit(page, '50')
@@ -421,7 +433,7 @@ test('Save in the File menu updates the authorized project and a native close us
     await expect(page.getByLabel('Unsaved project', { exact: true })).toBeVisible()
     await chooseUnsaved(app, 'save')
     await app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0]?.close() }).catch(() => {})
-    await expect.poll(() => page.isClosed()).toBe(true)
+    await expect.poll(() => page.isClosed(), { timeout: PROJECT_FILE_OPERATION_MS }).toBe(true)
     expect(parseProject(await readFile(a, 'utf8')).edit.preset.effects[0]).toMatchObject({ value: 50 })
     await app.close()
   } finally { await cleanup(app, folder) }
@@ -455,7 +467,7 @@ test('close queued while candidate B is selected saves A before adopting B and c
       if (typeof release !== 'function') throw new Error('Missing candidate chooser')
       release()
     })
-    await expect.poll(() => page.isClosed()).toBe(true)
+    await expect.poll(() => page.isClosed(), { timeout: 2 * PROJECT_FILE_OPERATION_MS }).toBe(true)
     expect(parseProject(await readFile(a, 'utf8')).edit.preset.effects[0]).toMatchObject({ value: 25 })
     expect(parseProject(await readFile(a, 'utf8')).edit.composition.captions).toMatchObject({ top: 'KEEP A', bottom: 'BOTTOM' })
     expect(await readFile(b)).toEqual(bBefore)
@@ -547,6 +559,7 @@ test('unavailable Windows security helper retains the edit and baseline and perm
     await ready(page)
     await selectSave(app, join(folder, 'copy.deepfryer'))
     await fileAction(page, 'Save project as…')
+    await fileOperationComplete(page)
     await expect(page.getByLabel('Unsaved project', { exact: true })).toHaveCount(0)
     expect(await readFile(a)).toEqual(before)
   } finally {

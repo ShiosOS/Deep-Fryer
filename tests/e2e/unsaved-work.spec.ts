@@ -3,16 +3,18 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { PNG } from 'pngjs'
-import { chooseUnsaved, closeDiscardingChanges, controls, exportImage, fileAction, ready, interruptForRecovery } from './ui'
+import { PROJECT_FILE_OPERATION_MS, traceElectron, fileOperationComplete, chooseUnsaved, closeDiscardingChanges, controls, exportImage, fileAction, ready, interruptForRecovery } from './ui'
 import { parseProject } from '../../src/main/document-files'
 
 async function launch(profile: string): Promise<ElectronApplication> {
   const executable = process.env.DEEP_FRYER_EXECUTABLE ?? process.env.ELECTRON_EXECUTABLE_PATH
-  return electron.launch({
+  const app = await electron.launch({
     ...(executable ? { executablePath: executable } : {}),
     args: [...(process.env.DEEP_FRYER_EXECUTABLE ? [] : [resolve('.')]), `--user-data-dir=${profile}`],
     env: { ...process.env, ELECTRON_RENDERER_URL: '' }
   })
+  await traceElectron(app)
+  return app
 }
 
 async function choose(app: ElectronApplication, response: number): Promise<void> {
@@ -30,6 +32,7 @@ async function nativeClose(app: ElectronApplication, quit = false): Promise<void
 async function open(app: ElectronApplication, page: Page, path: string): Promise<void> {
   await app.evaluate(({ dialog }, path) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] }) }, path)
   await fileAction(page, 'Open image')
+  await fileOperationComplete(page)
   await ready(page)
 }
 
@@ -168,6 +171,7 @@ test('only project save cleans the document and undo to its saved values is clea
     const project = join(folder, 'saved.deepfryer')
     await saveTo(app, project)
     await fileAction(page, 'Save project as…')
+    await fileOperationComplete(page)
     await expect(dirty).toHaveCount(0)
     const brightness = (await controls(page)).getByRole('spinbutton', { name: 'Brightness value' })
     await brightness.fill('50')
@@ -181,6 +185,7 @@ test('only project save cleans the document and undo to its saved values is clea
     await ready(page)
     await saveTo(app, null)
     await fileAction(page, 'Save project as…')
+    await fileOperationComplete(page)
     await expect(page.getByRole('status')).toContainText('Project save canceled')
     await expect(dirty).toBeVisible()
     await page.getByRole('button', { name: 'Undo', exact: true }).click()
@@ -199,11 +204,13 @@ test('project replacement validates first, then cancel preserves and discard ope
     await app.evaluate(({ dialog }, path) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] }) }, project)
     await choose(app, 2)
     await fileAction(page, 'Open project')
+    await fileOperationComplete(page)
     await ready(page)
     expect(await pixels(page)).toBe(before)
     await expect(page.getByLabel('Unsaved project', { exact: true })).toBeVisible()
     await choose(app, 1)
     await fileAction(page, 'Open project')
+    await fileOperationComplete(page)
     await ready(page)
     await expect(page.getByLabel('Unsaved project', { exact: true })).toHaveCount(0)
     await nativeClose(app)
@@ -289,7 +296,7 @@ test('close saves editable values while full rendering is still pending', async 
     await saveTo(app, project)
     await choose(app, 0)
     await nativeClose(app)
-    await expect.poll(() => page.isClosed()).toBe(true)
+    await expect.poll(() => page.isClosed(), { timeout: PROJECT_FILE_OPERATION_MS }).toBe(true)
     expect(parseProject(await readFile(project, 'utf8')).edit.preset.effects[0]).toMatchObject({ kind: 'brightness', value: 67 })
   } finally { await cleanup(app, folder) }
 })
@@ -365,6 +372,7 @@ test('a close queued during preset load guards the newly applied settings', asyn
     const initialProject = join(folder, 'initial.deepfryer')
     await saveTo(app, initialProject)
     await fileAction(page, 'Save project as…')
+    await fileOperationComplete(page)
     await expect(page.getByLabel('Unsaved project', { exact: true })).toHaveCount(0)
     const presetPath = join(folder, 'loaded.frypreset')
     const initial = JSON.parse(await readFile(initialProject, 'utf8'))

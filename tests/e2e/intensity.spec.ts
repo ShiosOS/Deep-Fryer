@@ -1,4 +1,4 @@
-import { closeDiscardingChanges, fileAction, controls } from './ui'
+import { traceElectron, fileOperationComplete, closeDiscardingChanges, fileAction, controls } from './ui'
 import { _electron as electron, expect, test } from '@playwright/test'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -8,6 +8,7 @@ test('5x controls produce stronger pixels, expose native values, and keep effect
   const folder = await mkdtemp(join(tmpdir(), 'deep-fryer-intensity-'))
   const executable = process.env.DEEP_FRYER_EXECUTABLE ?? process.env.ELECTRON_EXECUTABLE_PATH
   const app = await electron.launch({ ...(executable ? { executablePath: executable } : {}), args: [...(process.env.DEEP_FRYER_EXECUTABLE ? [] : [resolve('.')]), `--user-data-dir=${join(folder, 'profile')}`], env: { ...process.env, ELECTRON_RENDERER_URL: '' } })
+  await traceElectron(app)
   try {
     const page = await app.firstWindow()
     const errors: string[] = []
@@ -33,6 +34,7 @@ test('5x controls produce stronger pixels, expose native values, and keep effect
     const destination = join(folder, 'five.deepfryer')
     await app.evaluate(({ dialog }, path) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: path }) }, destination)
     await fileAction(page, 'Save project as…')
+    await fileOperationComplete(page)
     await expect(page.getByRole('status')).toContainText('Saved five.deepfryer')
     const saved = JSON.parse(await readFile(destination, 'utf8'))
     expect(saved.edit.preset.effects.find((effect: { kind: string }) => effect.kind === 'contrast')).toMatchObject({ value: 500, mix: 62 })
