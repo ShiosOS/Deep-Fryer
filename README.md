@@ -80,7 +80,7 @@ Saves require a new filename. Existing files, including the source, stay protect
 
 ## Help and project information
 
-[Support](SUPPORT.md) · [Report a bug](https://github.com/ShiosOS/Deep-Fryer/issues/new/choose) · [Security](SECURITY.md) · [Roadmap](docs/roadmap.md)
+[Support](SUPPORT.md) · [Report a bug](https://github.com/ShiosOS/Deep-Fryer/issues/new/choose) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [Roadmap](docs/roadmap.md)
 
 For development, start with the [developer guide](docs/development.md), [architecture](docs/architecture.md), and [contribution guide](CONTRIBUTING.md).
 
