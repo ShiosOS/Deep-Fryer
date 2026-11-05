@@ -171,9 +171,49 @@ test('upgrade save rejects an earlier identical Saved notice when the new action
       }, true)
     })
     const before = await readFile(path)
-    await expect(saveUpgradeFile({ app, page, name: 'Save project as…', path, candidate: true })).rejects.toThrow('This upgrade save must start a new file operation')
+    await expect(saveUpgradeFile({ app, page, name: 'Save project as…', path, candidate: true })).rejects.toThrow('This upgrade save must start and complete a new file operation')
     expect(await readFile(path)).toEqual(before)
     await expect(page.locator('.notice')).toHaveText('Saved continued-in-candidate.deepfryer.')
     await page.getByRole('button', { name: 'Cancel', exact: true }).click()
   } finally { await cleanup(state) }
+})
+
+test('upgrade save still fails when the same acknowledgement exceeds the finite operation contract', async () => {
+  const state = await setup()
+  const { app, page, folder, previous } = state
+  try {
+    await openProject(app, page, previous)
+    await app.evaluate(({ ipcMain }) => {
+      const handlers = Reflect.get(ipcMain, '_invokeHandlers')
+      if (!(handlers instanceof Map)) throw new Error('Electron IPC handlers unavailable')
+      const original = handlers.get('document:save-project-as')
+      if (typeof original !== 'function') throw new Error('Save As handler missing')
+      const held = { result: '', release: () => {} }
+      const released = new Promise<void>(resolve => { held.release = resolve })
+      Reflect.set(globalThis, '__pendingUpgradeSave', held)
+      ipcMain.removeHandler('document:save-project-as')
+      ipcMain.handle('document:save-project-as', async (...args) => {
+        const result = await original(...args)
+        held.result = result.kind
+        await released
+        return result
+      })
+    })
+    const path = join(folder, 'continued-in-candidate.deepfryer')
+    const error: unknown = await saveUpgradeFile({ app, page, name: 'Save project as…', path, candidate: true }).then(() => null, (error: unknown) => error)
+    const pending = await app.evaluate(() => Reflect.get(globalThis, '__pendingUpgradeSave').result)
+    await page.screenshot({ path: test.info().outputPath('pending-at-deadline.png') })
+    await writeFile(test.info().outputPath('finite-deadline.json'), JSON.stringify({ error: String(error), result: pending, budgetMs: PROJECT_FILE_OPERATION_MS }))
+    expect(pending).toBe('saved')
+    expect(String(error)).toContain('This upgrade save must start and complete a new file operation')
+    expect(String(error)).toContain(`Timeout ${PROJECT_FILE_OPERATION_MS}ms exceeded`)
+    await expect(page.locator('.notice')).toHaveText('Saving project…')
+    await expect(page.locator('.open-button')).toBeDisabled()
+    expect(parseProject(await readFile(path, 'utf8'))).toEqual(parseProject(await readFile(previous, 'utf8')))
+    await app.evaluate(() => Reflect.get(globalThis, '__pendingUpgradeSave').release())
+    await projectSaved(page, 'Saved continued-in-candidate.deepfryer.')
+  } finally {
+    await app.evaluate(() => Reflect.get(globalThis, '__pendingUpgradeSave')?.release()).catch(() => {})
+    await cleanup(state)
+  }
 })

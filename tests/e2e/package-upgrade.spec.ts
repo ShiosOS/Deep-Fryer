@@ -1,4 +1,4 @@
-import { closeDiscardingChanges, controls, fileAction } from './ui'
+import { closeDiscardingChanges, controls, fileAction, traceElectron } from './ui'
 import { legacyAction, legacyExportAction, legacyPresetFilename } from '../fixtures/legacy-ui'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
 import { createHash } from 'node:crypto'
@@ -19,6 +19,7 @@ async function launch(folder: string, version: string): Promise<ElectronApplicat
   const app = await electron.launch({ executablePath, args: [`--user-data-dir=${join(folder, 'profile')}`], env: { ...process.env, ELECTRON_RENDERER_URL: '' } })
   expect(await app.evaluate(({ app }) => app.getVersion())).toBe(version)
   expect(await app.evaluate(({ app }) => app.isPackaged)).toBe(true)
+  if (candidate) await traceElectron(app)
   return app
 }
 
