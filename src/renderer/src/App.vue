@@ -12,6 +12,9 @@ import appIcon from './assets/minimal-app-icon.svg'
 import demoImage from './assets/demo/toast-cat.png'
 import BulgeOverlay from './BulgeOverlay.vue'
 import DocumentControls from './DocumentControls.vue'
+import CaptionControls from './CaptionControls.vue'
+import { CaptionRenderError } from './caption-layout'
+import type { Composition } from '../../shared/composition'
 import { describeError, useDocumentFiles } from './document-files'
 import { useImageCopy } from './copy-image'
 import { renderEditFrame } from './render-edit-frame'
@@ -43,6 +46,10 @@ const showing = ref<'edited' | 'original'>('edited')
 const history = useEditHistory(newEdit())
 const { edit } = history
 const preset = computed(() => edit.value.preset)
+const captionControls = ref<InstanceType<typeof CaptionControls> | null>(null)
+const presetControls = ref<InstanceType<typeof PresetControls> | null>(null)
+const captionError = ref('')
+let confirmedCaptions = false
 const restoreVersion = ref(0)
 const placingPoint = ref(false)
 const selectedPointId = ref<string | null>(null)
@@ -62,7 +69,7 @@ let disposed = false
 const fileBusy = computed(() => operation.value.kind === 'opening' || operation.value.kind === 'exporting' || copy.phase.value !== 'idle')
 const busy = computed(() => operation.value.kind !== 'idle' || copy.phase.value !== 'idle' || files.locked.value)
 const controlsBusy = computed(() => fileBusy.value || files.locked.value)
-const presetNeutral = computed(() => preset.value.effects.every(isNeutralEffect))
+const presetNeutral = computed(() => !edit.value.composition.captions && preset.value.effects.every(isNeutralEffect))
 const dimensions = computed(() => document.value ? `${document.value.bitmap.width.toLocaleString()} × ${document.value.bitmap.height.toLocaleString()}` : 'No image yet')
 const imageSize = computed<Size | null>(() => document.value ? { width: document.value.bitmap.width, height: document.value.bitmap.height } : null)
 const imageStyle = computed(() => {
@@ -182,7 +189,14 @@ async function publishImage(source: OpenImage, savedEdit: EditState, confirm: ()
     }
     const candidateDocument = { ...source, bitmap: candidate }
     const candidateEdit = editStateSchema.parse(savedEdit)
-    const editedPixels = await renderEditFrame(pixels, candidateEdit)
+    let editedPixels: ImageData
+    let candidateCaptionError = ''
+    try { editedPixels = await renderEditFrame(pixels, candidateEdit) }
+    catch (error) {
+      if (!(error instanceof CaptionRenderError)) throw error
+      candidateCaptionError = error.message
+      editedPixels = await renderEditFrame(pixels, newEdit(candidateEdit.preset))
+    }
     const candidateView = fitView({ width: candidate.width, height: candidate.height }, pane.value)
     if (!await confirm()) return false
     if (previous) previousFrame = context.getImageData(0, 0, canvas.value.width, canvas.value.height)
@@ -199,12 +213,14 @@ async function publishImage(source: OpenImage, savedEdit: EditState, confirm: ()
     document.value = candidateDocument
     history.reset(candidateEdit)
     confirmedFrame = editedPixels
+    confirmedCaptions = candidateEdit.composition.captions !== null
+    captionError.value = candidateCaptionError
     gestureActive.value = false
     selectedPointId.value = null
     placingPoint.value = false
     restoreVersion.value += 1
     renderRevision += 1
-    readyRevision.value = renderRevision
+    readyRevision.value = candidateCaptionError ? -1 : renderRevision
     if (renderTimer) clearTimeout(renderTimer)
     hasPreview = candidateHasPreview
     showing.value = 'edited'
@@ -213,7 +229,7 @@ async function publishImage(source: OpenImage, savedEdit: EditState, confirm: ()
     imageVersion.value += 1
     candidate = null
     previous?.bitmap.close()
-    notice.value = { kind: 'success', text: `${source.name} is ready. Your original stays untouched.` }
+    notice.value = candidateCaptionError ? { kind: 'error', text: candidateCaptionError } : { kind: 'success', text: `${source.name} is ready. Your original stays untouched.` }
     return true
   } catch (error) {
     if (publishing && previous && previousFrame && canvas.value && originalCanvas.value) {
@@ -243,9 +259,9 @@ async function publishImage(source: OpenImage, savedEdit: EditState, confirm: ()
 const files = useDocumentFiles({
   busy, fileBusy: computed(() => fileBusy.value || outputPanel.value?.busy === true),
   source: () => document.value, edit: () => snapshotEdit(edit.value),
-  ready: () => document.value !== null && readyRevision.value === renderRevision,
+  ready: () => document.value !== null && (readyRevision.value === renderRevision || edit.value.composition.captions !== null),
   gestureActive: () => gestureActive.value,
-  finishGesture: () => { history.end(); gestureActive.value = false },
+  finishGesture,
   cancelPreparation: () => { copy.cancelPreparation(); outputPanel.value?.cancelPreparation() },
   setOperation: (kind) => { operation.value = { kind } },
   finishOperation: () => { if (operation.value.kind === 'opening' || operation.value.kind === 'exporting') operation.value = { kind: 'idle' } },
@@ -263,6 +279,13 @@ function tryDemo(): void {
 
 function beginGesture(): void { if (controlsBusy.value) return; gestureActive.value = true; files.cancelCheckpoint(); history.begin() }
 function endGesture(): void { if (controlsBusy.value) return; history.end(); gestureActive.value = false; files.scheduleCheckpoint() }
+function finishGesture(): void { captionControls.value?.finish(); history.end(); gestureActive.value = false }
+
+function changeCaptions(composition: Composition): void {
+  if (!document.value || controlsBusy.value || !history.change({ ...edit.value, composition })) return
+  showing.value = 'edited'
+  scheduleRender(document.value)
+}
 
 function changePreset(settings: Preset): boolean {
   const source = document.value
@@ -285,6 +308,7 @@ function scheduleRender(source: ImageDocument): void {
   files.cancelCheckpoint()
   const revision = ++renderRevision
   const accepted = snapshotEdit(edit.value)
+  captionError.value = ''
   operation.value = { kind: 'processing' }
   notice.value = { kind: 'info', text: 'Processing effects…' }
   if (renderTimer) clearTimeout(renderTimer)
@@ -312,8 +336,7 @@ function deletePoint(id: string): void {
 
 function restoreFromHistory(direction: 'undo' | 'redo'): void {
   if (controlsBusy.value) return
-  history.end()
-  gestureActive.value = false
+  try { finishGesture() } catch (error) { notice.value = { kind: 'error', text: describeError(error) }; return }
   const priorPreset = JSON.stringify(preset.value)
   if (!(direction === 'undo' ? history.undo() : history.redo())) return
   if (JSON.stringify(preset.value) !== priorPreset) restoreVersion.value += 1
@@ -324,6 +347,14 @@ function cancelPending(): void {
   if (controlsBusy.value || !document.value || !confirmedFrame || readyRevision.value === renderRevision) return
   renderRevision += 1
   if (renderTimer) { clearTimeout(renderTimer); renderTimer = null }
+  if (edit.value.composition.captions || confirmedCaptions) {
+    canvas.value?.getContext('2d')?.putImageData(confirmedFrame, 0, 0)
+    operation.value = { kind: 'idle' }
+    captionError.value = 'Preview stopped. Your edit is kept. Retry the preview to copy or export.'
+    notice.value = { kind: 'info', text: captionError.value }
+    files.scheduleCheckpoint()
+    return
+  }
   history.rollback()
   restoreVersion.value += 1
   const context = canvas.value?.getContext('2d')
@@ -346,7 +377,10 @@ worker.onmessage = (event: MessageEvent<WorkerResponse>): void => {
   if (result.kind === 'failed') {
     if (result.quality === 'preview') return
     notice.value = { kind: 'error', text: result.message }
+    if (result.category === 'caption') captionError.value = result.message
     operation.value = { kind: 'idle' }
+    if (confirmedFrame) canvas.value?.getContext('2d')?.putImageData(confirmedFrame, 0, 0)
+    files.scheduleCheckpoint()
     return
   }
   if (result.quality === 'preview' && readyRevision.value === result.revision) return
@@ -369,6 +403,8 @@ worker.onmessage = (event: MessageEvent<WorkerResponse>): void => {
   }
   context.putImageData(frame, 0, 0)
   confirmedFrame = frame
+  confirmedCaptions = edit.value.composition.captions !== null
+  captionError.value = ''
   history.confirm()
   readyRevision.value = result.revision
   files.scheduleCheckpoint()
@@ -404,7 +440,8 @@ async function copyImage(): Promise<void> {
 }
 
 function openSaveName(kind: 'project' | 'preset'): void {
-  if (!document.value || busy.value || readyRevision.value !== renderRevision) return
+  if (!document.value || controlsBusy.value) return
+  try { finishGesture() } catch (error) { notice.value = { kind: 'error', text: describeError(error) }; return }
   void nameDialog.value?.open(kind, document.value.name)
 }
 function saveNamed(kind: 'project' | 'preset', name: string): void {
@@ -483,7 +520,7 @@ onUnmounted(() => {
         <span class="header-divider" aria-hidden="true"></span>
         <button type="button" class="icon-button" aria-label="Help" title="Help" @click="helpDialog?.open()"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 2-2.5 2-2.5 4m0 3h.01"/></svg></button>
         <button type="button" class="icon-button" aria-label="Settings" :title="appearance.notice.value ? 'Settings need attention' : 'Settings'" @click="settingsDialog?.open()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 3-.6 2.3-2 .9-2.1-.7-2 3.4 1.6 1.7v2.3l-1.6 1.7 2 3.4 2.2-.6 1.9 1 .6 2.2h4l.6-2.3 2-.9 2.1.6 2-3.4-1.6-1.7v-2.3l1.6-1.7-2-3.4-2.2.7-1.9-1L14 3Z"/><circle cx="12" cy="12" r="3"/></svg><span v-if="appearance.notice.value" class="settings-attention" aria-hidden="true"></span></button>
-        <DocumentControls :busy="busy" :has-image="document !== null" :ready="readyRevision === renderRevision" :recovery-status="files.recoveryStatus.value" :recovery-offer="files.recoveryOffer.value" @open-image="openImage" @open-project="files.openProject" @save-project="openSaveName('project')" @paste-image="files.pasteImage" @restore-recovery="files.restoreRecovery" @discard-recovery="files.discardRecovery" />
+        <DocumentControls :busy="busy" :save-busy="controlsBusy" :has-image="document !== null" :recovery-status="files.recoveryStatus.value" :recovery-offer="files.recoveryOffer.value" @open-image="openImage" @open-project="files.openProject" @save-project="openSaveName('project')" @paste-image="files.pasteImage" @restore-recovery="files.restoreRecovery" @discard-recovery="files.discardRecovery" />
         <button type="button" class="copy-button" aria-label="Copy image" :disabled="busy || !document || readyRevision !== renderRevision" aria-keyshortcuts="Control+Shift+C Meta+Shift+C" @click="copyImage"><span aria-hidden="true">{{ copyAcknowledged ? 'Image copied' : 'Copy image' }}</span><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V3H3v13h5"/></svg></button>
         <span class="sr-only" aria-live="polite" aria-atomic="true">{{ copyAcknowledged ? 'Image copied.' : '' }}</span>
         <button type="button" class="primary export-button" :disabled="busy || !document || readyRevision !== renderRevision" aria-keyshortcuts="Control+Shift+S Meta+Shift+S" @click="exportOutput">Export<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m-4 4 4-4 4 4M4 14v6h16v-6"/></svg></button>
@@ -491,10 +528,12 @@ onUnmounted(() => {
     </header>
     <div class="workspace">
       <aside class="sidebar" aria-label="Image controls">
-        <PresetControls v-if="document" :key="imageVersion" :preset="preset" :bitmap="document.bitmap" :restore-version="restoreVersion" :disabled="controlsBusy" @preview-status="lookPreviewStatus = $event" @change="changePreset" @gesture-begin="beginGesture" @gesture-end="endGesture" @load-preset="files.loadPreset" @save-preset="openSaveName('preset')" />
+        <CaptionControls v-if="document" ref="captionControls" :key="imageVersion" :composition="edit.composition" :disabled="controlsBusy" :render-error="captionError" @change="changeCaptions" @gesture-begin="beginGesture" @gesture-end="endGesture" @opened="presetControls?.collapseGallery()" @error="notice = { kind: 'error', text: $event }" />
+        <PresetControls v-if="document" ref="presetControls" :key="imageVersion" :preset="preset" :bitmap="document.bitmap" :restore-version="restoreVersion" :disabled="controlsBusy" @preview-status="lookPreviewStatus = $event" @change="changePreset" @gesture-begin="beginGesture" @gesture-end="endGesture" @load-preset="files.loadPreset" @save-preset="openSaveName('preset')" />
         <p v-else class="inspector-empty">Open an image to choose a preset and adjust its effects.</p>
         <EffectsPanel v-if="document" :key="imageVersion" :preset="preset" :restore-version="restoreVersion" :selected-point-id="selectedPointId" :disabled="controlsBusy" @change="changePreset" @gesture-begin="beginGesture" @gesture-end="endGesture" @select-point="selectedPointId = $event; showing = 'edited'" />
-        <button v-if="document && readyRevision !== renderRevision" type="button" @click="cancelPending">Cancel pending changes</button>
+        <button v-if="document && operation.kind === 'processing'" type="button" @click="cancelPending">{{ edit.composition.captions || confirmedCaptions ? 'Stop preview' : 'Cancel pending changes' }}</button>
+        <button v-if="document && captionError && operation.kind !== 'processing'" type="button" :disabled="controlsBusy" @click="scheduleRender(document)">Retry preview</button>
       </aside>
       <main class="main-area">
         <div class="notice" :class="notice.kind" role="status" aria-live="polite">{{ operation.kind === 'processing' ? 'Processing image…' : notice.kind === 'error' ? notice.text : document && lookPreviewStatus.kind !== 'ready' ? lookPreviewStatus.message : notice.text }}</div>
@@ -506,7 +545,7 @@ onUnmounted(() => {
           <div class="image-plane" v-show="document" :style="imageStyle"><canvas ref="canvas" v-show="showing === 'edited'" aria-label="Edited full resolution image canvas"></canvas><canvas ref="originalCanvas" v-show="showing === 'original'" aria-label="Original full resolution image canvas"></canvas></div>
           <BulgeOverlay v-if="document && view && imageSize && showing === 'edited'" :points="bulgePoints" :selected-id="selectedPointId" :view="view" :pane="pane" :image="imageSize" @select="selectedPointId = $event" @change="movePoint" @delete="deletePoint" @gesture-begin="beginGesture" @gesture-end="endGesture" />
           <div class="empty-state" v-if="!document"><img :src="appIcon" alt=""><h1>Open your first image.</h1><p>Choose a PNG or JPEG, paste an image, or drop a file here.</p><div class="empty-actions"><button class="primary" :disabled="busy" @click="openImage">Choose an image</button><button type="button" :disabled="busy" @click="tryDemo">Try demo</button></div></div>
-          <span class="canvas-caption" v-if="document">{{ dimensions }} px</span>
+          <span class="canvas-caption" v-if="document && !edit.composition.captions">{{ dimensions }} px</span>
         </section>
       </main>
     </div>

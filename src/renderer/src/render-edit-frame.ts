@@ -1,6 +1,7 @@
 import { isNeutralEffect } from '../../shared/preset'
 import type { EditState } from '../../shared/edit'
 import type { WorkerRequest, WorkerResponse } from './effects-worker'
+import { CaptionRenderError } from './caption-layout'
 
 export async function renderEditFrame(source: ImageData, edit: EditState, signal?: AbortSignal): Promise<ImageData> {
   if (signal?.aborted) throw new Error('Image processing canceled.')
@@ -14,7 +15,7 @@ export async function renderEditFrame(source: ImageData, edit: EditState, signal
       worker.onerror = () => reject(new Error('The project image could not be processed. Your current edit is unchanged.'))
       worker.onmessage = (event: MessageEvent<WorkerResponse>) => {
         const result = event.data
-        if (result.kind === 'failed') reject(new Error(result.message))
+        if (result.kind === 'failed') reject(result.category === 'caption' ? new CaptionRenderError(result.message) : new Error(result.message))
         else resolve(new ImageData(result.pixels, result.width, result.height))
       }
       const pixels = new Uint8ClampedArray(source.data)

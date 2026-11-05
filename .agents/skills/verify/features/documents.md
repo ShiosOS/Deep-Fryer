@@ -7,7 +7,7 @@ Move an editable project without its source, reuse presets, and recover interrup
 - D1: Portable project, reusable preset, incompatible file rejection, and original protection.
 - D2: Independent project/preset/export names and canceled name/chooser dialogs.
 - D3: Recovery after interruption, fallback from corruption, discard, and profile ownership.
-- D4: Historical v1 compatibility and installed upgrade/return compatibility.
+- D4: Historical v1/v2 compatibility, v3 project rejection by older readers, and installed upgrade/return compatibility.
 - D5: Save project, Discard, or Cancel before replacing or closing unsaved work.
 
 ## How to get to it (user POV)

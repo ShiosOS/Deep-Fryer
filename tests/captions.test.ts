@@ -6,8 +6,26 @@ import { editStateSchema, newEdit, snapshotEdit } from '../src/shared/edit'
 import { encodeProject, parseProject, encodePreset } from '../src/main/document-files'
 import { useEditHistory } from '../src/renderer/src/edit-history'
 import { freezeOutput } from '../src/renderer/src/output'
+import { captionText, layoutCaptions, unsupportedCaptionGlyphs } from '../src/renderer/src/caption-layout'
 
 const captions: TopBottomCaptions = { kind: 'top-bottom-v1', font: 'anton-regular-v1', top: 'Keep My\nCase', bottom: 'Café', size: 0.1 }
+
+test('caption layout preserves words, graphemes and explicit lines within separate bands', () => {
+  const measure = (text: string, size: number) => ({ width: [...text].length * size * 0.6, ascent: size * 0.8, descent: size * 0.2 })
+  for (const frame of [{ width: 1000, height: 1800 }, { width: 1800, height: 1000 }]) {
+    const blocks = layoutCaptions({ ...captions, top: 'Keep My\nCase', bottom: 'longword'.repeat(8) }, frame, measure)
+    assert.equal(blocks.length, 2)
+    assert.deepEqual(blocks[0]!.lines.map(line => line.text), ['Keep My', 'Case'])
+    assert.equal(blocks[1]!.lines.map(line => line.text).join(''), 'longword'.repeat(8))
+    assert.ok(blocks.every(block => block.lines.length <= 3 && block.size >= 25 && block.size <= 100))
+    assert.ok(blocks[0]!.lines.every(line => line.y < frame.height * 0.3))
+    assert.ok(blocks[1]!.lines.every(line => line.y > frame.height * 0.7))
+  }
+  assert.throws(() => layoutCaptions({ ...captions, top: 'a\nb\nc\nd' }, { width: 1000, height: 1000 }, measure), /cannot fit in three lines/)
+  assert.equal(captionText('Cafe\u0301\r\nToast'), 'Café\nToast')
+  assert.deepEqual(unsupportedCaptionGlyphs('Café Đẹp\nToast'), [])
+  assert.deepEqual(unsupportedCaptionGlyphs('字🙂🙂'), ['字', '🙂'])
+})
 
 test('caption schema bounds text and size, rejects unknown contracts and canonicalizes whitespace', () => {
   assert.deepEqual(compositionSchema.parse({ captions: { ...captions, top: ' \n\t', bottom: '' } }), { captions: null })

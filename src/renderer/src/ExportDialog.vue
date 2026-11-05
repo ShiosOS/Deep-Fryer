@@ -170,7 +170,7 @@ defineExpose({ open: () => exportDialog.value?.open(), exportLabel, busy, cancel
     <label v-if="format !== 'png'">Quality<input v-model="quality" aria-label="Output quality" type="number" min="1" max="100" step="1" :disabled="disabled"></label>
     <label v-if="format === 'jpeg'">Transparency background<input v-model="background" aria-label="JPEG output background" type="color" :disabled="disabled"></label>
     <p>{{ format === 'jpeg' ? 'JPEG replaces transparency with this background.' : format === 'webp' ? 'WebP keeps transparency and uses lossy color compression.' : 'PNG keeps transparency and stores pixels losslessly.' }}</p>
-    <p>Resize first, then apply effects on the output pixel grid. Noise, sharpening and JPEG blocks follow the chosen output size.</p>
+    <p>Resize first, then apply effects on the output pixel grid. Noise, sharpening and JPEG blocks follow the chosen output size. Captions render last; changing the aspect ratio lays them out again.</p>
     <p v-if="validationError" class="control-error" role="alert">{{ validationError }}</p>
     <button type="button" :disabled="disabled || busy || !!validationError" @click="inspect">Inspect final output</button>
     <button v-if="inspection.kind === 'preparing'" type="button" @click="cancelPreparation?.()">Cancel output preparation</button>

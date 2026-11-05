@@ -84,10 +84,10 @@ export function useDocumentFiles(owner: DocumentOwner) {
     const name = owner.source()?.name.replace(/\.[^.]+$/, '') || 'Untitled'
     return saveCurrent(`${name}.deepfryer`)
   }
-  async function run(operation: FileOperation, action: () => Promise<void>, allowRecovery = false): Promise<void> {
-    if (locked.value || owner.busy.value || recoveryOffer.value && !allowRecovery) return
+  async function run(operation: FileOperation, action: () => Promise<void>, allowRecovery = false, allowProcessing = false): Promise<void> {
+    if (locked.value || owner.fileBusy.value || owner.busy.value && !allowProcessing || recoveryOffer.value && !allowRecovery) return
     cancelCheckpoint()
-    owner.finishGesture()
+    try { owner.finishGesture() } catch (error) { owner.report({ kind: 'error', text: describeError(error) }); return }
     active.value = true
     owner.setOperation(operation)
     try { await action() } catch (error) { owner.report({ kind: 'error', text: describeError(error) }) }
@@ -122,10 +122,10 @@ export function useDocumentFiles(owner: DocumentOwner) {
     })
   }
   async function saveProject(suggestedName: string): Promise<void> {
-    if (!owner.ready()) return
+    if (!owner.source()) return
     await run('exporting', async () => {
       await saveCurrent(suggestedName)
-    })
+    }, false, true)
   }
   async function loadPreset(): Promise<void> {
     if (!owner.source()) return
@@ -135,14 +135,14 @@ export function useDocumentFiles(owner: DocumentOwner) {
     })
   }
   async function savePreset(suggestedName: string): Promise<void> {
-    if (!owner.ready()) return
+    if (!owner.source()) return
     await run('exporting', async () => {
       const document = current()
       if (!document) return
       const result = await window.documentBridge.savePreset({ preset: document.edit.preset, suggestedName })
       if (result.kind === 'saved') owner.report({ kind: 'success', text: `Saved ${result.name}. This preset contains settings and its saved seed, without the source image.` })
       else owner.report({ kind: 'info', text: 'Preset save canceled. No file was saved.' })
-    })
+    }, false, true)
   }
   async function checkRecovery(): Promise<void> {
     owner.setOperation('opening')

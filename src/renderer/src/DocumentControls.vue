@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { RecoveryOffer } from '../../shared/documents'
 import { ref, watchEffect } from 'vue'
-const props = defineProps<{ busy: boolean; hasImage: boolean; ready: boolean; recoveryStatus: string; recoveryOffer: RecoveryOffer }>()
+const props = defineProps<{ busy: boolean; saveBusy: boolean; hasImage: boolean; recoveryStatus: string; recoveryOffer: RecoveryOffer }>()
 defineEmits<{ openImage: []; openProject: []; saveProject: []; pasteImage: []; restoreRecovery: []; discardRecovery: [] }>()
 const dialog = ref<HTMLDialogElement | null>(null)
 const menu = ref<HTMLDetailsElement | null>(null)
@@ -16,7 +16,7 @@ watchEffect(() => { if (props.recoveryOffer && dialog.value && !dialog.value.ope
         <button class="open-button" type="button" :disabled="busy" @click="$emit('openImage')">Open image<kbd>Ctrl O</kbd></button>
         <button type="button" :disabled="busy" @click="$emit('pasteImage')">Paste image</button>
         <button type="button" :disabled="busy" @click="$emit('openProject')">Open project</button>
-        <button type="button" :disabled="busy || !hasImage || !ready" @click="$emit('saveProject')">Save project as…</button>
+        <button type="button" :disabled="saveBusy || !hasImage" @click="$emit('saveProject')">Save project as…</button>
       </div>
       <p class="recovery-status" role="note">{{ recoveryStatus }}</p>
     </div>

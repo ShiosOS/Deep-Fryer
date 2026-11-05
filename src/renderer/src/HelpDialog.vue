@@ -4,8 +4,9 @@ import Modal from './Modal.vue'
 import { effectOptions, type EffectKind } from '../../shared/preset'
 import { effectHelp, helpImage } from './help-content'
 import contrastGif from './assets/help/contrast-demo.gif'
+import antonLicense from './assets/fonts/OFL.txt?raw'
 const modal = ref<InstanceType<typeof Modal> | null>(null)
-const tabs = ['Quick start', 'Effects', 'Layering', 'Points', 'Saving & export'] as const
+const tabs = ['Quick start', 'Effects', 'Layering', 'Points', 'Saving & export', 'Captions', 'Licenses'] as const
 const tab = ref(0)
 const selectedEffect = ref<EffectKind>('contrast')
 const help = computed(() => effectHelp[selectedEffect.value])
@@ -53,14 +54,28 @@ defineExpose({ open: () => { paused.value = reduced.matches; modal.value?.open()
         <div class="tip">Drag the numbered center to move a point. Focus its handle and use arrow keys for small moves, Shift + arrows for larger moves, or Delete to remove it. Effect strength blends the warp separately.</div>
         <details class="tech-detail"><summary>Technical detail</summary><p>Points are relative to the image and scale with export dimensions. Overlapping points apply in effect order. Radius fades to no displacement at its edge. Sampling respects transparency.</p></details>
       </template>
-      <template v-else>
+      <template v-else-if="tab === 4">
         <h3>Choose what to save</h3><p class="lead">Save a project to keep editing. Save a preset to reuse effects. Export an image to share the result.</p>
         <p>Use Copy image to paste the edited result into another app. It copies a full-size PNG with transparency, even while Original is shown. Export settings do not change the copy. Image copied appears beside Export after the clipboard accepts the image.</p>
-        <div class="file-choices"><div><strong>Project</strong><p>A .deepfryer file keeps the original image, ordered effects and noise seed.</p></div><div><strong>Preset</strong><p>A .frypreset file keeps effects, relative points and seed without the image.</p></div><div><strong>Exported image</strong><p>A finished PNG, JPEG or WebP. Each save dialog has its own editable name.</p></div></div>
-        <p><strong>PNG</strong> preserves transparency and adds no lossy compression. <strong>JPEG</strong> replaces transparency with your chosen background. <strong>WebP</strong> supports transparency with lossy compression.</p><p>Export keeps the original aspect ratio unless you unlock it. It resizes the source first, then applies effects at that size. Inspect final output shows the finished image at actual size. Save inspected snapshot saves the version shown. Renaming does not change its pixels. Changing the image, effects or output settings requires a new inspection.</p>
+        <div class="file-choices"><div><strong>Project</strong><p>A .deepfryer file keeps the original image, ordered effects, noise seed, and editable captions.</p></div><div><strong>Preset</strong><p>A .frypreset file keeps effects, relative points and seed without the image or captions.</p></div><div><strong>Exported image</strong><p>A finished PNG, JPEG or WebP. Each save dialog has its own editable name.</p></div></div>
+        <p><strong>PNG</strong> preserves transparency and adds no lossy compression. <strong>JPEG</strong> replaces transparency with your chosen background. <strong>WebP</strong> supports transparency with lossy compression.</p><p>Export keeps the original aspect ratio unless you unlock it. It resizes the source first, then applies effects at that size. Inspect final output shows the finished image at actual size. Save inspected snapshot saves the version shown. Renaming does not change its pixels. Changing the image, captions, effects or output settings requires a new inspection.</p>
         <div class="tip">Save as… opens a native file chooser. Existing files stay protected, even if the chooser offers to replace one. Choose a new destination. Canceling does not save a file.</div>
-        <p>Before replacing or closing unsaved work, choose Save project, Discard, or Cancel. Only saving a project preserves the editable work. Copying an image, exporting, and saving a preset do not mark the project saved.</p><details class="tech-detail"><summary>Projects and recovery</summary><p>Current projects and presets use version 2. Earlier v1 files open with their original parameter meaning. Older applications refuse v2 files. Recovery keeps two completed edits locally for up to seven days after an interruption. A completed clean exit or Discard recovery removes recovery copies. Unresolved recovery and renderer failures preserve the existing copies. Appearance settings are saved separately and never enter Undo or projects.</p></details>
+        <p>Before replacing or closing unsaved work, choose Save project, Discard, or Cancel. Only saving a project preserves the editable work. Copying an image, exporting, and saving a preset do not mark the project saved.</p><details class="tech-detail"><summary>Projects and recovery</summary><p>Current projects use version 3 and presets use version 2. Earlier v1/v2 projects open with their original image treatment. Older applications refuse v3 projects. Recovery keeps two completed edits locally for up to seven days after an interruption. A completed clean exit or Discard recovery removes recovery copies. Unresolved recovery and renderer failures preserve the existing copies. Appearance settings are saved separately and never enter Undo or projects.</p></details>
+      </template>
+      <template v-else-if="tab === 5">
+        <h3>Add meme captions</h3><p>Open Captions in the sidebar and type into Top or Bottom. Your case and line breaks are preserved. White Anton lettering with a black outline is drawn after effects.</p>
+        <p>Each field accepts 512 UTF-16 units. Text wraps into up to three lines and shrinks to fit. Shorten text or remove line breaks if it cannot fit. Text size sets the maximum size relative to the shorter image edge.</p>
+        <p>Anton supports Latin lettering, including many accents. Unsupported characters are listed instead of using another font. Font and layout errors keep your words editable, savable in a project, and recoverable. Copy and Export wait for a successful preview.</p>
+        <p>Undo inside a focused field edits its text. Header Undo reverses the complete field edit. Looks, Fry level, Randomize, and loaded presets keep your captions. Clear removes both captions and can be undone.</p>
+        <p>Projects retain editable captions. Presets contain only image effects. Resizing scales caption placement; unlocking the output aspect ratio lays the text out again within the new frame.</p>
+      </template>
+      <template v-else>
+        <h3>Anton Regular</h3><p>Bundled unchanged from Google Fonts. This license is available offline.</p><pre class="font-license">{{ antonLicense }}</pre>
       </template>
     </section>
   </Modal>
 </template>
+
+<style scoped>
+.font-license { white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.6 'Segoe UI', sans-serif; }
+</style>

@@ -14,7 +14,7 @@ await mkdir(destination)
 await mkdir('.artifacts/caption-base', { recursive: true })
 const hash = bytes => createHash('sha256').update(bytes).digest('hex')
 const manifest = { base, files: {}, outer: [], content: [] }
-for (const path of ['main/document-files.ts', 'main/legacy-document-codec.ts', 'main/image-files.ts', 'shared/documents.ts', 'shared/image.ts', 'shared/preset.ts', 'shared/output.ts']) {
+for (const path of ['main/document-files.ts', 'main/legacy-document-codec.ts', 'main/image-files.ts', 'shared/documents.ts', 'shared/image.ts', 'shared/preset.ts', 'shared/output.ts', 'shared/clipboard.ts']) {
   const bytes = execFileSync('git', ['show', `${base}:src/${path}`])
   const target = `tests/fixtures/v2-reader/src/${path}`
   await mkdir(dirname(target), { recursive: true })

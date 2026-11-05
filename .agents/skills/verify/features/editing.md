@@ -1,5 +1,7 @@
 # Edit effects and history
 
+Caption fields share the complete edit history. [Caption journeys](captions.md) check native text gestures and ensure caption-only changes preserve the active look and relative Fry baseline.
+
 Build a layered fry, compare candidates, and recover previous rendered pixels with Undo and Redo.
 
 ## Sub-features

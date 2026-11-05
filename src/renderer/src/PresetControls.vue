@@ -15,6 +15,7 @@ const locks = ref(new Set<string>())
 const dialog = ref<HTMLDialogElement | null>(null)
 const menu = ref<HTMLDetailsElement | null>(null)
 const gallery = ref<HTMLDetailsElement | null>(null)
+defineExpose({ collapseGallery: () => { if (gallery.value) gallery.value.open = false } })
 function presetFile(action: 'load' | 'save'): void {
   if (menu.value) { menu.value.open = false; menu.value.querySelector<HTMLElement>('summary')?.focus() }
   if (action === 'load') emit('loadPreset')

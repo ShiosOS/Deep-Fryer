@@ -82,7 +82,7 @@ test('cancel a native close keeps the editor and its checkpoint alive', async ()
   const { folder, app, page } = await setup()
   try {
     const checkpoint = join(folder, 'profile', 'recovery', 'latest.deepfryer')
-    await expect.poll(async () => readFile(checkpoint, 'utf8').then((text) => JSON.parse(text).preset.effects[0].value).catch(() => null)).toBe(25)
+    await expect.poll(async () => readFile(checkpoint, 'utf8').then((text) => JSON.parse(text).edit.preset.effects[0].value).catch(() => null)).toBe(25)
     await choose(app, 2)
     await app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0]?.close() }).catch(() => {})
     await page.waitForTimeout(300).catch(() => {})
@@ -369,8 +369,8 @@ test('a close queued during preset load guards the newly applied settings', asyn
     await expect(page.getByLabel('Unsaved project', { exact: true })).toHaveCount(0)
     const presetPath = join(folder, 'loaded.frypreset')
     const initial = JSON.parse(await readFile(initialProject, 'utf8'))
-    initial.preset.effects[0].value = 72
-    await writeFile(presetPath, JSON.stringify({ format: 'deep-fryer-preset', version: 2, preset: initial.preset }))
+    initial.edit.preset.effects[0].value = 72
+    await writeFile(presetPath, JSON.stringify({ format: 'deep-fryer-preset', version: 2, preset: initial.edit.preset }))
     await app.evaluate(({ dialog }, path) => {
       dialog.showOpenDialog = () => new Promise((resolve) => {
         Reflect.set(globalThis, '__releasePreset', () => resolve({ canceled: false, filePaths: [path] }))

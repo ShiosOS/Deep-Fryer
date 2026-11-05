@@ -1,5 +1,6 @@
 import { renderEdit } from './render-edit'
 import { editStateSchema, type EditState } from '../../shared/edit'
+import { CaptionRenderError } from './caption-layout'
 
 export type WorkerRequest =
   | { kind: 'source'; sourceId: number; width: number; height: number; pixels: Uint8ClampedArray<ArrayBuffer>; preview: { width: number; height: number; pixels: Uint8ClampedArray<ArrayBuffer> } | null }
@@ -7,7 +8,7 @@ export type WorkerRequest =
 
 export type WorkerResponse =
   | { kind: 'rendered'; sourceId: number; revision: number; quality: 'preview' | 'full'; width: number; height: number; pixels: Uint8ClampedArray<ArrayBuffer> }
-  | { kind: 'failed'; sourceId: number; revision: number; quality: 'preview' | 'full'; message: string }
+  | { kind: 'failed'; sourceId: number; revision: number; quality: 'preview' | 'full'; message: string; category: 'caption' | 'image' }
 
 let source: ImageData | null = null
 let preview: ImageData | null = null
@@ -29,7 +30,7 @@ async function drain(): Promise<void> {
       const response: WorkerResponse = { kind: 'rendered', sourceId: request.sourceId, revision: request.revision, quality: request.quality, width: result.width, height: result.height, pixels: result.data }
       self.postMessage(response, { transfer: [result.data.buffer] })
     } catch (error) {
-      const response: WorkerResponse = { kind: 'failed', sourceId: request.sourceId, revision: request.revision, quality: request.quality, message: error instanceof Error ? error.message : 'Image processing failed.' }
+      const response: WorkerResponse = { kind: 'failed', sourceId: request.sourceId, revision: request.revision, quality: request.quality, message: error instanceof Error ? error.message : 'Image processing failed.', category: error instanceof CaptionRenderError ? 'caption' : 'image' }
       self.postMessage(response)
     }
   }
