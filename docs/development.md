@@ -45,6 +45,28 @@ Get-ChildItem -LiteralPath release -Filter '*.exe'
 
 The package verifier checks bundled help media, runtime icons, and executable icon pixels against the source icon. Local build hashes can differ from the published release. Use the published checksum only for the exact downloaded release asset.
 
+## Refresh product screenshots
+
+Use the [verification skill](../.agents/skills/verify/SKILL.md) to capture the real Electron app with a disposable profile. Keep the build log with a fresh capture directory:
+
+```powershell
+New-Item -ItemType Directory -Force .artifacts | Out-Null
+Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
+Remove-Item Env:DEEP_FRYER_EXECUTABLE -ErrorAction SilentlyContinue
+Remove-Item Env:ELECTRON_EXECUTABLE_PATH -ErrorAction SilentlyContinue
+$env:ELECTRON_RENDERER_URL = ''
+npm run build *> .artifacts/product-readme-NEW.build.log
+if ($LASTEXITCODE -ne 0) { throw 'Build failed. Read the build log.' }
+node scripts/capture-product.mjs --output .artifacts/product-readme-NEW
+if ($LASTEXITCODE -ne 0) { throw 'Capture failed. Read its manifest.' }
+```
+
+Make no source changes between build and capture. Keep the build log with the capture evidence, outside the disposable profile. For an existing package, follow the skill's packaged launch and retain its build provenance and executable hash.
+
+Require `passed: true`, no errors, confirmed process exit, and profile removal in `manifest.json`. Inspect the PNGs before copying selected files into `docs/images`. The helper captures Look, Effects, and editable Captions in both themes at normal and minimum window sizes. It also captures the original and Crispy color canvases side by side before captions are added.
+
+Label README screenshots with the captured source version while that version is unpublished. Keep download links and checksums tied to the published release. This helper intercepts Open and leaves the clipboard untouched; it does not verify installation, offline operation, or native file dialogs.
+
 ## Update help media
 
 ```powershell
