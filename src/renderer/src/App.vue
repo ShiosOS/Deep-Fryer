@@ -448,6 +448,11 @@ function saveNamed(kind: 'project' | 'preset', name: string): void {
   else void files.savePreset(name)
 }
 
+function saveProject(): void {
+  if (files.target.value) void files.saveProject()
+  else openSaveName('project')
+}
+
 function onKeydown(event: KeyboardEvent): void {
   if (window.document.querySelector('dialog[open]')) return
   if (event.key === 'Escape') {
@@ -474,7 +479,7 @@ function onKeydown(event: KeyboardEvent): void {
     void files.pasteImage()
   } else if (event.key.toLowerCase() === 's' && !event.shiftKey) {
     event.preventDefault()
-    openSaveName('project')
+    saveProject()
   } else if (event.key.toLowerCase() === 's' && event.shiftKey) {
     event.preventDefault()
     exportOutput()
@@ -519,7 +524,7 @@ onUnmounted(() => {
         <span class="header-divider" aria-hidden="true"></span>
         <button type="button" class="icon-button" aria-label="Help" title="Help" @click="helpDialog?.open()"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 2-2.5 2-2.5 4m0 3h.01"/></svg></button>
         <button type="button" class="icon-button" aria-label="Settings" :title="appearance.notice.value ? 'Settings need attention' : 'Settings'" @click="settingsDialog?.open()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 3-.6 2.3-2 .9-2.1-.7-2 3.4 1.6 1.7v2.3l-1.6 1.7 2 3.4 2.2-.6 1.9 1 .6 2.2h4l.6-2.3 2-.9 2.1.6 2-3.4-1.6-1.7v-2.3l1.6-1.7-2-3.4-2.2.7-1.9-1L14 3Z"/><circle cx="12" cy="12" r="3"/></svg><span v-if="appearance.notice.value" class="settings-attention" aria-hidden="true"></span></button>
-        <DocumentControls :busy="busy" :save-busy="controlsBusy" :has-image="document !== null" :recovery-status="files.recoveryStatus.value" :recovery-offer="files.recoveryOffer.value" @open-image="openImage" @open-project="files.openProject" @save-project="openSaveName('project')" @paste-image="files.pasteImage" @restore-recovery="files.restoreRecovery" @discard-recovery="files.discardRecovery" />
+        <DocumentControls :busy="busy" :save-busy="controlsBusy" :has-image="document !== null" :recovery-status="files.recoveryStatus.value" :recovery-offer="files.recoveryOffer.value" @open-image="openImage" @open-project="files.openProject" @save-project="saveProject" @save-project-as="openSaveName('project')" @paste-image="files.pasteImage" @restore-recovery="files.restoreRecovery" @discard-recovery="files.discardRecovery" />
         <button type="button" class="copy-button" aria-label="Copy image" :disabled="busy || !document || readyRevision !== renderRevision" aria-keyshortcuts="Control+Shift+C Meta+Shift+C" @click="copyImage"><span aria-hidden="true">{{ copyAcknowledged ? 'Image copied' : 'Copy image' }}</span><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V3H3v13h5"/></svg></button>
         <span class="sr-only" aria-live="polite" aria-atomic="true">{{ copyAcknowledged ? 'Image copied.' : '' }}</span>
         <button type="button" class="primary export-button" :disabled="busy || !document || readyRevision !== renderRevision" aria-keyshortcuts="Control+Shift+S Meta+Shift+S" @click="exportOutput">Export<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m-4 4 4-4 4 4M4 14v6h16v-6"/></svg></button>

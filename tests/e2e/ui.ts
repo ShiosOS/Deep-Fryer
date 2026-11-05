@@ -36,7 +36,7 @@ export async function fileAction(page: Page, name: string): Promise<void> {
   const menu = page.locator(name.includes('preset') ? '.preset-menu' : '.file-menu')
   if (!await menu.getAttribute('open').then((value) => value !== null)) await menu.locator('summary').first().click()
   await page.getByRole('button', { name, exact: name !== 'Open image' }).click()
-  if (name.startsWith('Save ')) await page.getByRole('button', { name: 'Save as…', exact: true }).click()
+  if (name.endsWith(' as…')) await page.getByRole('button', { name: 'Save as…', exact: true }).click()
 }
 
 export async function controls(page: Page): Promise<Page> {

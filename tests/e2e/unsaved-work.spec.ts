@@ -378,8 +378,7 @@ test('a close queued during preset load guards the newly applied settings', asyn
     }, presetPath)
     await fileAction(page, 'Load preset')
     await expect.poll(() => app.evaluate(() => typeof Reflect.get(globalThis, '__releasePreset'))).toBe('function')
-    const savedOnClose = join(folder, 'loaded-at-close.deepfryer')
-    await saveTo(app, savedOnClose)
+    await app.evaluate(({ dialog }) => { dialog.showSaveDialog = async () => { throw new Error('An authorized project must save without a chooser') } })
     await choose(app, 0)
     await nativeClose(app)
     expect(page.isClosed()).toBe(false)
@@ -389,7 +388,7 @@ test('a close queued during preset load guards the newly applied settings', asyn
       release()
     })
     await expect.poll(() => page.isClosed()).toBe(true)
-    expect(parseProject(await readFile(savedOnClose, 'utf8')).edit.preset.effects[0]).toMatchObject({ kind: 'brightness', value: 72 })
+    expect(parseProject(await readFile(initialProject, 'utf8')).edit.preset.effects[0]).toMatchObject({ kind: 'brightness', value: 72 })
   } finally { await cleanup(app, folder) }
 })
 

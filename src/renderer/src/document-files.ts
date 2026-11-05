@@ -1,12 +1,12 @@
 import { computed, onUnmounted, ref, shallowRef, watch, type Ref } from 'vue'
-import type { EditableDocument, RecoveryOffer } from '../../shared/documents'
+import type { EditableDocument, ProjectTarget, RecoveryOffer } from '../../shared/documents'
 import type { OpenImage } from '../../shared/image'
 import type { Preset } from '../../shared/preset'
 import { newEdit, snapshotEdit, type EditState } from '../../shared/edit'
 
 export type FileOperation = 'opening' | 'exporting'
 type Notice = { kind: 'info' | 'success' | 'error'; text: string }
-type ProjectBaseline = { kind: 'unsaved' } | { kind: 'saved'; document: EditableDocument }
+type ProjectBaseline = { kind: 'unsaved' } | { kind: 'saved'; document: EditableDocument; target: ProjectTarget | null }
 type DocumentOwner = {
   busy: Readonly<Ref<boolean>>
   fileBusy: Readonly<Ref<boolean>>
@@ -23,6 +23,10 @@ type DocumentOwner = {
   applyPreset: (preset: Preset) => void
 }
 
+function snapshotDocument(document: EditableDocument): EditableDocument {
+  return { source: { ...document.source, bytes: new Uint8Array(document.source.bytes) }, edit: snapshotEdit(document.edit) }
+}
+
 export function describeError(error: unknown): string {
   return error instanceof Error ? error.message.replace(/^Error invoking remote method '[^']+': Error: /, '') : 'Something went wrong. Try again.'
 }
@@ -31,6 +35,7 @@ export function useDocumentFiles(owner: DocumentOwner) {
   const recoveryOffer = ref<RecoveryOffer>(null)
   const recoveryStatus = ref('Checking for interrupted work…')
   const baseline = shallowRef<ProjectBaseline>({ kind: 'unsaved' })
+  const target = computed(() => baseline.value.kind === 'saved' ? baseline.value.target : null)
   const active = ref(false)
   const closing = ref(false)
   const recoveryState = ref<'checking' | 'ready' | 'failed'>('checking')
@@ -55,24 +60,31 @@ export function useDocumentFiles(owner: DocumentOwner) {
   }
   function current(): EditableDocument | null {
     const source = owner.source()
-    return source ? { source: { name: source.name, mime: source.mime, bytes: source.bytes }, edit: owner.edit() } : null
+    return source ? snapshotDocument({ source: { name: source.name, mime: source.mime, bytes: source.bytes }, edit: owner.edit() }) : null
   }
-  function saved(document: EditableDocument): void {
-    baseline.value = { kind: 'saved', document: {
-      source: { ...document.source, bytes: new Uint8Array(document.source.bytes) }, edit: snapshotEdit(document.edit)
-    } }
+  async function replaceBaseline(next: ProjectBaseline): Promise<void> {
+    const previous = target.value
+    baseline.value = next
+    if (previous && previous.id !== target.value?.id) await window.documentBridge.releaseProjectTarget(previous.id)
   }
-  async function saveCurrent(suggestedName: string): Promise<boolean> {
+  async function saveCurrent(suggestedName?: string): Promise<boolean> {
     owner.finishGesture()
     const document = current()
     if (!document) return true
-    const result = await window.documentBridge.saveProject({ document, suggestedName })
+    const destination = target.value
+    const result = destination && suggestedName === undefined
+      ? await window.documentBridge.saveProject({ document, target: destination.id })
+      : await window.documentBridge.saveProjectAs({ document, suggestedName: suggestedName ?? `${document.source.name.replace(/\.[^.]+$/, '')}.deepfryer` })
     if (result.kind !== 'saved') {
-      owner.report({ kind: 'info', text: 'Project save canceled. Your current edit is unchanged.' })
+      if (result.kind === 'cancelled') owner.report({ kind: 'info', text: 'Project save canceled. Your current edit is unchanged.' })
+      else if (result.kind === 'conflict') {
+        const reasons = { changed: 'changed outside Deep Fryer', missing: 'moved or deleted', readonly: 'read-only or not writable', stale: 'no longer authorized in this session', unsafe: 'a link or no longer a regular file' }
+        owner.report({ kind: 'error', text: `The project is ${reasons[result.reason]}. Reopen it or use Save project as… to make a separate copy. Your edit is unchanged.` })
+      } else owner.report({ kind: 'error', text: result.message })
       return false
     }
-    saved(document)
-    owner.report({ kind: 'success', text: `Saved ${result.name}. Move this project anywhere to continue editing.` })
+    await replaceBaseline({ kind: 'saved', document, target: result.target })
+    owner.report({ kind: 'success', text: `Saved ${result.target.name}.` })
     return true
   }
   async function confirmLeaving(): Promise<boolean> {
@@ -81,8 +93,7 @@ export function useDocumentFiles(owner: DocumentOwner) {
     const choice = await window.documentBridge.confirmUnsaved()
     if (choice === 'cancel') return false
     if (choice === 'discard') return true
-    const name = owner.source()?.name.replace(/\.[^.]+$/, '') || 'Untitled'
-    return saveCurrent(`${name}.deepfryer`)
+    return saveCurrent()
   }
   async function run(operation: FileOperation, action: () => Promise<void>, allowRecovery = false, allowProcessing = false): Promise<void> {
     if (locked.value || owner.fileBusy.value || owner.busy.value && !allowProcessing || recoveryOffer.value && !allowRecovery) return
@@ -96,7 +107,7 @@ export function useDocumentFiles(owner: DocumentOwner) {
   async function load(provider: () => Promise<OpenImage | null>): Promise<void> {
     await run('opening', async () => {
       const source = await provider()
-      if (source && await owner.publish(source, newEdit(), confirmLeaving)) baseline.value = { kind: 'unsaved' }
+      if (source && await owner.publish(source, newEdit(), confirmLeaving)) await replaceBaseline({ kind: 'unsaved' })
     })
   }
   function scheduleCheckpoint(): void {
@@ -116,12 +127,22 @@ export function useDocumentFiles(owner: DocumentOwner) {
   }
   async function openProject(): Promise<void> {
     await run('opening', async () => {
-      const document = await window.documentBridge.openProject()
-      if (!document) return
-      if (await owner.publish(document.source, document.edit, confirmLeaving)) saved(document)
+      const candidate = await window.documentBridge.openProject()
+      if (!candidate) return
+      let adopted = false
+      try {
+        const { document, target } = candidate
+        const snapshot = snapshotDocument(document)
+        if (await owner.publish(document.source, document.edit, confirmLeaving)) {
+          adopted = true
+          await replaceBaseline({ kind: 'saved', document: snapshot, target })
+        }
+      } finally {
+        if (!adopted && candidate.target) await window.documentBridge.releaseProjectTarget(candidate.target.id)
+      }
     })
   }
-  async function saveProject(suggestedName: string): Promise<void> {
+  async function saveProject(suggestedName?: string): Promise<void> {
     if (!owner.source()) return
     await run('exporting', async () => {
       await saveCurrent(suggestedName)
@@ -158,10 +179,11 @@ export function useDocumentFiles(owner: DocumentOwner) {
   async function restoreRecovery(): Promise<void> {
     await run('opening', async () => {
       const document = await window.documentBridge.restoreRecovery()
-      await owner.publish(document.source, document.edit, async () => true)
-      baseline.value = { kind: 'unsaved' }
-      recoveryOffer.value = null
-      scheduleCheckpoint()
+      if (await owner.publish(document.source, document.edit, async () => true)) {
+        await replaceBaseline({ kind: 'unsaved' })
+        recoveryOffer.value = null
+        scheduleCheckpoint()
+      }
     }, true)
   }
   async function discardRecovery(): Promise<void> {
@@ -204,7 +226,7 @@ export function useDocumentFiles(owner: DocumentOwner) {
   }
   const stopClose = window.documentBridge.onCloseRequested((request) => { void close(request) })
   onUnmounted(() => { cancelCheckpoint(); stopClose() })
-  return { dirty, locked, load, recoveryOffer, recoveryStatus, scheduleCheckpoint, cancelCheckpoint, checkRecovery, restoreRecovery, discardRecovery,
+  return { dirty, target, locked, load, recoveryOffer, recoveryStatus, scheduleCheckpoint, cancelCheckpoint, checkRecovery, restoreRecovery, discardRecovery,
     openImage: () => load(() => window.imageBridge.openImage()), pasteImage: () => load(() => window.imageBridge.pasteImage()),
     openProject, saveProject, loadPreset, savePreset, drop }
 }
