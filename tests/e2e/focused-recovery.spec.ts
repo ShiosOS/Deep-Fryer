@@ -70,6 +70,61 @@ async function pixels(page: Page): Promise<number[]> {
   })
 }
 
+async function captionOnDisk(path: string): Promise<string | null> {
+  return parseProject(await readFile(path, 'utf8')).edit.composition.captions?.top ?? null
+}
+
+for (const mode of ['pending', 'failed'] as const) {
+  test(`${mode} caption rendering preserves accepted focused text without persisting IME drafts`, async ({}, testInfo) => {
+    await withRecovery(testInfo, async ({ page, checkpoint }) => {
+      const worker = page.workers().find(worker => worker.url().includes('effects-worker'))
+      if (!worker) throw new Error('Persistent rendering worker is missing')
+      await worker.evaluate(mode => {
+        const original = globalThis.fetch
+        globalThis.fetch = async (input, options) => {
+          if (String(input).endsWith('.ttf')) {
+            Reflect.set(globalThis, '__idleRecoveryFontRequested', true)
+            if (mode === 'failed') return new Response('Missing test font', { status: 404 })
+            await new Promise<void>(resolve => { Reflect.set(globalThis, '__releaseIdleRecoveryFont', resolve) })
+          }
+          return original(input, options)
+        }
+      }, mode)
+      await page.locator('.caption-controls > summary').click()
+      const top = page.getByRole('textbox', { name: 'Top caption', exact: true })
+      await top.fill('GO')
+      await expect.poll(() => worker.evaluate(() => Reflect.get(globalThis, '__idleRecoveryFontRequested') === true)).toBe(true)
+      if (mode === 'failed') await expect(page.locator('.caption-controls [role=alert]')).toContainText('bundled Anton font could not load')
+      await expect(top).toBeFocused()
+      await expect.poll(() => captionOnDisk(checkpoint)).toBe('GO')
+      await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeDisabled()
+      const session = await page.context().newCDPSession(page)
+      await top.press('Control+a')
+      await session.send('Input.imeSetComposition', { text: '草', selectionStart: 1, selectionEnd: 1 })
+      await expect(top).toHaveValue('草')
+      await page.waitForTimeout(1100)
+      expect(await captionOnDisk(checkpoint)).toBe('GO')
+      await session.send('Input.insertText', { text: 'OK' })
+      await expect.poll(() => captionOnDisk(checkpoint)).toBe('OK')
+      await expect(top).toBeFocused()
+      await testInfo.attach(`${mode}-caption-checkpoint`, { path: checkpoint, contentType: 'application/json' })
+      if (mode === 'pending') {
+        await worker.evaluate(() => {
+          const release: unknown = Reflect.get(globalThis, '__releaseIdleRecoveryFont')
+          if (typeof release !== 'function') throw new Error('Pending font request was not held')
+          release()
+        })
+        await ready(page)
+        await page.getByRole('button', { name: 'Undo', exact: true }).click()
+        await ready(page)
+        await expect(top).toHaveValue('')
+        await expect.poll(() => captionOnDisk(checkpoint)).toBe(null)
+      }
+      await session.detach()
+    })
+  })
+}
+
 test('focused accepted numeric edit checkpoints without blur and recovers after forced exit', async ({}, testInfo) => {
   await withRecovery(testInfo, async ({ app, page, source, bytes, checkpoint, evidence }) => {
     const brightness = page.getByRole('spinbutton', { name: 'Brightness value' })
