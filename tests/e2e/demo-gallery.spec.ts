@@ -2,7 +2,7 @@ import { _electron as electron, expect, test } from '@playwright/test'
 import { access, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { chooseUnsaved, closeDiscardingChanges } from './ui'
+import { chooseUnsaved, closeDiscardingChanges, interruptForRecovery } from './ui'
 
 function launch(profile: string) {
   const executable = process.env.DEEP_FRYER_EXECUTABLE ?? process.env.ELECTRON_EXECUTABLE_PATH
@@ -18,7 +18,13 @@ test('demo is opt-in and the editor remains usable at 900 by 620', async () => {
   const app = await launch(folder)
   try {
     const page = await app.firstWindow()
-    await page.setViewportSize({ width: 900, height: 620 })
+    const nativeSize = await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0]
+      if (!window) throw new Error('Editor window is missing')
+      window.setSize(900, 620)
+      return { minimum: window.getMinimumSize(), outer: window.getSize() }
+    })
+    expect(nativeSize).toEqual({ minimum: [900, 620], outer: [900, 620] })
     await expect(page.getByRole('button', { name: 'Choose an image' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeDisabled()
     await page.getByRole('button', { name: 'Try demo' }).click()
@@ -33,12 +39,19 @@ test('demo is opt-in and the editor remains usable at 900 by 620', async () => {
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth && document.documentElement.scrollHeight <= innerHeight)).toBe(true)
     }
     await page.screenshot({ path: '.artifacts/demo-gallery-900.png' })
-    const look = page.getByRole('button', { name: 'Crispy color', exact: true })
+    const look = page.getByRole('button', { name: 'Crispy color', exact: true, includeHidden: true })
     await look.click()
+    await expect(page.locator('.look-gallery')).not.toHaveAttribute('open', '')
+    await expect(page.locator('.look-gallery summary')).toBeFocused()
     await expect(look).toHaveAttribute('aria-pressed', 'true')
+    const effect = await page.locator('.effect-heading').first().boundingBox()
+    if (!effect) throw new Error('First effect heading is missing')
+    expect(effect.y).toBeGreaterThanOrEqual(0)
+    expect(effect.y + effect.height).toBeLessThanOrEqual(await page.evaluate(() => innerHeight))
     await page.getByRole('slider', { name: 'Fry level' }).fill('50')
     await expect(look).toHaveAttribute('aria-pressed', 'false')
     await page.locator('.look-gallery summary').click()
+    await expect(look).toBeVisible()
     await expect(page.getByRole('slider', { name: 'Fry level' })).toBeVisible()
   } finally {
     await closeDiscardingChanges(app)
@@ -55,7 +68,7 @@ test('an interrupted demo offers recovery before another demo can load', async (
     await page.getByRole('button', { name: 'Try demo' }).click()
     await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeEnabled()
     await expect.poll(() => access(join(folder, 'recovery', 'latest.deepfryer')).then(() => true, () => false)).toBe(true)
-    await app.evaluate(({ app }) => app.exit(19)).catch(() => {})
+    await interruptForRecovery(app)
     app = await launch(folder)
     page = await app.firstWindow()
     const recovery = page.getByRole('alertdialog', { name: 'Restore interrupted work?' })

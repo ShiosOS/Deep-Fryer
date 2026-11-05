@@ -6,7 +6,7 @@ A local Windows image editor for deep-fried memes. Push colors, add noise and JP
 
 ![Deep Fryer 0.5.0 source preview with image-based looks, readable controls, unsaved-project status, and a fried demo cat](docs/images/editor-dark.png)
 
-The screenshot shows the 0.5.0 source preview. The download below is the published 0.4.0 release. New source changes require a build and are not included in that installer. See the [changelog](CHANGELOG.md) and [light appearance](docs/images/editor-light.png).
+The screenshot shows the 0.5.0 source preview. The download below is the published 0.4.0 release. New source changes require a build and are not included in that installer. See the [changelog](CHANGELOG.md), [light appearance](docs/images/editor-light.png), and [minimum-window layout](docs/images/editor-minimum-light.png).
 
 The 0.5.0 source adds an opt-in demo, live previews of each look on your image, and Save project, Discard, or Cancel protection before leaving unsaved work. Export keeps the original aspect ratio unless you unlock it.
 

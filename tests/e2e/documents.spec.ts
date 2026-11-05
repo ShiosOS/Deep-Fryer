@@ -1,4 +1,5 @@
-import { chooseUnsaved, closeDiscardingChanges, fileAction, controls, exportImage } from './ui'
+import { RecoveryEvidence } from './recovery-evidence'
+import { chooseUnsaved, closeDiscardingChanges, fileAction, controls, exportImage, interruptForRecovery } from './ui'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
 import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -147,15 +148,18 @@ test('portable project moves without its source, preset scales to another image,
   } finally { await closeDiscardingChanges(app); await rm(folder, { recursive: true, force: true }) }
 })
 
-test('unexpected process stop restores the last valid generation, falls back from corruption, and discard removes both recovery copies', async () => {
+test('unexpected process stop restores the last valid generation, falls back from corruption, and discard removes both recovery copies', async ({}, testInfo) => {
   test.setTimeout(90_000)
   const folder = await mkdtemp(join(tmpdir(), 'deep-fryer-recovery-'))
   const profile = join(folder, 'profile')
   const source = join(folder, 'recover-me.png')
   const recovery = join(profile, 'recovery')
   await writeFile(source, fixture(100, 70))
-  let app = await launch(profile)
+  const evidence = await RecoveryEvidence.create(testInfo, folder)
+  let failed = false
+  let app: ElectronApplication | undefined
   try {
+    app = await evidence.launchObserved()
     let page = await app.firstWindow()
     await selectOpen(app, source)
     await fileAction(page, 'Open image')
@@ -173,8 +177,8 @@ test('unexpected process stop restores the last valid generation, falls back fro
     await expect.poll(async () => JSON.parse(await readFile(join(recovery, 'latest.deepfryer'), 'utf8')).preset.effects[0].value).toBe(50)
     expect(JSON.parse(await readFile(join(recovery, 'previous.deepfryer'), 'utf8')).preset.effects[0].value).toBe(25)
     await rm(source)
-    await app.evaluate(({ app }) => app.exit(19)).catch(() => {})
-    app = await launch(profile)
+    await interruptForRecovery(app)
+    app = await evidence.launchObserved()
     page = await app.firstWindow()
     const offeredBytes = await readFile(join(recovery, 'latest.deepfryer'))
     const replacement = join(folder, 'replacement.png')
@@ -205,24 +209,31 @@ test('unexpected process stop restores the last valid generation, falls back fro
     await expect((await controls(page)).getByRole('spinbutton', { name: 'Brightness value' })).toHaveValue('50')
     const latest = await pixels(page)
     expect(Array.from((await exportTo(app, page, join(folder, 'recovered.png'))).data)).toEqual(latest)
-    await app.evaluate(({ app }) => app.exit(19)).catch(() => {})
+    await interruptForRecovery(app)
     await writeFile(join(recovery, 'latest.deepfryer'), 'interrupted and corrupt')
-    app = await launch(profile)
+    app = await evidence.launchObserved()
     page = await app.firstWindow()
     await expect(page.getByRole('alertdialog')).toBeVisible()
     await page.getByRole('button', { name: 'Restore work' }).click()
     await ready(page)
     await expect((await controls(page)).getByRole('spinbutton', { name: 'Brightness value' })).toHaveValue('25')
     expect(await pixels(page)).toEqual(first)
-    await app.evaluate(({ app }) => app.exit(19)).catch(() => {})
-    app = await launch(profile)
+    await interruptForRecovery(app)
+    app = await evidence.launchObserved()
     page = await app.firstWindow()
     await expect(page.getByRole('alertdialog')).toBeVisible()
     await page.getByRole('button', { name: 'Discard recovery' }).click()
     await expect(page.getByRole('alertdialog')).toHaveCount(0)
     expect(await readdir(recovery)).toEqual([])
     await expect(page.getByRole('heading', { name: 'Open your first image.' })).toBeVisible()
-  } finally { await closeDiscardingChanges(app).catch(() => {}); await rm(folder, { recursive: true, force: true }) }
+  } catch (error) {
+    failed = true
+    await evidence.capture(app, error)
+    throw error
+  } finally {
+    await evidence.close(failed)
+    if (!failed) await rm(folder, { recursive: true, force: true })
+  }
 })
 
 test('a second application cannot own or delete the live profile recovery', async () => {
@@ -253,14 +264,14 @@ test('a second application cannot own or delete the live profile recovery', asyn
     expect(second.status, second.stderr).toBe(0)
     await expect.poll(() => app.evaluate(() => Reflect.get(globalThis, '__secondInstanceCount'))).toBe(1)
     expect(await readFile(checkpoint)).toEqual(saved)
-    await app.evaluate(({ app }) => app.exit(19)).catch(() => {})
+    await interruptForRecovery(app)
     app = await launch(profile)
     page = await app.firstWindow()
     await expect(page.getByRole('alertdialog')).toContainText('live-edit.png')
     await page.getByRole('button', { name: 'Restore work' }).click()
     await ready(page)
     await expect(page.locator('.filename')).toHaveText('live-edit.png')
-  } finally { await closeDiscardingChanges(app).catch(() => {}); await rm(folder, { recursive: true, force: true }) }
+  } finally { await closeDiscardingChanges(app); await rm(folder, { recursive: true, force: true }) }
 })
 
 test('paste uses stubbed clipboard contents and a real Chromium file drop uses the standard Electron file path bridge', async () => {

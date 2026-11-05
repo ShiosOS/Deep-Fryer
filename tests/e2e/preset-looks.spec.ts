@@ -64,7 +64,7 @@ test('named looks, locked randomization and five candidates commit complete repr
     await saturation.fill('0.55')
     await saturation.blur()
     await ready()
-    await expect(page.getByRole('button', { name: 'Crispy color', exact: true })).toHaveAttribute('aria-pressed', 'false')
+    await expect(page.getByRole('button', { name: 'Crispy color', exact: true, includeHidden: true })).toHaveAttribute('aria-pressed', 'false')
     await page.getByText('Randomization locks', { exact: true }).click()
     await page.getByRole('checkbox', { name: 'Lock Saturation 3', exact: true }).check()
     await page.getByRole('checkbox', { name: 'Lock JPEG quality 7', exact: true }).check()
