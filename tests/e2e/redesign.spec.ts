@@ -1,4 +1,4 @@
-import { closeDiscardingChanges, fileAction, openOutput, ready } from './ui'
+import { traceElectron, fileOperationComplete, closeDiscardingChanges, fileAction, openOutput, ready } from './ui'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -7,7 +7,9 @@ import type { BaseWindow, SaveDialogOptions } from 'electron'
 
 async function launch(profile: string): Promise<ElectronApplication> {
   const executable = process.env.DEEP_FRYER_EXECUTABLE ?? process.env.ELECTRON_EXECUTABLE_PATH
-  return electron.launch({ ...(executable ? { executablePath: executable } : {}), args: [...(process.env.DEEP_FRYER_EXECUTABLE ? [] : [resolve('.')]), `--user-data-dir=${profile}`], env: { ...process.env, ELECTRON_RENDERER_URL: '' } })
+  const app = await electron.launch({ ...(executable ? { executablePath: executable } : {}), args: [...(process.env.DEEP_FRYER_EXECUTABLE ? [] : [resolve('.')]), `--user-data-dir=${profile}`], env: { ...process.env, ELECTRON_RENDERER_URL: '' } })
+  await traceElectron(app)
+  return app
 }
 function recordErrors(page: Page, errors: string[]): void {
   page.on('pageerror', (error) => errors.push(error.message))
@@ -142,6 +144,7 @@ test('project, preset and export names are independent and canceling names or na
       await page.getByRole('button', { name: `Save ${kind} as…`, exact: true }).click()
       await page.getByRole('textbox', { name: kind === 'project' ? 'Project name' : 'Preset name' }).fill(name)
       await page.getByRole('button', { name: 'Save as…', exact: true }).click()
+      await fileOperationComplete(page)
       await expect(page.locator('.notice')).toContainText(`Saved ${name}`)
     }
     await openOutput(page)

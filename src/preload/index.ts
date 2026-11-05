@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { openImageResult, type ImageBridge } from '../shared/image'
 import { exportImageInput, exportImageResult } from '../shared/output'
 import { copyImageInput, copyImageResult } from '../shared/clipboard'
-import { closeReplySchema, closeRequestSchema, editableDocumentSchema, recoveryOfferSchema, unsavedChoiceSchema, type DocumentBridge } from '../shared/documents'
+import { closeReplySchema, closeRequestSchema, editableDocumentSchema, openedProjectSchema, projectSaveResultSchema, projectTargetIdSchema, saveProjectInput, saveProjectAsInput, recoveryOfferSchema, unsavedChoiceSchema, type DocumentBridge } from '../shared/documents'
 import { presetSchema } from '../shared/preset'
 import { appearanceSchema, appearanceResultSchema, type AppearanceBridge } from '../shared/appearance'
 
@@ -27,8 +27,10 @@ const documents: DocumentBridge = {
     return () => { ipcRenderer.removeListener('document:close-request', receive) }
   },
   replyToClose: async (reply) => { await ipcRenderer.invoke('document:close-reply', closeReplySchema.parse(reply)) },
-  openProject: async () => editableDocumentSchema.nullable().parse(await ipcRenderer.invoke('document:open-project')),
-  saveProject: async (input) => exportImageResult.parse(await ipcRenderer.invoke('document:save-project', input)),
+  openProject: async () => openedProjectSchema.nullable().parse(await ipcRenderer.invoke('document:open-project')),
+  saveProject: async (input) => projectSaveResultSchema.parse(await ipcRenderer.invoke('document:save-project', saveProjectInput.parse(input))),
+  saveProjectAs: async (input) => projectSaveResultSchema.parse(await ipcRenderer.invoke('document:save-project-as', saveProjectAsInput.parse(input))),
+  releaseProjectTarget: async (target) => { await ipcRenderer.invoke('document:release-project-target', projectTargetIdSchema.parse(target)) },
   openPreset: async () => presetSchema.nullable().parse(await ipcRenderer.invoke('document:open-preset')),
   savePreset: async (input) => exportImageResult.parse(await ipcRenderer.invoke('document:save-preset', input)),
   recoveryOffer: async () => recoveryOfferSchema.parse(await ipcRenderer.invoke('recovery:offer')),

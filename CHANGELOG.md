@@ -7,7 +7,8 @@ Published installers are listed on the [releases page](https://github.com/ShiosO
 - Add editable top/bottom captions with bundled Anton, a black outline, size control, bounded wrapping, and one complete edit history. Looks, Fry level, and presets preserve your words.
 - Projects now write v3 with complete editable composition. Presets remain v2. Historical v1/v2 files retain their source bytes and image treatment; older readers reject v3 projects.
 - Keep caption drafts savable and recoverable on font or layout failure. Copy, export, and final inspection share the complete composition renderer. The full font license is available offline in Help.
-
+- Save authorized current-version projects with Ctrl+S without choosing a new filename each time. Save As remains exclusive, and historical projects save as separate v3 copies.
+- Preserve Windows project permissions before writing a replacement temporary. Refuse changed or unsupported destinations and retain the edit for Save As.
 - Try an original bundled demo without opening a personal image. Browse real draft previews of each named look on your current image.
 - Read larger inspector labels and processing or error feedback outside the scrolling controls.
 - Save, discard, or cancel before replacing or closing an unsaved project. Only a successful project save marks the edit saved. Undo to saved values restores that state.

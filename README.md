@@ -44,7 +44,7 @@ In the 0.5.0 source, open **Captions** and enter **Top** or **Bottom** text. Tex
 
 ![Editable top and bottom captions over a fried demo cat in the 0.5.0 source preview at the minimum Windows window size](docs/images/editor-captions.png)
 
-To continue editing later, use **File → Save project as…**. Exported images do not retain editable effects or text. The **Help** button explains effects, captions, point controls, and saving with illustrated examples.
+To continue editing later, use **File → Save project** or `Ctrl+S`. Choose a new file the first time; later saves update that project without another chooser. **Save project as…** creates a separate copy and makes it the destination for later saves. Exported images do not retain editable effects or text. The **Help** button explains effects, captions, point controls, and saving with illustrated examples.
 
 ## See what the effects do
 
@@ -74,12 +74,13 @@ Projects embed the original source bytes, which can include source metadata. Tre
 
 Recovery keeps two local edit checkpoints. The 0.5.0 source saves settled, accepted edits even while a control keeps focus; accepted caption text remains recoverable if font rendering is pending or fails. Invalid input and unfinished composing text stay as temporary drafts. After an interruption, checkpoints older than seven days are removed when recovery checks them. A completed clean exit or **Discard recovery** removes the recovery copies. The 0.5.0 source asks before closing or replacing unsaved work and preserves unresolved recovery copies. Save a project for durable storage. Appearance settings are stored separately. See [file formats and storage](docs/files-and-storage.md).
 
-Saves require a new filename. Existing files, including the source, stay protected even if a native chooser offers to replace them.
+Ordinary project Save updates only the project opened or saved in this session. If it changed outside Deep Fryer, moved, became read-only, or became a link, Save refuses and retains your edit. Reopen it or use **Save project as…** for a separate copy. Save As, presets, and image exports require a new filename, even if a native chooser offers to replace one. Opening a legacy project or restoring recovery requires Save As on the first save.
 
 ## Current limits
 
 - Open PNG and JPEG images, one image at a time. WebP is an export format, not an input format.
 - Input must fit within 64 MiB, 16,384 pixels per side, and 24 million pixels total. Exports have the same dimension and pixel limits and a 128 MiB encoded size limit.
+- Ordinary project Save requires a local NTFS destination and verified Windows permissions. Use **Save project as…** when those checks cannot be completed.
 - Large images and long effect stacks can take time and memory. A resized export can differ from the canvas because effects run at the output size.
 - Captions in the 0.5.0 source use bundled Anton lettering, 512 UTF-16 units per field, and up to three rendered lines. Unsupported characters and text that cannot fit remain savable in projects, with finished output blocked until corrected. The full font license is available offline in **Help → Licenses**.
 - The editor has no crop, drawing tools, animation or video editing, batch processing, or cloud sync.

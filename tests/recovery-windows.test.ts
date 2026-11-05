@@ -44,6 +44,7 @@ async function fixture() {
 test('Windows recovery retries a locked generation and close drains admitted writes', { skip: !windows }, async () => {
   const directory = await mkdtemp(join(tmpdir(), 'fryer-retry-'))
   let release: (() => Promise<void>) | undefined
+  let passed = false
   try {
     const store = new RecoveryStore(directory, (source) => { PNG.sync.read(Buffer.from(source.bytes)) })
     const first = await fixture()
@@ -63,15 +64,18 @@ test('Windows recovery retries a locked generation and close drains admitted wri
     await drained
     assert.deepEqual(await readProject(join(directory, 'latest.deepfryer')), third)
     assert.deepEqual(await readProject(join(directory, 'previous.deepfryer')), second)
+    passed = true
   } finally {
     if (release) await release()
-    await rm(directory, { recursive: true, force: true })
+    if (passed) await rm(directory, { recursive: true, force: true })
+    else console.log(`Retained failed recovery fixture: ${directory}`)
   }
 })
 
 test('Windows recovery rejects a persistent lock and preserves a valid generation', { skip: !windows }, async () => {
   const directory = await mkdtemp(join(tmpdir(), 'fryer-locked-'))
   let release: (() => Promise<void>) | undefined
+  let passed = false
   try {
     const store = new RecoveryStore(directory, (source) => { PNG.sync.read(Buffer.from(source.bytes)) })
     const first = await fixture()
@@ -82,8 +86,10 @@ test('Windows recovery rejects a persistent lock and preserves a valid generatio
     await assert.rejects(store.checkpoint(second), (error: unknown) => error instanceof Error && 'code' in error && ['EPERM', 'EACCES', 'EBUSY'].includes(String(error.code)))
     assert.deepEqual(await store.restore(), first)
     assert.deepEqual(await readProject(join(directory, 'previous.deepfryer')), first)
+    passed = true
   } finally {
     if (release) await release()
-    await rm(directory, { recursive: true, force: true })
+    if (passed) await rm(directory, { recursive: true, force: true })
+    else console.log(`Retained failed recovery fixture: ${directory}`)
   }
 })

@@ -448,6 +448,11 @@ function saveNamed(kind: 'project' | 'preset', name: string): void {
   else void files.savePreset(name)
 }
 
+function saveProject(): void {
+  if (files.target.value) void files.saveProject()
+  else openSaveName('project')
+}
+
 function onKeydown(event: KeyboardEvent): void {
   if (window.document.querySelector('dialog[open]')) return
   if (event.key === 'Escape') {
@@ -474,7 +479,7 @@ function onKeydown(event: KeyboardEvent): void {
     void files.pasteImage()
   } else if (event.key.toLowerCase() === 's' && !event.shiftKey) {
     event.preventDefault()
-    openSaveName('project')
+    saveProject()
   } else if (event.key.toLowerCase() === 's' && event.shiftKey) {
     event.preventDefault()
     exportOutput()
@@ -519,7 +524,7 @@ onUnmounted(() => {
         <span class="header-divider" aria-hidden="true"></span>
         <button type="button" class="icon-button" aria-label="Help" title="Help" @click="helpDialog?.open()"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 2-2.5 2-2.5 4m0 3h.01"/></svg></button>
         <button type="button" class="icon-button" aria-label="Settings" :title="appearance.notice.value ? 'Settings need attention' : 'Settings'" @click="settingsDialog?.open()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 3-.6 2.3-2 .9-2.1-.7-2 3.4 1.6 1.7v2.3l-1.6 1.7 2 3.4 2.2-.6 1.9 1 .6 2.2h4l.6-2.3 2-.9 2.1.6 2-3.4-1.6-1.7v-2.3l1.6-1.7-2-3.4-2.2.7-1.9-1L14 3Z"/><circle cx="12" cy="12" r="3"/></svg><span v-if="appearance.notice.value" class="settings-attention" aria-hidden="true"></span></button>
-        <DocumentControls :busy="busy" :save-busy="controlsBusy" :has-image="document !== null" :recovery-status="files.recoveryStatus.value" :recovery-offer="files.recoveryOffer.value" @open-image="openImage" @open-project="files.openProject" @save-project="openSaveName('project')" @paste-image="files.pasteImage" @restore-recovery="files.restoreRecovery" @discard-recovery="files.discardRecovery" />
+        <DocumentControls :busy="busy" :save-busy="controlsBusy" :has-image="document !== null" :recovery-status="files.recoveryStatus.value" :recovery-offer="files.recoveryOffer.value" @open-image="openImage" @open-project="files.openProject" @save-project="saveProject" @save-project-as="openSaveName('project')" @paste-image="files.pasteImage" @restore-recovery="files.restoreRecovery" @discard-recovery="files.discardRecovery" />
         <button type="button" class="copy-button" aria-label="Copy image" :disabled="busy || !document || readyRevision !== renderRevision" aria-keyshortcuts="Control+Shift+C Meta+Shift+C" @click="copyImage"><span aria-hidden="true">{{ copyAcknowledged ? 'Image copied' : 'Copy image' }}</span><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V3H3v13h5"/></svg></button>
         <span class="sr-only" aria-live="polite" aria-atomic="true">{{ copyAcknowledged ? 'Image copied.' : '' }}</span>
         <button type="button" class="primary export-button" :disabled="busy || !document || readyRevision !== renderRevision" aria-keyshortcuts="Control+Shift+S Meta+Shift+S" @click="exportOutput">Export<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m-4 4 4-4 4 4M4 14v6h16v-6"/></svg></button>
@@ -535,7 +540,7 @@ onUnmounted(() => {
         <button v-if="document && captionError && operation.kind !== 'processing'" type="button" :disabled="controlsBusy" @click="scheduleRender(document)">Retry preview</button>
       </aside>
       <main class="main-area">
-        <div class="notice" :class="notice.kind" role="status" aria-live="polite">{{ operation.kind === 'processing' ? 'Processing image…' : notice.kind === 'error' ? notice.text : document && lookPreviewStatus.kind !== 'ready' ? lookPreviewStatus.message : notice.text }}</div>
+        <div class="notice" :class="files.savingProject.value ? 'info' : notice.kind" role="status" aria-live="polite">{{ files.savingProject.value ? 'Saving project…' : operation.kind === 'processing' ? 'Processing image…' : notice.kind === 'error' ? notice.text : document && lookPreviewStatus.kind !== 'ready' ? lookPreviewStatus.message : notice.text }}</div>
         <div class="preview-toolbar">
           <div class="comparison-controls"><button type="button" :disabled="!document" :aria-pressed="showing === 'original'" @click="showing = 'original'">Original</button><button type="button" :disabled="!document" :aria-pressed="showing === 'edited'" @click="showing = 'edited'">Edited</button><span class="original-badge">{{ !document ? 'Preview' : operation.kind === 'processing' ? 'Processing' : presetNeutral ? 'Unchanged' : 'Edited' }}</span></div>
           <div class="inspection-controls" aria-label="Image inspection controls"><button type="button" :aria-pressed="placingPoint" :disabled="!document || controlsBusy" @click="placingPoint = !placingPoint; showing = 'edited'">{{ placingPoint ? 'Click image…' : 'Place point' }}</button><button type="button" :disabled="!document" @click="fit">Fit</button><button type="button" :disabled="!document" @click="oneToOne">100%</button><button type="button" :disabled="!document" aria-label="Zoom out" @click="zoomAt(-1)">−</button><span class="preview-scale">{{ zoomLabel }}</span><button type="button" :disabled="!document" aria-label="Zoom in" @click="zoomAt(1)">+</button></div>
