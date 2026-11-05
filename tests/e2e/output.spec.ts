@@ -1,4 +1,4 @@
-import { closeDiscardingChanges, fileAction, controls, exportImage, openOutput } from './ui'
+import { chooseUnsaved, closeDiscardingChanges, fileAction, controls, exportImage, openOutput } from './ui'
 import { _electron as electron, expect, test, type Page } from '@playwright/test'
 import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -169,6 +169,7 @@ test('aspect ratio defaults to the oriented source, unlocks explicitly, resets o
     const replacement = join(folder, 'portrait.jpg')
     await writeFile(replacement, orientedBytes)
     await app.evaluate(({ dialog }, selected) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [selected] }) }, replacement)
+    await chooseUnsaved(app, 'discard')
     await fileAction(page, 'Open image')
     await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeEnabled()
     await openOutput(page)
@@ -191,7 +192,7 @@ test('aspect ratio defaults to the oriented source, unlocks explicitly, resets o
     expect(errors).toEqual([])
     await writeFile('.artifacts/export-aspect-ratio/proof.json', JSON.stringify({ proofs, errors, originalPreserved: true, replacementPreserved: true }, null, 2))
   } finally {
-    await app.close()
+    await closeDiscardingChanges(app)
     await rm(folder, { recursive: true, force: true })
   }
 })
