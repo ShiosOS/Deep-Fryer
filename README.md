@@ -44,7 +44,7 @@ In the 0.5.0 source, open **Captions** and enter **Top** or **Bottom** text. Tex
 
 ![Editable top and bottom captions over a fried demo cat in the 0.5.0 source preview at the minimum Windows window size](docs/images/editor-captions.png)
 
-To continue editing later, use **File → Save project** or `Ctrl+S`. Choose a new file the first time; later saves update that project without another chooser. **Save project as…** creates a separate copy and makes it the destination for later saves. Exported images do not retain editable effects or text. The **Help** button explains effects, captions, point controls, and saving with illustrated examples.
+In the **0.5.0 source**, use **File → Save project** or `Ctrl+S` to continue editing later. Choose a new file the first time; later saves update that project without another chooser. **Save project as…** creates a separate copy and makes it the destination for later saves. Exported images do not retain editable effects or text. The **Help** button explains effects, captions, point controls, and saving with illustrated examples.
 
 ## See what the effects do
 

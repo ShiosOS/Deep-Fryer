@@ -1,5 +1,7 @@
 # File formats and local storage
 
+This guide describes the **0.5.0 source**. The published **0.4.0 installer** does not include captions, ordinary project updates, or the new unsaved-work protection. See the [download guidance](../README.md#download-for-windows) for the available installer and its version.
+
 ## Saved files
 
 | File | Contents | Purpose |
@@ -13,8 +15,6 @@
 Ordinary Save refuses a missing, externally changed, read-only, linked, or no-longer-authorized destination. It checks file identity and a hash of the exact previously read or saved bytes, including same-size edits. A refusal retains your edits, undo history, and saved baseline. Reopen the project after resolving the problem or use Save As to keep a separate copy.
 
 On Windows, ordinary Save creates an exclusive temporary file with the project's owner, group, and DACL supplied at creation. A native handle verifies its security and identity before any project or embedded image bytes are written. After writing and syncing, Save rechecks the destination and uses the retained temporary handle to replace it. It verifies the resulting permissions, identity, and exact bytes before acknowledging. It never deletes the destination to make replacement work. Failed temporary cleanup reports the surviving temporary filename and original failure. A surviving content-bearing temporary retains the project's permissions. If replacement may have happened but verification fails, the app reports an uncertain outcome, retains the old baseline, and requires reopening or a separate Save As.
-
-The behavior below describes the 0.5.0 source preview. It is not part of the published 0.4.0 installer.
 
 The helper uses the installed Windows PowerShell and .NET Framework without network access, installation, or privilege elevation. It preserves DACL ACE order, masks, inheritance flags, protection, owner, and group. Windows auto-inheritance bookkeeping flags are normalized for comparison. Unsupported permissions, explicit integrity labels, resource attributes or central access policies, encrypted files, non-NTFS or remote volumes, linked ancestor directories, or an unavailable helper cause ordinary Save to refuse before writing a temporary. Open and exclusive Save As remain available. Permission changes since Open or the last Save also cause refusal.
 
