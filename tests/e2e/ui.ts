@@ -1,6 +1,8 @@
 import { expect, type ElectronApplication, type Page } from '@playwright/test'
 import type { BaseWindow, MessageBoxOptions } from 'electron'
 
+const recoveryInterruptions = new WeakMap<ElectronApplication, Promise<void>>()
+
 export async function chooseUnsaved(app: ElectronApplication, choice: 'save' | 'discard' | 'cancel'): Promise<void> {
   await app.evaluate(({ dialog }, choice) => {
     const original = dialog.showMessageBox
@@ -14,11 +16,21 @@ export async function chooseUnsaved(app: ElectronApplication, choice: 'save' | '
 }
 
 export async function closeDiscardingChanges(app: ElectronApplication): Promise<void> {
-  await chooseUnsaved(app, 'discard')
+  const interruption = recoveryInterruptions.get(app)
+  if (interruption) return interruption
+  if (app.windows().length > 0) await chooseUnsaved(app, 'discard')
   await app.close()
 }
 
-export async function interruptForRecovery(app: ElectronApplication): Promise<void> {
+export function interruptForRecovery(app: ElectronApplication): Promise<void> {
+  const existing = recoveryInterruptions.get(app)
+  if (existing) return existing
+  const interruption = stopForRecovery(app)
+  recoveryInterruptions.set(app, interruption)
+  return interruption
+}
+
+async function stopForRecovery(app: ElectronApplication): Promise<void> {
   const launcher = app.process()
   const pids = await app.evaluate(({ app }) => [...new Set([process.pid, ...app.getAppMetrics().map(({ pid }) => pid)])])
   await app.evaluate(({ app }) => app.exit(19)).catch(() => {})
