@@ -48,7 +48,7 @@ function setup(t: TestContext) {
   })
   function createFiles() {
     return useDocumentFiles({ busy: ref(false), fileBusy: ref(false), source: () => active.value.source, edit: () => active.value.edit,
-      ready: () => true, gestureActive: () => false, finishGesture: () => {}, cancelPreparation: () => {},
+      ready: () => true, finishGesture: () => {}, cancelPreparation: () => {},
       setOperation: () => {}, finishOperation: () => {}, report: (notice) => { notices.push(notice) }, applyPreset: () => {},
       publish: async (source, edit, confirm) => {
         if (publishFails) throw new Error('candidate preparation failed')
