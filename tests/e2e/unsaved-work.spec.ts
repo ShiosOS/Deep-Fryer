@@ -87,7 +87,7 @@ test('cancel a native close keeps the editor and its checkpoint alive', async ()
     await app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0]?.close() }).catch(() => {})
     await page.waitForTimeout(300).catch(() => {})
     expect(page.isClosed(), 'Cancel must keep the unsaved editor open').toBe(false)
-    expect(JSON.parse(await readFile(checkpoint, 'utf8')).preset.effects[0].value).toBe(25)
+    expect(JSON.parse(await readFile(checkpoint, 'utf8')).edit.preset.effects[0].value).toBe(25)
   } finally { await cleanup(app, folder) }
 })
 
@@ -103,7 +103,7 @@ test('save before replacement writes the old editable snapshot, then imports an 
     await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeDisabled()
     const saved = parseProject(await readFile(project, 'utf8'))
     expect(Buffer.from(saved.source.bytes)).toEqual(await readFile(source))
-    expect(saved.preset.effects[0]).toMatchObject({ kind: 'brightness', value: 25 })
+    expect(saved.edit.preset.effects[0]).toMatchObject({ kind: 'brightness', value: 25 })
   } finally { await cleanup(app, folder) }
 })
 
@@ -291,7 +291,7 @@ test('close saves editable values while full rendering is still pending', async 
     await choose(app, 0)
     await nativeClose(app)
     await expect.poll(() => page.isClosed()).toBe(true)
-    expect(parseProject(await readFile(project, 'utf8')).preset.effects[0]).toMatchObject({ kind: 'brightness', value: 67 })
+    expect(parseProject(await readFile(project, 'utf8')).edit.preset.effects[0]).toMatchObject({ kind: 'brightness', value: 67 })
   } finally { await cleanup(app, folder) }
 })
 
@@ -389,7 +389,7 @@ test('a close queued during preset load guards the newly applied settings', asyn
       release()
     })
     await expect.poll(() => page.isClosed()).toBe(true)
-    expect(parseProject(await readFile(savedOnClose, 'utf8')).preset.effects[0]).toMatchObject({ kind: 'brightness', value: 72 })
+    expect(parseProject(await readFile(savedOnClose, 'utf8')).edit.preset.effects[0]).toMatchObject({ kind: 'brightness', value: 72 })
   } finally { await cleanup(app, folder) }
 })
 

@@ -12,7 +12,8 @@
     "tests/fixtures/v2/baseline.frypreset": "9b5bfd5a8adddef29e1eb8f370854030f82b361129adae4580c64e80e117c48f",
     "tests/fixtures/v2/original.png": "e4855099adee73d2fbe475a429627928af72e769f246127041bfe0d596941d04",
     "tests/fixtures/v2/baseline.png": "6113a9a09ff0a975e62c6ed358d39bab8c1668e6bf2b91b80325dc090657f1c6",
-    "tests/fixtures/v2/expected.json": "a2ef2db86686b4dff750f2d6b43cdb77e9df2ecce641e428bac56e974fcd7f11"
+    "tests/fixtures/v2/expected.json": "a2ef2db86686b4dff750f2d6b43cdb77e9df2ecce641e428bac56e974fcd7f11",
+    "tests/fixtures/v2-reader/src/shared/clipboard.ts": "e65f20bf4ce7d897b0ad08fb1f087460c381b802c881901752fc341aaac32b08"
   },
   "outer": [
     900,

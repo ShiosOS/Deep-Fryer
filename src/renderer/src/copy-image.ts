@@ -1,6 +1,6 @@
 import { readonly, shallowRef } from 'vue'
 import type { OpenImage } from '../../shared/image'
-import type { Preset } from '../../shared/preset'
+import type { EditState } from '../../shared/edit'
 import { freezeOutput, type OutputResponse, type PreparedOutput } from './output'
 
 export type CopySource = OpenImage & { bitmap: Pick<ImageBitmap, 'width' | 'height'> }
@@ -13,12 +13,12 @@ export function useImageCopy() {
   let preparation: Worker | null = null
   let cancelPreparation: (() => void) | null = null
 
-  async function run({ source, preset }: { source: CopySource; preset: Preset }): Promise<CopyOutcome> {
+  async function run({ source, edit }: { source: CopySource; edit: EditState }): Promise<CopyOutcome> {
     if (disposed || phase.value !== 'idle') return 'ignored'
     phase.value = 'preparing'
     let cancelled = false
     try {
-      const job = freezeOutput(source, preset, { format: 'png', width: source.bitmap.width, height: source.bitmap.height })
+      const job = freezeOutput(source, edit, { format: 'png', width: source.bitmap.width, height: source.bitmap.height })
       const worker = new Worker(new URL('./output-worker.ts', import.meta.url), { type: 'module' })
       preparation = worker
       const output = await new Promise<PreparedOutput | null>((resolve, reject) => {

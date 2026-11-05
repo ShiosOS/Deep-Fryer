@@ -14,9 +14,10 @@ import BulgeOverlay from './BulgeOverlay.vue'
 import DocumentControls from './DocumentControls.vue'
 import { describeError, useDocumentFiles } from './document-files'
 import { useImageCopy } from './copy-image'
-import { renderPresetFrame } from './render-preset-frame'
-import { isNeutralEffect, newEffect, newPreset, presetSchema, replaceEffect, type Preset } from '../../shared/preset'
-import { snapshotPreset, usePresetHistory } from './preset-history'
+import { renderEditFrame } from './render-edit-frame'
+import { isNeutralEffect, newEffect, presetSchema, replaceEffect, type Preset } from '../../shared/preset'
+import { newEdit, snapshotEdit, editStateSchema, type EditState } from '../../shared/edit'
+import { useEditHistory } from './edit-history'
 import type { WorkerRequest, WorkerResponse } from './effects-worker'
 import { actualSize, fitView, imageOrigin, paneToImage, pan, resizeView, zoom, type InspectionView, type Point, type Size } from './inspection-geometry'
 
@@ -39,8 +40,9 @@ const outputPanel = ref<InstanceType<typeof ExportDialog> | null>(null)
 const pane = ref<Size>({ width: 0, height: 0 })
 const view = ref<InspectionView | null>(null)
 const showing = ref<'edited' | 'original'>('edited')
-const history = usePresetHistory(newPreset())
-const { preset } = history
+const history = useEditHistory(newEdit())
+const { edit } = history
+const preset = computed(() => edit.value.preset)
 const restoreVersion = ref(0)
 const placingPoint = ref(false)
 const selectedPointId = ref<string | null>(null)
@@ -146,7 +148,7 @@ function stageKeydown(event: KeyboardEvent): void {
   event.preventDefault()
 }
 
-async function publishImage(source: OpenImage, savedPreset: Preset, confirm: () => Promise<boolean>): Promise<boolean> {
+async function publishImage(source: OpenImage, savedEdit: EditState, confirm: () => Promise<boolean>): Promise<boolean> {
   let candidate: ImageBitmap | null = null
   const previous = document.value
   const previousReadyRevision = readyRevision.value
@@ -179,8 +181,8 @@ async function publishImage(source: OpenImage, savedPreset: Preset, confirm: () 
       preview = { width: surface.width, height: surface.height, pixels: draftContext.getImageData(0, 0, surface.width, surface.height).data }
     }
     const candidateDocument = { ...source, bitmap: candidate }
-    const candidatePreset = presetSchema.parse(savedPreset)
-    const editedPixels = await renderPresetFrame(pixels, candidatePreset)
+    const candidateEdit = editStateSchema.parse(savedEdit)
+    const editedPixels = await renderEditFrame(pixels, candidateEdit)
     const candidateView = fitView({ width: candidate.width, height: candidate.height }, pane.value)
     if (!await confirm()) return false
     if (previous) previousFrame = context.getImageData(0, 0, canvas.value.width, canvas.value.height)
@@ -195,7 +197,7 @@ async function publishImage(source: OpenImage, savedPreset: Preset, confirm: () 
     context.putImageData(editedPixels, 0, 0)
     worker.postMessage(request, preview ? [workerPixels.buffer, preview.pixels.buffer] : [workerPixels.buffer])
     document.value = candidateDocument
-    history.reset(candidatePreset)
+    history.reset(candidateEdit)
     confirmedFrame = editedPixels
     gestureActive.value = false
     selectedPointId.value = null
@@ -240,7 +242,7 @@ async function publishImage(source: OpenImage, savedPreset: Preset, confirm: () 
 
 const files = useDocumentFiles({
   busy, fileBusy: computed(() => fileBusy.value || outputPanel.value?.busy === true),
-  source: () => document.value, preset: () => snapshotPreset(preset.value),
+  source: () => document.value, edit: () => snapshotEdit(edit.value),
   ready: () => document.value !== null && readyRevision.value === renderRevision,
   gestureActive: () => gestureActive.value,
   finishGesture: () => { history.end(); gestureActive.value = false },
@@ -274,7 +276,7 @@ function changePreset(settings: Preset): boolean {
 }
 
 function commitPreset(settings: Preset): boolean {
-  if (!document.value || !history.change(settings)) return false
+  if (!document.value || !history.change({ ...edit.value, preset: settings })) return false
   scheduleRender(document.value)
   return true
 }
@@ -282,17 +284,17 @@ function commitPreset(settings: Preset): boolean {
 function scheduleRender(source: ImageDocument): void {
   files.cancelCheckpoint()
   const revision = ++renderRevision
-  const accepted = snapshotPreset(preset.value)
+  const accepted = snapshotEdit(edit.value)
   operation.value = { kind: 'processing' }
   notice.value = { kind: 'info', text: 'Processing effects…' }
   if (renderTimer) clearTimeout(renderTimer)
   if (hasPreview) {
-    const previewRequest: WorkerRequest = { kind: 'render', sourceId: imageVersion.value, revision, preset: accepted, quality: 'preview' }
+    const previewRequest: WorkerRequest = { kind: 'render', sourceId: imageVersion.value, revision, edit: accepted, quality: 'preview' }
     worker.postMessage(previewRequest)
   }
   renderTimer = setTimeout(() => {
     if (revision !== renderRevision || document.value !== source) return
-    const request: WorkerRequest = { kind: 'render', sourceId: imageVersion.value, revision, preset: accepted, quality: 'full' }
+    const request: WorkerRequest = { kind: 'render', sourceId: imageVersion.value, revision, edit: accepted, quality: 'full' }
     worker.postMessage(request)
   }, 100)
 }
@@ -311,8 +313,10 @@ function deletePoint(id: string): void {
 function restoreFromHistory(direction: 'undo' | 'redo'): void {
   if (controlsBusy.value) return
   history.end()
+  gestureActive.value = false
+  const priorPreset = JSON.stringify(preset.value)
   if (!(direction === 'undo' ? history.undo() : history.redo())) return
-  restoreVersion.value += 1
+  if (JSON.stringify(preset.value) !== priorPreset) restoreVersion.value += 1
   if (document.value) scheduleRender(document.value)
 }
 
@@ -390,7 +394,7 @@ async function copyImage(): Promise<void> {
   copyAcknowledged.value = false
   if (copyFeedbackTimer) clearTimeout(copyFeedbackTimer)
   try {
-    if (await copy.run({ source, preset: preset.value }) !== 'copied') return
+    if (await copy.run({ source, edit: edit.value }) !== 'copied') return
     copyAcknowledged.value = true
     notice.value = { kind: 'success', text: 'Image copied.' }
     copyFeedbackTimer = setTimeout(() => { copyAcknowledged.value = false; copyFeedbackTimer = null }, 3000)
@@ -506,7 +510,7 @@ onUnmounted(() => {
         </section>
       </main>
     </div>
-    <ExportDialog ref="outputPanel" :source="document" :preset="preset" :disabled="controlsBusy" @notice="notice = $event" @save-started="files.cancelCheckpoint" @save-finished="files.scheduleCheckpoint" />
+    <ExportDialog ref="outputPanel" :source="document" :edit="edit" :disabled="controlsBusy" @notice="notice = $event" @save-started="files.cancelCheckpoint" @save-finished="files.scheduleCheckpoint" />
     <SettingsDialog ref="settingsDialog" :settings="appearance.settings.value" :mode="appearance.mode.value" :notice="appearance.notice.value" :saving="appearance.saving.value" @save="appearance.save" />
     <SaveNameDialog ref="nameDialog" @save="saveNamed" />
     <HelpDialog ref="helpDialog" />

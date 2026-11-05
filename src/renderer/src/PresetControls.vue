@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, shallowRef, watch } from 'vue'
-import { renderPresetFrame } from './render-preset-frame'
+import { renderEditFrame } from './render-edit-frame'
 import { isNeutralEffect, type Preset } from '../../shared/preset'
-import { snapshotPreset } from './preset-history'
+import { newEdit } from '../../shared/edit'
+import { snapshotPreset } from '../../shared/preset'
 import { fryAmounts, namedLooks, namedPreset, parameterKey, randomizePreset, randomParameters, scaleFry, type NamedLook } from './preset-looks'
 
 const props = defineProps<{ preset: Preset; bitmap: ImageBitmap; disabled: boolean; restoreVersion: number }>()
@@ -43,7 +44,7 @@ async function buildLookPreviews(seed: number, cancellation: AbortController): P
     context.drawImage(props.bitmap, 0, 0, surface.width, surface.height)
     const source = context.getImageData(0, 0, surface.width, surface.height)
     for (const name of namedLooks) {
-      const pixels = await renderPresetFrame(source, namedPreset(name, seed), cancellation.signal)
+      const pixels = await renderEditFrame(source, newEdit(namedPreset(name, seed)), cancellation.signal)
       if (cancellation.signal.aborted) return
       context.putImageData(pixels, 0, 0)
       previews.value = { ...previews.value, items: [...previews.value.items, { name, thumbnail: surface.toDataURL('image/png') }] }
@@ -65,9 +66,9 @@ function publish(preset: Preset): void {
   published = JSON.stringify(preset)
   emit('change', preset)
 }
-watch(() => props.preset, (preset) => {
-  if (JSON.stringify(preset) === published) { published = ''; return }
-  baseline.value = snapshotPreset(preset)
+watch(() => JSON.stringify(props.preset), (serialized) => {
+  if (serialized === published) { published = ''; return }
+  baseline.value = snapshotPreset(props.preset)
   amount.value = 100
   look.value = ''
 })
@@ -131,7 +132,7 @@ async function compare(): Promise<void> {
     const results = []
     for (const amount of fryAmounts) {
       const preset = scaleFry(startingPreset, amount)
-      const pixels = await renderPresetFrame(source, preset, cancellation.signal)
+      const pixels = await renderEditFrame(source, newEdit(preset), cancellation.signal)
       if (generation !== comparisonGeneration) return
       context.putImageData(pixels, 0, 0)
       results.push({ preset, amount, thumbnail: surface.toDataURL('image/png') })

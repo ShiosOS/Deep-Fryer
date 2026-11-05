@@ -101,7 +101,7 @@ test('installed packages preserve prior projects and presets across upgrade, res
       const project = parseProject(await readFile(projectPath, 'utf8'))
       const preset = parsePreset(await readFile(presetPath, 'utf8'))
       expect(Buffer.from(project.source.bytes)).toEqual(source)
-      expect(preset).toEqual(project.preset)
+      expect(preset).toEqual(project.edit.preset)
       expect(Array.from(PNG.sync.read(await readFile(baselinePath)).data)).toEqual(await pixels(page))
     } else {
       const projectBytes = await readFile(projectPath)

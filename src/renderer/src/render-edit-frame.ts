@@ -1,9 +1,10 @@
-import { isNeutralEffect, type Preset } from '../../shared/preset'
+import { isNeutralEffect } from '../../shared/preset'
+import type { EditState } from '../../shared/edit'
 import type { WorkerRequest, WorkerResponse } from './effects-worker'
 
-export async function renderPresetFrame(source: ImageData, preset: Preset, signal?: AbortSignal): Promise<ImageData> {
+export async function renderEditFrame(source: ImageData, edit: EditState, signal?: AbortSignal): Promise<ImageData> {
   if (signal?.aborted) throw new Error('Image processing canceled.')
-  if (preset.effects.every(isNeutralEffect)) return source
+  if (!edit.composition.captions && edit.preset.effects.every(isNeutralEffect)) return source
   const worker = new Worker(new URL('./effects-worker.ts', import.meta.url), { type: 'module' })
   let abort: (() => void) | null = null
   try {
@@ -19,7 +20,7 @@ export async function renderPresetFrame(source: ImageData, preset: Preset, signa
       const pixels = new Uint8ClampedArray(source.data)
       const request: WorkerRequest = { kind: 'source', sourceId: 1, width: source.width, height: source.height, pixels, preview: null }
       worker.postMessage(request, [pixels.buffer])
-      const render: WorkerRequest = { kind: 'render', sourceId: 1, revision: 1, quality: 'full', preset }
+      const render: WorkerRequest = { kind: 'render', sourceId: 1, revision: 1, quality: 'full', edit }
       worker.postMessage(render)
     })
   } finally {

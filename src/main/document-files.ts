@@ -1,46 +1,56 @@
 import { open, rm } from 'node:fs/promises'
 import { z } from 'zod'
 import { editableDocumentSchema, MAX_PRESET_BYTES, MAX_PROJECT_BYTES, type EditableDocument } from '../shared/documents'
+import { editStateSchema, newEdit } from '../shared/edit'
+import { decodeV2Project, decodeV2Preset } from './v2-document-codec'
 import { MAX_FILE_BYTES } from '../shared/image'
 import { presetSchema, type Preset } from '../shared/preset'
 import { inspectImage } from './image-files'
 import { decodeLegacyPreset, decodeLegacyProject } from './legacy-document-codec'
 
 const projectFileSchema = z.strictObject({
-  format: z.literal('deep-fryer-project'), version: z.literal(2),
+  format: z.literal('deep-fryer-project'), version: z.literal(3),
   source: z.strictObject({
     name: z.string().min(1).max(1024).refine((name) => !/[\\/]/.test(name), 'Use an image name without a path'),
     mime: z.enum(['image/png', 'image/jpeg']),
     base64: z.string().min(4).max(Math.ceil(MAX_FILE_BYTES / 3) * 4)
   }),
-  preset: presetSchema
+  edit: editStateSchema
 })
 const presetFileSchema = z.strictObject({ format: z.literal('deep-fryer-preset'), version: z.literal(2), preset: presetSchema })
+const projectVersionSchema = z.object({ version: z.union([z.literal(1), z.literal(2), z.literal(3)]) })
 const versionSchema = z.object({ version: z.union([z.literal(1), z.literal(2)]) })
 
 export function parseProject(text: string): EditableDocument {
   let raw: unknown
   try { raw = JSON.parse(text) } catch { throw new Error('This project is not valid JSON. Your current edit is unchanged.') }
-  if (!versionSchema.safeParse(raw).success) {
+  if (!projectVersionSchema.safeParse(raw).success) {
     throw new Error('This project version is not supported. Use the app version that saved it. Your current edit is unchanged.')
   }
   let file
-  try { file = versionSchema.parse(raw).version === 1 ? decodeLegacyProject(raw) : projectFileSchema.parse(raw) }
+  try {
+    const version = projectVersionSchema.parse(raw).version
+    if (version === 3) file = projectFileSchema.parse(raw)
+    else {
+      const legacy = version === 1 ? decodeLegacyProject(raw) : decodeV2Project(raw)
+      file = { source: legacy.source, edit: newEdit(legacy.preset) }
+    }
+  }
   catch { throw new Error('This project is damaged or contains unsupported settings. Your current edit is unchanged.') }
   const bytes = new Uint8Array(Buffer.from(file.source.base64, 'base64'))
   if (Buffer.from(bytes).toString('base64') !== file.source.base64 || inspectImage(bytes) !== file.source.mime) {
     throw new Error('The project image is damaged or has the wrong format.')
   }
-  return { source: { name: file.source.name, mime: file.source.mime, bytes }, preset: file.preset }
+  return { source: { name: file.source.name, mime: file.source.mime, bytes }, edit: file.edit }
 }
 
 export function encodeProject(document: EditableDocument): string {
   const accepted = editableDocumentSchema.parse(document)
   if (inspectImage(accepted.source.bytes) !== accepted.source.mime) throw new Error('The project image has the wrong format.')
   return JSON.stringify(projectFileSchema.parse({
-    format: 'deep-fryer-project', version: 2,
+    format: 'deep-fryer-project', version: 3,
     source: { name: accepted.source.name, mime: accepted.source.mime, base64: Buffer.from(accepted.source.bytes).toString('base64') },
-    preset: accepted.preset
+    edit: accepted.edit
   }))
 }
 
@@ -50,7 +60,7 @@ export function parsePreset(text: string): Preset {
   if (!versionSchema.safeParse(raw).success) {
     throw new Error('This preset version is not supported. Your current preset is unchanged.')
   }
-  try { return versionSchema.parse(raw).version === 1 ? decodeLegacyPreset(raw) : presetFileSchema.parse(raw).preset }
+  try { return versionSchema.parse(raw).version === 1 ? decodeLegacyPreset(raw) : decodeV2Preset(raw) }
   catch { throw new Error('This preset contains invalid or unsupported settings. Your current preset is unchanged.') }
 }
 
