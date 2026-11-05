@@ -4,6 +4,10 @@ Published installers are listed on the [releases page](https://github.com/ShiosO
 
 ## 0.5.0, unreleased
 
+- Try an original bundled demo without opening a personal image. Browse real draft previews of each named look on your current image.
+- Read larger inspector labels and processing or error feedback outside the scrolling controls.
+- Save, discard, or cancel before replacing or closing an unsaved project. Only a successful project save marks the edit saved. Undo to saved values restores that state.
+- Close cancels unfinished output preparation and waits for a native write that has already started. Unresolved recovery copies remain available.
 - Export dimensions keep the original oriented aspect ratio by default. Unlock the ratio to stretch an image deliberately.
 - Toggling the ratio lock without changing dimensions preserves the inspected output.
 - Failed image writes remove their incomplete new destination. Existing files and source images remain protected.

@@ -4,9 +4,11 @@
 
 A local Windows image editor for deep-fried memes. Push colors, add noise and JPEG damage, and warp faces with bulge or pinch points. Start with a preset, adjust the result, then copy it into another app or export an image. No account or upload required.
 
-![Deep Fryer 0.4.0 editor with Crispy color selected, effect controls on the left, and Copy image and Export above the cat preview](src/renderer/src/assets/help/editor.png)
+![Deep Fryer 0.5.0 source preview with image-based looks, readable controls, unsaved-project status, and a fried demo cat](docs/images/editor-dark.png)
 
-The screenshot and effect examples below show the existing 0.4.0 editor and help media. The download links point to that published release. Changes made after 0.4.0 require a new build and are not included in that installer.
+The screenshot shows the 0.5.0 source preview. The download below is the published 0.4.0 release. New source changes require a build and are not included in that installer. See the [changelog](CHANGELOG.md) and [light appearance](docs/images/editor-light.png).
+
+The 0.5.0 source adds an opt-in demo, live previews of each look on your image, and Save project, Discard, or Cancel protection before leaving unsaved work. Export keeps the original aspect ratio unless you unlock it.
 
 ## Download for Windows
 
@@ -33,7 +35,7 @@ Compare it with `SHA256SUMS.txt` on the same release. If the values match and yo
 ## Make your first edit
 
 1. Choose **File → Open image**, paste a copied image, or drop one PNG or JPEG into the window.
-2. Choose **Crispy color**, **Noisy photocopy**, or **Overcooked** from **Preset**. The canvas shows the edited result.
+2. Choose **Crispy color**, **Noisy photocopy**, or **Overcooked**. The canvas shows the edited result. The 0.4.0 installer uses a preset menu; the 0.5.0 source has a preview gallery.
 3. Adjust **Fry level** or open an effect to change its settings. Use **Original** to compare, or Undo to restore the previous edit.
 4. Choose **Copy image** to paste the edited result into another app. Wait for **Image copied** before pasting.
 5. To save a file, choose **Export**, set its format, size, and name, then choose **Save image…** and a new destination.
@@ -66,7 +68,7 @@ Deep Fryer processes images on your computer. The application has no account, im
 
 Projects embed the original source bytes, which can include source metadata. Treat a project as sharing the original image. Export creates a new image from decoded pixels rather than copying the source metadata. Copy puts image data on the Windows clipboard, where other apps and enabled clipboard history or sync services may access it.
 
-Recovery keeps two completed edit checkpoints in the local application data directory. After an interruption, checkpoints older than seven days are removed when recovery checks them. A clean exit or **Discard recovery** removes the recovery copies. Save a project for durable storage. Appearance settings are stored separately. See [file formats and storage](docs/files-and-storage.md).
+Recovery keeps two completed edit checkpoints in the local application data directory. After an interruption, checkpoints older than seven days are removed when recovery checks them. A completed clean exit or **Discard recovery** removes the recovery copies. The 0.5.0 source asks before closing or replacing unsaved work and preserves unresolved recovery copies. Save a project for durable storage. Appearance settings are stored separately. See [file formats and storage](docs/files-and-storage.md).
 
 Saves require a new filename. Existing files, including the source, stay protected even if a native chooser offers to replace them.
 

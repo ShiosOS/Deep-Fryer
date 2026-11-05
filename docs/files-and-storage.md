@@ -37,7 +37,9 @@ The private [legacy codec](../src/main/legacy-document-codec.ts) reads original 
 
 The app uses Electron's per-user application data directory. Recovery offers display the actual directory so you can locate your copies without assuming a particular Windows profile path.
 
-Recovery stores `latest.deepfryer` and `previous.deepfryer` under `recovery`. Each contains an embedded source image. Checkpoints older than seven days are removed when examined, rather than by a background deletion timer. A clean exit or **Discard recovery** removes both copies. Recovery is for interruptions and does not replace saving a project.
+Recovery stores `latest.deepfryer` and `previous.deepfryer` under `recovery`. Each contains an embedded source image. Checkpoints older than seven days are removed when examined, rather than by a background deletion timer. A completed clean exit or **Discard recovery** removes both copies. Recovery is for interruptions and does not replace saving a project.
+
+The 0.5.0 source tracks the exact document last saved as a project. Opening a saved project starts clean. Imports, pasted images, and restored recovery start unsaved. Copying, exporting, and saving a preset do not save an editable project. Before replacing or closing unsaved work, the app offers Save project, Discard, or Cancel. A canceled or failed save retains the edit. Closing with an unresolved recovery offer, failed recovery lookup, or failed renderer preserves the existing copies.
 
 `appearance.json` stores theme settings outside projects, presets, recovery, and undo history. An unreadable or future settings file remains untouched until an explicit reset.
 

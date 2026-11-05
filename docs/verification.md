@@ -8,6 +8,8 @@ The [Windows workflow](../.github/workflows/windows.yml) has three jobs. The [RE
 
 The journeys cover editing, documents, presets, history, appearance restart, Help, keyboard interaction, output inspection, and image copying. They use real Electron IPC and filesystem operations, with native open and save selection usually stubbed. They do not prove an actual Windows chooser interaction.
 
+The 0.5.0 journeys also cover unsaved Save, Discard, and Cancel decisions, close during processing, admitted native writes, interrupted demo recovery, live look previews, and proportional export dimensions. Native decision boxes are intercepted with explicit choices in those local journeys. Their control flow is exercised, while actual operating-system interaction remains a separate evidence class. Use the [maintained desktop verification skill](../.agents/skills/verify/SKILL.md) for launch, capture, feature maps, and cleanup.
+
 Original v1 fixtures contain files and pixels captured by the old application. Compatibility journeys compare reopened RGBA pixels against those fixtures. Do not regenerate the baseline using the current renderer. See [fixture provenance](../tests/fixtures/README.md).
 
 ## Installed and offline behavior
