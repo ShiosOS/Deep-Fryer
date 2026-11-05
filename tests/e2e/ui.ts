@@ -18,6 +18,20 @@ export async function closeDiscardingChanges(app: ElectronApplication): Promise<
   await app.close()
 }
 
+export async function interruptForRecovery(app: ElectronApplication): Promise<void> {
+  const launcher = app.process()
+  const pids = await app.evaluate(({ app }) => [...new Set([process.pid, ...app.getAppMetrics().map(({ pid }) => pid)])])
+  await app.evaluate(({ app }) => app.exit(19)).catch(() => {})
+  await app.close()
+  await expect.poll(() => pids.filter((pid) => {
+    try { process.kill(pid, 0); return true } catch (error) {
+      if (error instanceof Error && 'code' in error && error.code === 'ESRCH') return false
+      throw error
+    }
+  }), { message: 'Interrupted Electron processes must exit before profile reuse' }).toEqual([])
+  await expect.poll(() => launcher.exitCode).toBe(19)
+}
+
 export async function fileAction(page: Page, name: string): Promise<void> {
   const menu = page.locator(name.includes('preset') ? '.preset-menu' : '.file-menu')
   if (!await menu.getAttribute('open').then((value) => value !== null)) await menu.locator('summary').first().click()
