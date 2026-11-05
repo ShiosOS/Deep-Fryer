@@ -2,10 +2,20 @@ import { _electron as electron, expect, test } from '@playwright/test'
 import { access, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { chooseUnsaved, closeDiscardingChanges } from './ui'
+
+function launch(profile: string) {
+  const executable = process.env.DEEP_FRYER_EXECUTABLE ?? process.env.ELECTRON_EXECUTABLE_PATH
+  return electron.launch({
+    ...(executable ? { executablePath: executable } : {}),
+    args: [...(process.env.DEEP_FRYER_EXECUTABLE ? [] : [resolve('.')]), `--user-data-dir=${profile}`],
+    env: { ...process.env, ELECTRON_RENDERER_URL: '' }
+  })
+}
 
 test('demo is opt-in and the editor remains usable at 900 by 620', async () => {
   const folder = await mkdtemp(join(tmpdir(), 'deep-fryer-demo-'))
-  const app = await electron.launch({ args: [resolve('.'), `--user-data-dir=${folder}`], env: { ...process.env, ELECTRON_RENDERER_URL: '' } })
+  const app = await launch(folder)
   try {
     const page = await app.firstWindow()
     await page.setViewportSize({ width: 900, height: 620 })
@@ -31,7 +41,7 @@ test('demo is opt-in and the editor remains usable at 900 by 620', async () => {
     await page.locator('.look-gallery summary').click()
     await expect(page.getByRole('slider', { name: 'Fry level' })).toBeVisible()
   } finally {
-    await app.close()
+    await closeDiscardingChanges(app)
     await rm(folder, { recursive: true, force: true })
   }
 })
@@ -39,15 +49,14 @@ test('demo is opt-in and the editor remains usable at 900 by 620', async () => {
 
 test('an interrupted demo offers recovery before another demo can load', async () => {
   const folder = await mkdtemp(join(tmpdir(), 'deep-fryer-demo-recovery-'))
-  const launch = () => electron.launch({ args: [resolve('.'), `--user-data-dir=${folder}`], env: { ...process.env, ELECTRON_RENDERER_URL: '' } })
-  let app = await launch()
+  let app = await launch(folder)
   try {
     let page = await app.firstWindow()
     await page.getByRole('button', { name: 'Try demo' }).click()
     await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeEnabled()
     await expect.poll(() => access(join(folder, 'recovery', 'latest.deepfryer')).then(() => true, () => false)).toBe(true)
     await app.evaluate(({ app }) => app.exit(19)).catch(() => {})
-    app = await launch()
+    app = await launch(folder)
     page = await app.firstWindow()
     const recovery = page.getByRole('alertdialog', { name: 'Restore interrupted work?' })
     await expect(recovery).toBeVisible()
@@ -56,14 +65,14 @@ test('an interrupted demo offers recovery before another demo can load', async (
     await expect(page.locator('.filename')).toContainText('toast-cat.png')
     await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeEnabled()
   } finally {
-    await app.close()
+    await closeDiscardingChanges(app)
     await rm(folder, { recursive: true, force: true })
   }
 })
 
 test('thumbnail failure is visible while editing remains available', async () => {
   const folder = await mkdtemp(join(tmpdir(), 'deep-fryer-look-error-'))
-  const app = await electron.launch({ args: [resolve('.'), `--user-data-dir=${folder}`], env: { ...process.env, ELECTRON_RENDERER_URL: '' } })
+  const app = await launch(folder)
   try {
     const page = await app.firstWindow()
     await expect(page.getByRole('button', { name: 'Try demo' })).toBeEnabled()
@@ -75,7 +84,7 @@ test('thumbnail failure is visible while editing remains available', async () =>
     await expect(page.getByRole('button', { name: 'Crispy color', exact: true })).toBeEnabled()
     await expect(page.locator('.look-grid')).toHaveAttribute('aria-busy', 'false')
   } finally {
-    await app.close()
+    await closeDiscardingChanges(app)
     await rm(folder, { recursive: true, force: true })
   }
 })
@@ -83,7 +92,7 @@ test('thumbnail failure is visible while editing remains available', async () =>
 
 test('replacing the source cancels outstanding look rendering', async () => {
   const folder = await mkdtemp(join(tmpdir(), 'deep-fryer-look-cancel-'))
-  const app = await electron.launch({ args: [resolve('.'), `--user-data-dir=${folder}`], env: { ...process.env, ELECTRON_RENDERER_URL: '' } })
+  const app = await launch(folder)
   try {
     const page = await app.firstWindow()
     await expect(page.getByRole('button', { name: 'Try demo' })).toBeEnabled()
@@ -91,7 +100,8 @@ test('replacing the source cancels outstanding look rendering', async () => {
       Reflect.set(window, 'terminatedLookWorkers', 0)
       window.Worker = new Proxy(window.Worker, {
         construct(target, args) {
-          const worker = Reflect.construct(target, args) as Worker
+          const worker: unknown = Reflect.construct(target, args)
+          if (!(worker instanceof target)) throw new Error('Expected a native Worker')
           const terminate = worker.terminate.bind(worker)
           worker.postMessage = () => {}
           worker.terminate = () => { Reflect.set(window, 'terminatedLookWorkers', Number(Reflect.get(window, 'terminatedLookWorkers')) + 1); terminate() }
@@ -102,12 +112,13 @@ test('replacing the source cancels outstanding look rendering', async () => {
     await page.getByRole('button', { name: 'Try demo' }).click()
     await expect(page.locator('.look-grid')).toHaveAttribute('aria-busy', 'true')
     await app.evaluate(({ dialog }, path) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] }) }, resolve('tests/fixtures/v1/original.png'))
+    await chooseUnsaved(app, 'discard')
     await page.locator('.file-menu summary').click()
     await page.getByRole('button', { name: 'Open image' }).click()
     await expect(page.locator('.filename')).toContainText('original.png')
     await expect.poll(() => page.evaluate(() => Number(Reflect.get(window, 'terminatedLookWorkers')))).toBeGreaterThan(0)
   } finally {
-    await app.close()
+    await closeDiscardingChanges(app)
     await rm(folder, { recursive: true, force: true })
   }
 })

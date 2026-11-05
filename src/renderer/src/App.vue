@@ -252,7 +252,7 @@ const files = useDocumentFiles({
 })
 const { openImage } = files
 function tryDemo(): void {
-  void files.loadSource(async () => {
+  void files.load(async () => {
     const response = await fetch(demoImage)
     if (!response.ok) throw new Error('The demo image could not be loaded.')
     return { name: 'toast-cat.png', mime: 'image/png', bytes: new Uint8Array(await response.arrayBuffer()) }

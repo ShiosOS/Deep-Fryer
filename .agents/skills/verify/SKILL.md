@@ -64,7 +64,7 @@ For feature proofs, retain the exact command, exit code, source/head identity, s
 
 The helper closes its own Electron application, confirms the launcher and recorded Electron process PIDs exited, removes only its fresh profile, and writes teardown results to the persistent manifest. Evidence lives outside the temporary profile and survives cleanup. A failed close fails the run. A surviving process leaves the profile intact for diagnosis; inspect the recorded PIDs before cleaning it manually. Never kill by executable name.
 
-Only during teardown, the helper intercepts native message boxes whose buttons contain **Discard**, **Discard changes**, or **Don't save**, choosing that explicit button. Unknown prompts fail. This accommodates a future unsaved-close guard without a production bypass flag. It does not verify the guard's UX or prove that a prompt occurred. Teardown failure still produces a manifest; retain failed receipts.
+Only during teardown, the helper intercepts native message boxes whose buttons contain **Discard**, **Discard changes**, or **Don't save**, choosing that explicit button. Unknown prompts fail. This handles the unsaved-close guard for its disposable edit. It does not verify the guard's UX or prove that a prompt occurred. Teardown failure still produces a manifest; retain failed receipts.
 
 ## Packaged and native gates
 

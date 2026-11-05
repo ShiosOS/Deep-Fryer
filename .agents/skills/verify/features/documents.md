@@ -8,10 +8,11 @@ Move an editable project without its source, reuse presets, and recover interrup
 - D2: Independent project/preset/export names and canceled name/chooser dialogs.
 - D3: Recovery after interruption, fallback from corruption, discard, and profile ownership.
 - D4: Historical v1 compatibility and installed upgrade/return compatibility.
+- D5: Save project, Discard, or Cancel before replacing or closing unsaved work.
 
 ## How to get to it (user POV)
 
-Use **File → Open project** or **Save project as…**. Use **Preset actions → Load preset** or **Save preset as…**. A restarted interrupted profile offers **Restore work** and **Discard recovery**. Recovery is local to that profile.
+Use **File → Open project** or **Save project as…**. Use **Preset actions → Load preset** or **Save preset as…**. Replacing unsaved work or closing the native window offers **Save project**, **Discard**, and **Cancel**. A restarted interrupted profile offers **Restore work** and **Discard recovery**. Recovery is local to that profile.
 
 ## Driving it with Playwright Electron
 
@@ -22,7 +23,8 @@ Preconditions: Each spec supplies writable disposable paths. Recovery tests deli
 - D3: `node node_modules/@playwright/test/cli.js test documents.spec.ts --grep 'unexpected process stop|second application' --output .artifacts/recovery/test-results`. Require valid-generation restore, corrupted-latest fallback, removal of both disposable recovery copies after **Discard recovery**, and a second app unable to own/delete the live profile's recovery.
 - D4 source compatibility: `node node_modules/@playwright/test/cli.js test legacy-files.spec.ts --output .artifacts/legacy/test-results`. Require historical fixtures to reopen with baseline full-resolution pixels, including ordering, JPEG, alpha, and points.
 - D4 installed upgrade is the `package-upgrade` workflow job, which runs `package-upgrade.spec.ts` against actual previous/candidate/return installations. Retain each installer hash and phase receipt; a local legacy-fixture run does not cover installation.
+- D5: `node node_modules/@playwright/test/cli.js test unsaved-work.spec.ts --output .artifacts/unsaved-work/test-results`. Require canceled replacement to retain pixels/history, project save before replacement to write the old snapshot, discard to reset history, and native close/quit choices to preserve or save edits and recovery as claimed. The spec intercepts exact native message-box choices while driving real renderer/main flows.
 
 ## Gotchas
 
-The ordinary document specs intercept Open/Save chooser results. They prove serialization, IPC, real disk writes, and reload behavior, not the Windows chooser. Keep fixtures read-only and save into each run's temporary directory. A graceful capture teardown discards its temporary edit and removes that profile; it is not a recovery proof. If an unsaved-close guard is added, rerun these journeys and verify its actual choices separately from the capture helper's teardown-only message-box interception.
+The ordinary document specs intercept Open/Save chooser results. They prove serialization, IPC, real disk writes, and reload behavior, not the Windows chooser. Keep fixtures read-only and save into each run's temporary directory. Use `chooseUnsaved` for deliberate replacement choices and `closeDiscardingChanges` for disposable test teardown. A graceful capture teardown discards its temporary edit and removes that profile; it is not a recovery or guard UX proof. The demo recovery journey retains its forced process exit before relaunch.

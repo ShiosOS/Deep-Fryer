@@ -77,6 +77,8 @@ try {
     await expect(page.locator('html')).toHaveAttribute('data-appearance', mode.toLowerCase())
   }
   async function screenshot(name) {
+    const gallery = page.locator('.look-grid')
+    if (await gallery.count()) await expect(gallery).toHaveAttribute('aria-busy', 'false')
     const bytes = await page.screenshot({ path: join(output, name), scale: 'css' })
     const png = PNG.sync.read(bytes)
     const viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight, dpr: devicePixelRatio }))

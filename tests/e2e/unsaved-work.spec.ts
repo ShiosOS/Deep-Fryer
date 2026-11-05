@@ -7,7 +7,12 @@ import { chooseUnsaved, controls, exportImage, fileAction, ready } from './ui'
 import { parseProject } from '../../src/main/document-files'
 
 async function launch(profile: string): Promise<ElectronApplication> {
-  return electron.launch({ args: [resolve('.'), `--user-data-dir=${profile}`], env: { ...process.env, ELECTRON_RENDERER_URL: '' } })
+  const executable = process.env.DEEP_FRYER_EXECUTABLE ?? process.env.ELECTRON_EXECUTABLE_PATH
+  return electron.launch({
+    ...(executable ? { executablePath: executable } : {}),
+    args: [...(process.env.DEEP_FRYER_EXECUTABLE ? [] : [resolve('.')]), `--user-data-dir=${profile}`],
+    env: { ...process.env, ELECTRON_RENDERER_URL: '' }
+  })
 }
 
 async function choose(app: ElectronApplication, response: number): Promise<void> {

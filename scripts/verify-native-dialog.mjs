@@ -79,4 +79,13 @@ try {
   assert.equal(JSON.parse(result.stdout).suggested, 'Native checked.deepfryer')
   await writeFile('.artifacts/implementation/native-dialog-result.json', result.stdout)
   console.log(result.stdout.trim())
-} finally { await app.close(); await rm(folder, { recursive: true, force: true }) }
+} finally {
+  await app.evaluate(({ dialog }) => {
+    dialog.showMessageBox = async (_window, options) => {
+      if (options.buttons?.join('|') !== 'Save project|Discard|Cancel') throw new Error('Unexpected teardown dialog')
+      return { response: 1, checkboxChecked: false }
+    }
+  })
+  await app.close()
+  await rm(folder, { recursive: true, force: true })
+}

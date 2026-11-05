@@ -41,4 +41,13 @@ try {
   await page.getByRole('dialog', { name: 'Help', exact: true }).evaluate((element) => { element.scrollTop = 0 })
   await page.screenshot({ path: '.artifacts/implementation/help-saving.png' })
   console.log('Captured the implemented editor, point overlay, light theme and Help from Electron.')
-} finally { await app.close(); await rm(profile, { recursive: true, force: true }) }
+} finally {
+  await app.evaluate(({ dialog }) => {
+    dialog.showMessageBox = async (_window, options) => {
+      if (options.buttons?.join('|') !== 'Save project|Discard|Cancel') throw new Error('Unexpected teardown dialog')
+      return { response: 1, checkboxChecked: false }
+    }
+  })
+  await app.close()
+  await rm(profile, { recursive: true, force: true })
+}
