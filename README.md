@@ -44,7 +44,7 @@ In the 0.5.0 source, open **Captions** and enter **Top** or **Bottom** text. Tex
 
 ![Editable top and bottom captions over a fried demo cat in the 0.5.0 source preview at the minimum Windows window size](docs/images/editor-captions.png)
 
-To continue editing later, use **File → Save project as…**. Exported images do not retain editable effects or text. The **Help** button explains effects, captions, point controls, and saving with illustrated examples.
+To continue editing later, use **File → Save project** or `Ctrl+S`. Choose a new file the first time; later saves update that project without another chooser. **Save project as…** creates a separate copy and makes it the destination for later saves. Exported images do not retain editable effects or text. The **Help** button explains effects, captions, point controls, and saving with illustrated examples.
 
 ## See what the effects do
 
@@ -74,7 +74,7 @@ Projects embed the original source bytes, which can include source metadata. Tre
 
 Recovery keeps two completed edit checkpoints in the local application data directory. After an interruption, checkpoints older than seven days are removed when recovery checks them. A completed clean exit or **Discard recovery** removes the recovery copies. The 0.5.0 source asks before closing or replacing unsaved work and preserves unresolved recovery copies. Save a project for durable storage. Appearance settings are stored separately. See [file formats and storage](docs/files-and-storage.md).
 
-Saves require a new filename. Existing files, including the source, stay protected even if a native chooser offers to replace them.
+Ordinary project Save updates only the project opened or saved in this session. If it changed outside Deep Fryer, moved, became read-only, or became a link, Save refuses and retains your edit. Reopen it or use **Save project as…** for a separate copy. Save As, presets, and image exports require a new filename, even if a native chooser offers to replace one. Opening a legacy project or restoring recovery requires Save As on the first save.
 
 ## Current limits
 

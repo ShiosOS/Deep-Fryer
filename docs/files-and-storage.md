@@ -8,7 +8,15 @@
 | `.frypreset` | Ordered effects, relative points, and seed without an image or captions | Reuse a look on another image |
 | PNG, JPEG, or WebP | Rendered output pixels | Share a finished image |
 
-Saving always creates a new file. Existing destinations remain protected, including hard links to the original file. Canceling a chooser saves nothing. A failed open leaves the current edit intact.
+**Save project** and `Ctrl+S` update the current project after a successful native Open or Save As. The first save of an image, restored recovery, or legacy project creates a new file. **Save project as…** always creates a new file and switches later saves to that copy. Image exports and preset saves also create new files. Their exclusive-create rule protects existing files, including hard links to the original. Canceling a chooser saves nothing. A failed open leaves the current edit intact.
+
+Ordinary Save refuses a missing, externally changed, read-only, linked, or no-longer-authorized destination. It checks file identity and a hash of the exact previously read or saved bytes, including same-size edits. A refusal retains your edits, undo history, and saved baseline. Reopen the project after resolving the problem or use Save As to keep a separate copy.
+
+The replacement uses an exclusive temporary file in the destination directory, writes and syncs it, closes it, rechecks the destination, then renames it over the authorized project. It never deletes the destination to make a rename work. Failed temporary cleanup reports the surviving temporary filename as well as the original failure. If replacement may have happened but verification fails, the app reports an uncertain outcome, retains the old baseline, and requires reopening or a separate Save As.
+
+**Held candidate:** ordinary Save is blocked from release by the Windows ACL defect tracked in issue #29. It requires a separate repair and fresh independent security review. The integration checks do not establish ACL safety.
+
+These checks are best-effort conflict detection, not filesystem compare-and-swap. Another process can change the destination between the final check and rename. File sync and atomic rename do not guarantee power-loss durability on every filesystem. Replacement retains the file's writable mode; the new file inherits directory permissions and has new filesystem identity and timestamps. Custom file ACLs, alternate data streams, and other filesystem metadata are not copied.
 
 PNG keeps transparency. JPEG replaces it with the selected background. WebP export uses lossy color compression and supports transparency. JPEG damage inside an effect stack can also replace transparency with its configured background.
 
@@ -34,7 +42,7 @@ Current projects have this outer structure:
 
 Current presets use `{ "format": "deep-fryer-preset", "version": 2, "preset": { ... } }`. The in-memory preset has no version field. The source schemas and codecs are in [shared documents](../src/shared/documents.ts) and [document files](../src/main/document-files.ts).
 
-The private [v1 codec](../src/main/legacy-document-codec.ts) and [v2 codec](../src/main/v2-document-codec.ts) read historical files with their original parameter meanings. Both adapt to a null caption composition. Older applications reject v3 projects. Saving a historical project creates a new v3 file and leaves the original unchanged. Presets still write v2 and never include captions. [Historical compatibility fixtures](../tests/fixtures/README.md) preserve original files and reference pixels.
+The private [v1 codec](../src/main/legacy-document-codec.ts) and [v2 codec](../src/main/v2-document-codec.ts) read historical files with their original parameter meanings. Both adapt to a null caption composition. Older applications reject v3 projects. Only `CURRENT_PROJECT_VERSION`, currently 3, permits ordinary updates. V1 and v2 projects open clean without overwrite authority. Their first Save creates a separate v3 file and leaves the original unchanged. Presets still write v2 and never include captions. [Historical compatibility fixtures](../tests/fixtures/README.md) preserve original files and reference pixels.
 
 Captions use `{ "kind": "top-bottom-v1", "font": "anton-regular-v1", "top": "Hello", "bottom": "World", "size": 0.1 }`. Each text field accepts at most 512 UTF-16 units; size ranges from 0.04 to 0.16 of the shorter image edge. Whitespace-only caption pairs become `null`. Text remains valid and savable even when it cannot render in three lines or includes unsupported glyphs. Output is blocked with an explanation until the text can render. No font paths or URLs are accepted in a project. The pinned bundled font and full offline Help → Licenses text have [recorded provenance](../src/renderer/src/assets/fonts/provenance.json).
 
