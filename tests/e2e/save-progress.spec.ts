@@ -3,9 +3,92 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { createHash } from 'node:crypto'
+import { existsSync } from 'node:fs'
 import { parseProject } from '../../src/main/document-files'
 import { editStateSchema } from '../../src/shared/edit'
-import { chooseUnsaved, closeDiscardingChanges, fileAction, fileOperationComplete, finishElectronTrace, ready, traceElectron, PROJECT_FILE_OPERATION_MS } from './ui'
+import { chooseUnsaved, closeDiscardingChanges, fileAction, fileOperationComplete, ready, traceElectron, PROJECT_FILE_OPERATION_MS } from './ui'
+
+type OwnedApplication = { launcher: ReturnType<ElectronApplication['process']>; pids: number[] }
+
+async function cleanup(app: ElectronApplication, folder: string, owned: OwnedApplication): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    await Promise.race([closeDiscardingChanges(app), new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`Close timed out; retained ${folder}`)), 10_000)
+    })])
+    await expect.poll(() => owned.launcher.exitCode !== null || owned.launcher.signalCode !== null).toBe(true)
+    await expect.poll(() => owned.pids.filter(pid => {
+      try { process.kill(pid, 0); return true } catch (error) {
+        if (error instanceof Error && 'code' in error && error.code === 'ESRCH') return false
+        throw error
+      }
+    }), { message: 'Owned Electron processes must exit before profile removal' }).toEqual([])
+    await rm(folder, { recursive: true, force: true })
+    await writeFile(test.info().outputPath('teardown.json'), JSON.stringify({
+      profileRemoved: true, pid: owned.launcher.pid, pids: owned.pids,
+      exitCode: owned.launcher.exitCode, signal: owned.launcher.signalCode
+    }))
+  } finally { clearTimeout(timer) }
+}
+
+test('save progress cleanup retains the profile when close or exit proof fails after driver disposal', async () => {
+  const folder = await mkdtemp(join(tmpdir(), 'deep-fryer-save-cleanup-failure-'))
+  const executable = process.env.DEEP_FRYER_EXECUTABLE ?? process.env.ELECTRON_EXECUTABLE_PATH
+  const app = await electron.launch({ ...(executable ? { executablePath: executable } : {}),
+    args: [...(process.env.DEEP_FRYER_EXECUTABLE ? [] : [resolve('.')]), `--user-data-dir=${join(folder, 'profile')}`],
+    env: { ...process.env, ELECTRON_RENDERER_URL: '' } })
+  const launcher = app.process()
+  const page = await app.firstWindow()
+  const owned = { launcher, pids: await app.evaluate(({ app }) => [...new Set([process.pid, ...app.getAppMetrics().map(({ pid }) => pid)])]) }
+  await writeFile(test.info().outputPath('runtime.json'), JSON.stringify({ folder, pid: launcher.pid, pids: owned.pids }))
+  const blockedPid = owned.pids[0]
+  if (blockedPid === undefined) throw new Error('Main process ownership missing')
+  const marker = join(folder, 'cleanup-proof.txt')
+  const kill = process.kill
+  const close = app.close.bind(app)
+  const closeFailure = new Error('Injected close rejection')
+  const exitProofFailure = new Error('Injected exit probe rejection')
+  try {
+    await expect(page.getByRole('heading', { name: 'Open your first image.' })).toBeVisible()
+    await writeFile(marker, 'retain until owned exit is proven')
+    await closeDiscardingChanges(app)
+    await expect.poll(() => owned.launcher.exitCode !== null || owned.launcher.signalCode !== null).toBe(true)
+    await expect.poll(() => owned.pids.filter(pid => {
+      try { kill(pid, 0); return true } catch (error) {
+        if (error instanceof Error && 'code' in error && error.code === 'ESRCH') return false
+        throw error
+      }
+    })).toEqual([])
+    app.close = async () => { throw closeFailure }
+    await expect(cleanup(app, folder, owned)).rejects.toBe(closeFailure)
+    expect(await readFile(marker, 'utf8')).toBe('retain until owned exit is proven')
+    app.close = close
+    process.kill = (...args) => {
+      if (args[0] === blockedPid && args[1] === 0) throw exitProofFailure
+      return kill(...args)
+    }
+    const cleanupError: unknown = await cleanup(app, folder, owned).then(() => null, (error: unknown) => error)
+    await writeFile(test.info().outputPath('exit-proof-fault.json'), JSON.stringify({ folder, profileRetained: existsSync(marker), error: String(cleanupError) }))
+    expect(existsSync(marker), 'Profile must remain when owned exit cannot be proven').toBe(true)
+    expect(cleanupError).toBe(exitProofFailure)
+    expect(await readFile(marker, 'utf8')).toBe('retain until owned exit is proven')
+  } finally {
+    process.kill = kill
+    app.close = close
+    await close()
+    await expect.poll(() => owned.launcher.exitCode !== null || owned.launcher.signalCode !== null).toBe(true)
+    await expect.poll(() => owned.pids.filter(pid => {
+      try { kill(pid, 0); return true } catch (error) {
+        if (error instanceof Error && 'code' in error && error.code === 'ESRCH') return false
+        throw error
+      }
+    }), { message: 'Real Electron processes must stop before removing the injection fixture' }).toEqual([])
+    await rm(folder, { recursive: true, force: true })
+    await writeFile(test.info().outputPath('fixture-teardown.json'), JSON.stringify({
+      profileRemoved: true, pid: launcher.pid, pids: owned.pids, exitCode: launcher.exitCode, signal: launcher.signalCode
+    }))
+  }
+})
 
 async function holdSave(app: ElectronApplication, channel: string): Promise<void> {
   await app.evaluate(({ ipcMain }, channel) => {
@@ -34,7 +117,12 @@ test('canceled, failed, uncertain and rejected saves clear progress before direc
   const app = await electron.launch({ ...(executable ? { executablePath: executable } : {}),
     args: [...(process.env.DEEP_FRYER_EXECUTABLE ? [] : [resolve('.')]), `--user-data-dir=${join(folder, 'profile')}`],
     env: { ...process.env, ELECTRON_RENDERER_URL: '' } })
+  const launcher = app.process()
   await traceElectron(app)
+  const runtime = await app.evaluate(({ app }) => ({ packaged: app.isPackaged, executable: process.execPath,
+    pids: [...new Set([process.pid, ...app.getAppMetrics().map(({ pid }) => pid)])] }))
+  const owned = { launcher, pids: runtime.pids }
+  await writeFile(test.info().outputPath('runtime.json'), JSON.stringify({ folder, pid: launcher.pid, ...runtime }))
   try {
     const page = await app.firstWindow()
     await page.getByRole('button', { name: 'Try demo', exact: true }).click()
@@ -74,8 +162,7 @@ test('canceled, failed, uncertain and rejected saves clear progress before direc
       }
     }
   } finally {
-    await closeDiscardingChanges(app)
-    await rm(folder, { recursive: true, force: true })
+    await cleanup(app, folder, owned)
   }
 })
 
@@ -103,11 +190,13 @@ for (const missingFont of [false, true]) {
     const app = await electron.launch({ ...(executable ? { executablePath: executable } : {}),
       args: [...(process.env.DEEP_FRYER_EXECUTABLE ? [] : [resolve('.')]), `--user-data-dir=${join(folder, 'profile')}`],
       env: { ...process.env, ELECTRON_RENDERER_URL: '' } })
+    const launcher = app.process()
     const page = await app.firstWindow()
     await traceElectron(app)
     const runtime = await app.evaluate(({ app }) => ({ packaged: app.isPackaged, executable: process.execPath,
       pids: [...new Set([process.pid, ...app.getAppMetrics().map(({ pid }) => pid)])] }))
-    await writeFile(test.info().outputPath('runtime.json'), JSON.stringify({ folder, ...runtime }))
+    const owned = { launcher, pids: runtime.pids }
+    await writeFile(test.info().outputPath('runtime.json'), JSON.stringify({ folder, pid: launcher.pid, ...runtime }))
     try {
       await page.getByRole('button', { name: 'Try demo', exact: true }).click()
       await ready(page)
@@ -163,20 +252,7 @@ for (const missingFont of [false, true]) {
       }
     } finally {
       await releaseSave(app)
-      await finishElectronTrace(app)
-      let timer: ReturnType<typeof setTimeout> | undefined
-      try {
-        await chooseUnsaved(app, 'discard')
-        await Promise.race([app.close(), new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(`Close timed out; retained ${folder}`)), 10_000) })])
-        await expect.poll(() => runtime.pids.filter(pid => {
-          try { process.kill(pid, 0); return true } catch (error) {
-            if (error instanceof Error && 'code' in error && error.code === 'ESRCH') return false
-            throw error
-          }
-        })).toEqual([])
-        await rm(folder, { recursive: true, force: true })
-        await writeFile(test.info().outputPath('teardown.json'), JSON.stringify({ profileRemoved: true, pids: runtime.pids }))
-      } finally { clearTimeout(timer) }
+      await cleanup(app, folder, owned)
     }
   })
 }

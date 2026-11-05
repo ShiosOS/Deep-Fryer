@@ -440,6 +440,9 @@ test('Save in the File menu updates the authorized project and a native close us
 })
 
 test('close queued while candidate B is selected saves A before adopting B and closes cleanly', async () => {
+  // Keep the normal budget for setup, edits, assertions and teardown, plus the
+  // initial Open and queued Open/Save, each with its existing operation budget.
+  test.setTimeout(test.info().timeout + 3 * PROJECT_FILE_OPERATION_MS)
   const { folder, a, b, app, page } = await setup()
   const child = app.process()
   try {
