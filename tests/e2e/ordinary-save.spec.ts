@@ -420,6 +420,7 @@ test('Save in the File menu updates the authorized project and a native close us
     await app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0]?.close() }).catch(() => {})
     await expect.poll(() => page.isClosed()).toBe(true)
     expect(parseProject(await readFile(a, 'utf8')).edit.preset.effects[0]).toMatchObject({ value: 50 })
+    await app.close()
   } finally { await cleanup(app, folder) }
 })
 
