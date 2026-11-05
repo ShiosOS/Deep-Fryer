@@ -18,7 +18,13 @@ test('demo is opt-in and the editor remains usable at 900 by 620', async () => {
   const app = await launch(folder)
   try {
     const page = await app.firstWindow()
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(900, 620))
+    const nativeSize = await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0]
+      if (!window) throw new Error('Editor window is missing')
+      window.setSize(900, 620)
+      return { minimum: window.getMinimumSize(), outer: window.getSize() }
+    })
+    expect(nativeSize).toEqual({ minimum: [900, 620], outer: [900, 620] })
     await expect(page.getByRole('button', { name: 'Choose an image' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeDisabled()
     await page.getByRole('button', { name: 'Try demo' }).click()
@@ -40,6 +46,7 @@ test('demo is opt-in and the editor remains usable at 900 by 620', async () => {
     await expect(look).toHaveAttribute('aria-pressed', 'true')
     const effect = await page.locator('.effect-heading').first().boundingBox()
     if (!effect) throw new Error('First effect heading is missing')
+    expect(effect.y).toBeGreaterThanOrEqual(0)
     expect(effect.y + effect.height).toBeLessThanOrEqual(await page.evaluate(() => innerHeight))
     await page.getByRole('slider', { name: 'Fry level' }).fill('50')
     await expect(look).toHaveAttribute('aria-pressed', 'false')
