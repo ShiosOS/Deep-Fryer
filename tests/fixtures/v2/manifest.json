@@ -1,0 +1,26 @@
+{
+  "base": "e2276f3109077299c94698f2f87747a8901c322d",
+  "files": {
+    "tests/fixtures/v2-reader/src/main/document-files.ts": "c285b06c2b82846089dafe92f0a03e70acc0d995298e0955b3d125be5f7a6021",
+    "tests/fixtures/v2-reader/src/main/legacy-document-codec.ts": "a45131952db707af17d5d2dee1a8bb790cadf064e8f31fd5b2b2d95fbca4b591",
+    "tests/fixtures/v2-reader/src/main/image-files.ts": "54514b35591f3c3a38c939192cf2beca139916539e9231bf24d2f007c8a53acd",
+    "tests/fixtures/v2-reader/src/shared/documents.ts": "b37b31b9993ab2fb9eec62ad4dd02925ce700cdd8b969fa87006e74cadcf4c03",
+    "tests/fixtures/v2-reader/src/shared/image.ts": "64afacefd1878e25c67df4f9fdbb694b5ad2fce05cf92e0b1f328152b2239a7c",
+    "tests/fixtures/v2-reader/src/shared/preset.ts": "6c0e125151a2d6bb741091e2d7c2478a6a7b6dde9b780d963fc0215a43e06a9c",
+    "tests/fixtures/v2-reader/src/shared/output.ts": "ce366f2d1d1907b64d516a6b9b416d3f9ab6077c15ad0edef6f9755f3db9e68f",
+    "tests/fixtures/v2/baseline.deepfryer": "c1bb897d625478fd13251e73f344e969d73b518f2bf8befd3873131ad4dd8c4b",
+    "tests/fixtures/v2/baseline.frypreset": "9b5bfd5a8adddef29e1eb8f370854030f82b361129adae4580c64e80e117c48f",
+    "tests/fixtures/v2/original.png": "e4855099adee73d2fbe475a429627928af72e769f246127041bfe0d596941d04",
+    "tests/fixtures/v2/baseline.png": "6113a9a09ff0a975e62c6ed358d39bab8c1668e6bf2b91b80325dc090657f1c6",
+    "tests/fixtures/v2/expected.json": "a2ef2db86686b4dff750f2d6b43cdb77e9df2ecce641e428bac56e974fcd7f11",
+    "tests/fixtures/v2-reader/src/shared/clipboard.ts": "e65f20bf4ce7d897b0ad08fb1f087460c381b802c881901752fc341aaac32b08"
+  },
+  "outer": [
+    900,
+    620
+  ],
+  "content": [
+    884,
+    581
+  ]
+}

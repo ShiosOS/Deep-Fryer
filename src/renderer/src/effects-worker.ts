@@ -1,13 +1,14 @@
-import { renderPreset } from './effects'
-import { presetSchema, type Preset } from '../../shared/preset'
+import { renderEdit } from './render-edit'
+import { editStateSchema, type EditState } from '../../shared/edit'
+import { CaptionRenderError } from './caption-layout'
 
 export type WorkerRequest =
   | { kind: 'source'; sourceId: number; width: number; height: number; pixels: Uint8ClampedArray<ArrayBuffer>; preview: { width: number; height: number; pixels: Uint8ClampedArray<ArrayBuffer> } | null }
-  | { kind: 'render'; sourceId: number; revision: number; preset: Preset; quality: 'preview' | 'full' }
+  | { kind: 'render'; sourceId: number; revision: number; edit: EditState; quality: 'preview' | 'full' }
 
 export type WorkerResponse =
   | { kind: 'rendered'; sourceId: number; revision: number; quality: 'preview' | 'full'; width: number; height: number; pixels: Uint8ClampedArray<ArrayBuffer> }
-  | { kind: 'failed'; sourceId: number; revision: number; quality: 'preview' | 'full'; message: string }
+  | { kind: 'failed'; sourceId: number; revision: number; quality: 'preview' | 'full'; message: string; category: 'caption' | 'image' }
 
 let source: ImageData | null = null
 let preview: ImageData | null = null
@@ -24,12 +25,12 @@ async function drain(): Promise<void> {
     if (request.sourceId !== sourceId || !source) continue
     const current = request.quality === 'preview' && preview ? preview : source
     try {
-      const preset = presetSchema.parse(request.preset)
-      const result = await renderPreset(current, preset)
+      const edit = editStateSchema.parse(request.edit)
+      const result = await renderEdit(current, edit, { width: source.width, height: source.height })
       const response: WorkerResponse = { kind: 'rendered', sourceId: request.sourceId, revision: request.revision, quality: request.quality, width: result.width, height: result.height, pixels: result.data }
       self.postMessage(response, { transfer: [result.data.buffer] })
     } catch (error) {
-      const response: WorkerResponse = { kind: 'failed', sourceId: request.sourceId, revision: request.revision, quality: request.quality, message: error instanceof Error ? error.message : 'Image processing failed.' }
+      const response: WorkerResponse = { kind: 'failed', sourceId: request.sourceId, revision: request.revision, quality: request.quality, message: error instanceof Error ? error.message : 'Image processing failed.', category: error instanceof CaptionRenderError ? 'caption' : 'image' }
       self.postMessage(response)
     }
   }

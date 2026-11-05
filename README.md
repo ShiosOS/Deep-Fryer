@@ -8,7 +8,7 @@ A local Windows image editor for deep-fried memes. Push colors, add noise and JP
 
 The screenshot shows the 0.5.0 source preview. The download below is the published 0.4.0 release. New source changes require a build and are not included in that installer. See the [changelog](CHANGELOG.md), [light appearance](docs/images/editor-light.png), and [minimum-window layout](docs/images/editor-minimum-light.png).
 
-The 0.5.0 source adds an opt-in demo, live previews of each look on your image, and Save project, Discard, or Cancel protection before leaving unsaved work. Export keeps the original aspect ratio unless you unlock it.
+The 0.5.0 source adds editable top/bottom meme captions, an opt-in demo, live previews of each look on your image, and Save project, Discard, or Cancel protection before leaving unsaved work. Export keeps the original aspect ratio unless you unlock it.
 
 ## Download for Windows
 
@@ -40,7 +40,11 @@ Compare it with `SHA256SUMS.txt` on the same release. If the values match and yo
 4. Choose **Copy image** to paste the edited result into another app. Wait for **Image copied** before pasting.
 5. To save a file, choose **Export**, set its format, size, and name, then choose **Save image…** and a new destination.
 
-To continue editing later, use **File → Save project as…**. Exported images do not retain editable effects. The **Help** button explains effects, point controls, and saving with illustrated examples.
+In the 0.5.0 source, open **Captions** and enter **Top** or **Bottom** text. Text stays readable over effects and remains editable when you change looks. **Text size** adjusts its maximum size; longer captions shrink to fit up to three lines. **Clear** removes both captions and can be undone.
+
+![Editable top and bottom captions over a fried demo cat in the 0.5.0 source preview at the minimum Windows window size](docs/images/editor-captions.png)
+
+To continue editing later, use **File → Save project as…**. Exported images do not retain editable effects or text. The **Help** button explains effects, captions, point controls, and saving with illustrated examples.
 
 ## See what the effects do
 
@@ -68,7 +72,7 @@ Deep Fryer processes images on your computer. The application has no account, im
 
 Projects embed the original source bytes, which can include source metadata. Treat a project as sharing the original image. Export creates a new image from decoded pixels rather than copying the source metadata. Copy puts image data on the Windows clipboard, where other apps and enabled clipboard history or sync services may access it.
 
-Recovery keeps two completed edit checkpoints in the local application data directory. After an interruption, checkpoints older than seven days are removed when recovery checks them. A completed clean exit or **Discard recovery** removes the recovery copies. The 0.5.0 source asks before closing or replacing unsaved work and preserves unresolved recovery copies. Save a project for durable storage. Appearance settings are stored separately. See [file formats and storage](docs/files-and-storage.md).
+Recovery keeps two local edit checkpoints. The 0.5.0 source saves settled, accepted edits even while a control keeps focus; accepted caption text remains recoverable if font rendering is pending or fails. Invalid input and unfinished composing text stay as temporary drafts. After an interruption, checkpoints older than seven days are removed when recovery checks them. A completed clean exit or **Discard recovery** removes the recovery copies. The 0.5.0 source asks before closing or replacing unsaved work and preserves unresolved recovery copies. Save a project for durable storage. Appearance settings are stored separately. See [file formats and storage](docs/files-and-storage.md).
 
 Saves require a new filename. Existing files, including the source, stay protected even if a native chooser offers to replace them.
 
@@ -77,8 +81,9 @@ Saves require a new filename. Existing files, including the source, stay protect
 - Open PNG and JPEG images, one image at a time. WebP is an export format, not an input format.
 - Input must fit within 64 MiB, 16,384 pixels per side, and 24 million pixels total. Exports have the same dimension and pixel limits and a 128 MiB encoded size limit.
 - Large images and long effect stacks can take time and memory. A resized export can differ from the canvas because effects run at the output size.
-- The editor has no text captions, drawing tools, animation or video editing, batch processing, or cloud sync.
-- Current projects and presets use version 2. Deep Fryer can read original v1 files, but older versions cannot open newly saved v2 files.
+- Captions in the 0.5.0 source use bundled Anton lettering, 512 UTF-16 units per field, and up to three rendered lines. Unsupported characters and text that cannot fit remain savable in projects, with finished output blocked until corrected. The full font license is available offline in **Help → Licenses**.
+- The editor has no crop, drawing tools, animation or video editing, batch processing, or cloud sync.
+- Source builds write project v3 and preset v2. Historical v1/v2 projects open without changing their image treatment. Older applications reject v3 projects. Presets exclude captions.
 
 ## Help and project information
 

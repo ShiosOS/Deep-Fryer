@@ -4,6 +4,7 @@ Start with [the verification skill](../SKILL.md) for safe environment setup, dis
 
 - [Import images](import.md): chooser, opt-in demo, keyboard, paste boundary, file drop, invalid replacement, and original protection.
 - [Edit effects and history](editing.md): image-based look gallery, color/texture layers, 5× controls, points, variation selection, undo, and redo.
+- [Editable captions](captions.md): top/bottom text, worker font readiness, complete history/recovery, exact output, and offline licensing.
 - [Inspect and output](output.md): zoom/pan/compare, output formats and dimensions, inspected snapshots, and intercepted Copy image.
 - [Projects, presets, and recovery](documents.md): portable files, independent names, unsaved-work choices, legacy compatibility, interrupted work, and profile ownership.
 - [Appearance and help](appearance-help.md): persisted palettes, theme modes, illustrated help, keyboard focus, and window sizing.

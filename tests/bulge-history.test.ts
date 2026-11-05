@@ -3,7 +3,8 @@ import test from 'node:test'
 import { applyBulge } from '../src/renderer/src/bulge'
 import { renderPreset } from '../src/renderer/src/effects'
 import { paneToImage, imageToPane, fitView, zoom, pan } from '../src/renderer/src/inspection-geometry'
-import { usePresetHistory } from '../src/renderer/src/preset-history'
+import { useEditHistory } from '../src/renderer/src/edit-history'
+import { newEdit } from '../src/shared/edit'
 import type { Preset } from '../src/shared/preset'
 
 Object.defineProperty(globalThis, 'ImageData', { value: class {
@@ -14,18 +15,18 @@ const point: Extract<Preset['effects'][number], { kind: 'bulge' }> = { id: 'poin
 const base: Preset = { seed: 42, effects: [point] }
 
 test('a drag is one undo step and a new edit abandons redo', () => {
-  const history = usePresetHistory(base)
+  const history = useEditHistory(newEdit(base))
   history.begin()
-  for (const x of [0.6, 0.7, 0.8]) history.change({ ...history.preset.value, effects: [{ ...point, x }] })
+  for (const x of [0.6, 0.7, 0.8]) history.change(newEdit({ ...history.edit.value.preset, effects: [{ ...point, x }] }))
   history.end()
   assert.equal(history.canUndo.value, true)
   assert.equal(history.undo(), true)
-  assert.deepEqual(history.preset.value, base)
+  assert.deepEqual(history.edit.value.preset, base)
   assert.equal(history.canUndo.value, false)
   assert.equal(history.redo(), true)
-  assert.equal(history.preset.value.effects[0]?.kind, 'bulge')
+  assert.equal(history.edit.value.preset.effects[0]?.kind, 'bulge')
   assert.equal(history.undo(), true)
-  history.change({ ...history.preset.value, seed: 7 })
+  history.change(newEdit({ ...history.edit.value.preset, seed: 7 }))
   assert.equal(history.canRedo.value, false)
   assert.equal(history.redo(), false)
 })
@@ -43,28 +44,28 @@ test('point mapping survives pan, zoom, and resize', () => {
 })
 
 test('cancel restores confirmed history after undo and during an unfinished gesture', () => {
-  const history = usePresetHistory({ ...base, seed: 1 })
-  history.change({ ...base, seed: 2 })
+  const history = useEditHistory(newEdit({ ...base, seed: 1 }))
+  history.change(newEdit({ ...base, seed: 2 }))
   history.confirm()
-  history.change({ ...base, seed: 3 })
+  history.change(newEdit({ ...base, seed: 3 }))
   history.confirm()
   history.undo()
   history.rollback()
-  assert.equal(history.preset.value.seed, 3)
+  assert.equal(history.edit.value.preset.seed, 3)
   assert.equal(history.undo(), true)
-  assert.equal(history.preset.value.seed, 2)
+  assert.equal(history.edit.value.preset.seed, 2)
   assert.equal(history.redo(), true)
   history.confirm()
   history.begin()
-  history.change({ ...base, seed: 4 })
+  history.change(newEdit({ ...base, seed: 4 }))
   history.confirm()
-  history.change({ ...base, seed: 5 })
+  history.change(newEdit({ ...base, seed: 5 }))
   history.rollback()
-  assert.equal(history.preset.value.seed, 4)
+  assert.equal(history.edit.value.preset.seed, 4)
   assert.equal(history.undo(), true)
-  assert.equal(history.preset.value.seed, 3)
+  assert.equal(history.edit.value.preset.seed, 3)
   assert.equal(history.undo(), true)
-  assert.equal(history.preset.value.seed, 2)
+  assert.equal(history.edit.value.preset.seed, 2)
 })
 
 test('signed strength changes distortion direction and bilinear alpha has no hidden color bleed', () => {
@@ -93,8 +94,8 @@ test('overlapping points compose in Preset order and undo restores a removed poi
   const forward = await renderPreset(new ImageData(pixels, 9, 9), preset)
   const reverse = await renderPreset(new ImageData(pixels, 9, 9), { ...preset, effects: [second, point] })
   assert.notDeepEqual(forward.data, reverse.data)
-  const history = usePresetHistory(preset)
-  history.change({ ...preset, effects: [point] })
+  const history = useEditHistory(newEdit(preset))
+  history.change(newEdit({ ...preset, effects: [point] }))
   history.undo()
-  assert.deepEqual(history.preset.value.effects[1], second)
+  assert.deepEqual(history.edit.value.preset.effects[1], second)
 })

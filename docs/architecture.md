@@ -10,19 +10,23 @@ Deep Fryer separates desktop file access from image editing. Electron's main pro
 
 ## Editing and rendering
 
-[App.vue](../src/renderer/src/App.vue) coordinates the active source, preset, history, canvas, and asynchronous work. A [preset](../src/shared/preset.ts) contains a seed and an ordered list of effects. Effects have stable identities, enabled state, blend strength, and kind-specific settings. Point coordinates are relative to the image.
+[App.vue](../src/renderer/src/App.vue) coordinates the active source, complete edit, history, canvas, and asynchronous work. [EditState](../src/shared/edit.ts) contains a reusable preset and a composition. The [composition schema](../src/shared/composition.ts) owns nullable top/bottom captions, text bounds, font identity, and size. A [preset](../src/shared/preset.ts) contains a seed and an ordered list of effects. Effects have stable identities, enabled state, blend strength, and kind-specific settings. Point coordinates are relative to the image.
 
-[The effect engine](../src/renderer/src/effects.ts) applies the stack in order. [The preview worker](../src/renderer/src/effects-worker.ts) renders source revisions without running the full image pipeline on the UI thread. [Preset history](../src/renderer/src/preset-history.ts) tracks edits separately from appearance settings.
+[The composition renderer](../src/renderer/src/render-edit.ts) applies the effect stack, then readable captions. Preview, candidate project opening, Copy, Export, and inspection use it. Null captions bypass font loading and preserve the historical effect path. [The preview worker](../src/renderer/src/effects-worker.ts) returns source and revision identities so stale results cannot replace newer edits. Reduced previews use the full frame's aspect ratio for caption layout.
+
+[Edit history](../src/renderer/src/edit-history.ts) snapshots the complete edit, with one gesture per caption field session. Appearance stays outside that history. Looks, Fry level, randomization, and preset loading change only the preset. Caption-only snapshots do not reset the selected look or relative Fry baseline.
+
+[Caption rendering](../src/renderer/src/caption-rendering.ts) loads the same pinned font bytes in each worker before measurement. [Layout](../src/renderer/src/caption-layout.ts) uses a normalized shorter side of 1,000 units, separate 30% top/bottom bands, three rendered lines per field, and a bounded 12-step fit search from the requested size down to 2.5%. It wraps words, then graphemes, preserving case and explicit newlines. NFC normalization applies only during layout; saved text stays as entered. Glyph coverage comes from the pinned TTF's Unicode cmap. Unsupported glyphs, missing fonts, and failed fitting block finished output while keeping validated text savable and recoverable. The last good preview remains visible with the error.
 
 ## Copy and export
 
-[Output preparation](../src/renderer/src/output.ts) freezes the source, preset, and output options before asynchronous rendering. It resizes the source, applies effects at output dimensions, encodes the selected format, and decodes those bytes for inspection. The inspection and save paths share the prepared output, so saving an inspected snapshot writes the inspected bytes.
+[Output preparation](../src/renderer/src/output.ts) freezes the source, complete edit, and output options before asynchronous rendering. It resizes the source, applies effects and captions at output dimensions, encodes the selected format, and decodes those bytes for inspection. Inspection identity includes caption text and size. The inspection and save paths share the prepared output, so saving an inspected snapshot writes the inspected bytes. Caption glyphs composite over existing alpha; pixels outside the glyphs are untouched. JPEG flattening follows composition.
 
 [Copy image](../src/renderer/src/copy-image.ts) prepares a PNG independently of export options and the Original view. [The main clipboard handler](../src/main/image-clipboard.ts) validates the request and writes the native image.
 
 ## Documents and durable writes
 
-[Document actions](../src/main/document-actions.ts) coordinate native selection, validation, and recovery. [Document codecs](../src/main/document-files.ts) own versioned project and preset envelopes. [The legacy codec](../src/main/legacy-document-codec.ts) preserves original v1 semantics without making the in-memory model versioned.
+[Document actions](../src/main/document-actions.ts) coordinate native selection, validation, and recovery. [Document codecs](../src/main/document-files.ts) write explicit v3 projects and v2 presets. The private [v1](../src/main/legacy-document-codec.ts) and [v2](../src/main/v2-document-codec.ts) readers preserve their historical schemas and adapt into complete edits with null captions. Existing files remain protected by exclusive writes.
 
 [The renderer document owner](../src/renderer/src/document-files.ts) compares the active document with its last successful project snapshot. It owns replacement decisions and serializes document transitions. Main authenticates a close request and its matching reply before destroying the window. Preparation can be canceled before output is submitted. An admitted file or clipboard action settles before the close decision continues.
 

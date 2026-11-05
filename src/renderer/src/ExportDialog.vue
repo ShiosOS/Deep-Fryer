@@ -2,13 +2,13 @@
 import { computed, nextTick, onUnmounted, ref, shallowRef, watch } from 'vue'
 import type { OpenImage } from '../../shared/image'
 import { outputFormats, outputOptionsSchema, type OutputOptions } from '../../shared/output'
-import type { Preset } from '../../shared/preset'
+import type { EditState } from '../../shared/edit'
 import Modal from './Modal.vue'
 import { saveNameSchema } from '../../shared/documents'
 import { freezeOutput, type OutputResponse, type PreparedOutput } from './output'
 import { proportionalOutputSize } from './output-dimensions'
 
-const props = defineProps<{ source: (OpenImage & { bitmap: ImageBitmap }) | null; preset: Preset; disabled: boolean }>()
+const props = defineProps<{ source: (OpenImage & { bitmap: ImageBitmap }) | null; edit: EditState; disabled: boolean }>()
 const emit = defineEmits<{ notice: [notice: { kind: 'info' | 'success' | 'error'; text: string }]; saveStarted: []; saveFinished: [] }>()
 type Inspection = { kind: 'empty' } | { kind: 'preparing'; key: string } | { kind: 'ready' | 'stale'; key: string; output: PreparedOutput }
 const inspection = shallowRef<Inspection>({ kind: 'empty' })
@@ -37,7 +37,7 @@ const validationError = computed(() => {
   if (String(width.value).trim() === '' || String(height.value).trim() === '' || format.value !== 'png' && String(quality.value).trim() === '') return 'Enter whole output dimensions and quality.'
   return parsedOptions.value.success ? '' : 'Use whole dimensions from 1 to 16,384, at most 24 million pixels, and quality from 1 to 100.'
 })
-const currentKey = computed(() => JSON.stringify([sourceVersion.value, props.preset, format.value, width.value, height.value, quality.value, background.value]))
+const currentKey = computed(() => JSON.stringify([sourceVersion.value, props.edit, format.value, width.value, height.value, quality.value, background.value]))
 const busy = computed(() => saving.value || inspection.value.kind === 'preparing')
 const exportLabel = computed(() => `Export ${outputFormats[format.value].label}`)
 const inspectionText = computed(() => {
@@ -45,7 +45,7 @@ const inspectionText = computed(() => {
     case 'empty': return 'Prepare the encoded output to inspect it before saving.'
     case 'preparing': return inspection.value.key === currentKey.value ? 'Preparing the frozen output…' : 'Preparing an earlier snapshot. Current edits need a new inspection.'
     case 'ready': return 'Current output. Saving writes the exact bytes inspected here.'
-    case 'stale': return 'Out of date. The image, preset, or output settings changed. Inspect again before saving this output.'
+    case 'stale': return 'Out of date. The image, captions, preset, or output settings changed. Inspect again before saving this output.'
   }
 })
 
@@ -85,7 +85,7 @@ async function prepare(): Promise<PreparedOutput> {
   if (!props.source || !parsedOptions.value.success || validationError.value) throw new Error(validationError.value || 'Open an image first.')
   const key = currentKey.value
   if (inspection.value.kind === 'ready' && inspection.value.key === key) return inspection.value.output
-  const job = freezeOutput(props.source, props.preset, parsedOptions.value.data)
+  const job = freezeOutput(props.source, props.edit, parsedOptions.value.data)
   inspection.value = { kind: 'preparing', key }
   try {
     const worker = new Worker(new URL('./output-worker.ts', import.meta.url), { type: 'module' })
@@ -170,7 +170,7 @@ defineExpose({ open: () => exportDialog.value?.open(), exportLabel, busy, cancel
     <label v-if="format !== 'png'">Quality<input v-model="quality" aria-label="Output quality" type="number" min="1" max="100" step="1" :disabled="disabled"></label>
     <label v-if="format === 'jpeg'">Transparency background<input v-model="background" aria-label="JPEG output background" type="color" :disabled="disabled"></label>
     <p>{{ format === 'jpeg' ? 'JPEG replaces transparency with this background.' : format === 'webp' ? 'WebP keeps transparency and uses lossy color compression.' : 'PNG keeps transparency and stores pixels losslessly.' }}</p>
-    <p>Resize first, then apply effects on the output pixel grid. Noise, sharpening and JPEG blocks follow the chosen output size.</p>
+    <p>Resize first, then apply effects on the output pixel grid. Noise, sharpening and JPEG blocks follow the chosen output size. Captions render last; changing the aspect ratio lays them out again.</p>
     <p v-if="validationError" class="control-error" role="alert">{{ validationError }}</p>
     <button type="button" :disabled="disabled || busy || !!validationError" @click="inspect">Inspect final output</button>
     <button v-if="inspection.kind === 'preparing'" type="button" @click="cancelPreparation?.()">Cancel output preparation</button>

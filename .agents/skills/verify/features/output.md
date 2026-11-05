@@ -8,6 +8,7 @@ Inspect the image at full resolution, save the requested format and dimensions, 
 - O2: PNG/JPEG/WebP dimensions, quality, transparency background, inspected bytes, and stale output.
 - O3: Frozen delayed saves and honest cancellation.
 - O4: Copy image button/shortcut, acknowledgement, duplicate blocking, and byte validation.
+- O5: Caption composition in every output path. Use [caption journeys](captions.md) for exact bytes/pixels, transparency, orientation, scaling, and caption-stale inspection.
 
 ## How to get to it (user POV)
 

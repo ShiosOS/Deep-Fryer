@@ -21,6 +21,10 @@ export type Effect = z.infer<typeof effectSchema>
 export type Preset = z.infer<typeof presetSchema>
 export type EffectKind = Effect['kind']
 
+export function snapshotPreset(preset: Preset): Preset {
+  return { ...preset, effects: preset.effects.map((effect) => ({ ...effect })) }
+}
+
 export const effectOptions: ReadonlyArray<{ kind: EffectKind; label: string; min?: number; max?: number }> = [
   { kind: 'brightness', label: 'Brightness', min: -100, max: 100 },
   { kind: 'contrast', label: 'Contrast', min: 0, max: 500 },

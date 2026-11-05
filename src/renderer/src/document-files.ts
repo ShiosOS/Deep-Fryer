@@ -1,8 +1,8 @@
 import { computed, onUnmounted, ref, shallowRef, watch, type Ref } from 'vue'
 import type { EditableDocument, RecoveryOffer } from '../../shared/documents'
 import type { OpenImage } from '../../shared/image'
-import { newPreset, type Preset } from '../../shared/preset'
-import { snapshotPreset } from './preset-history'
+import type { Preset } from '../../shared/preset'
+import { newEdit, snapshotEdit, type EditState } from '../../shared/edit'
 
 export type FileOperation = 'opening' | 'exporting'
 type Notice = { kind: 'info' | 'success' | 'error'; text: string }
@@ -11,14 +11,14 @@ type DocumentOwner = {
   busy: Readonly<Ref<boolean>>
   fileBusy: Readonly<Ref<boolean>>
   source: () => OpenImage | null
-  preset: () => Preset
+  edit: () => EditState
   ready: () => boolean
   finishGesture: () => void
   cancelPreparation: () => void
   setOperation: (operation: FileOperation | 'idle') => void
   finishOperation: () => void
   report: (notice: Notice) => void
-  publish: (source: OpenImage, preset: Preset, confirm: () => Promise<boolean>) => Promise<boolean>
+  publish: (source: OpenImage, edit: EditState, confirm: () => Promise<boolean>) => Promise<boolean>
   applyPreset: (preset: Preset) => void
 }
 
@@ -44,7 +44,7 @@ export function useDocumentFiles(owner: DocumentOwner) {
   const dirty = computed(() => {
     if (!owner.source()) return false
     return baseline.value.kind === 'unsaved' || !sourceMatchesBaseline.value ||
-      JSON.stringify(owner.preset()) !== JSON.stringify(baseline.value.document.preset)
+      JSON.stringify(owner.edit()) !== JSON.stringify(baseline.value.document.edit)
   })
   let checkpointTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -54,11 +54,11 @@ export function useDocumentFiles(owner: DocumentOwner) {
   }
   function current(): EditableDocument | null {
     const source = owner.source()
-    return source ? { source: { name: source.name, mime: source.mime, bytes: source.bytes }, preset: owner.preset() } : null
+    return source ? { source: { name: source.name, mime: source.mime, bytes: source.bytes }, edit: owner.edit() } : null
   }
   function saved(document: EditableDocument): void {
     baseline.value = { kind: 'saved', document: {
-      source: { ...document.source, bytes: new Uint8Array(document.source.bytes) }, preset: snapshotPreset(document.preset)
+      source: { ...document.source, bytes: new Uint8Array(document.source.bytes) }, edit: snapshotEdit(document.edit)
     } }
   }
   async function saveCurrent(suggestedName: string): Promise<boolean> {
@@ -83,10 +83,10 @@ export function useDocumentFiles(owner: DocumentOwner) {
     const name = owner.source()?.name.replace(/\.[^.]+$/, '') || 'Untitled'
     return saveCurrent(`${name}.deepfryer`)
   }
-  async function run(operation: FileOperation, action: () => Promise<void>, allowRecovery = false): Promise<void> {
-    if (locked.value || owner.busy.value || recoveryOffer.value && !allowRecovery) return
+  async function run(operation: FileOperation, action: () => Promise<void>, allowRecovery = false, allowProcessing = false): Promise<void> {
+    if (locked.value || owner.fileBusy.value || owner.busy.value && !allowProcessing || recoveryOffer.value && !allowRecovery) return
     cancelCheckpoint()
-    owner.finishGesture()
+    try { owner.finishGesture() } catch (error) { owner.report({ kind: 'error', text: describeError(error) }); return }
     active.value = true
     owner.setOperation(operation)
     try { await action() } catch (error) { owner.report({ kind: 'error', text: describeError(error) }) }
@@ -95,7 +95,7 @@ export function useDocumentFiles(owner: DocumentOwner) {
   async function load(provider: () => Promise<OpenImage | null>): Promise<void> {
     await run('opening', async () => {
       const source = await provider()
-      if (source && await owner.publish(source, newPreset(), confirmLeaving)) baseline.value = { kind: 'unsaved' }
+      if (source && await owner.publish(source, newEdit(), confirmLeaving)) baseline.value = { kind: 'unsaved' }
     })
   }
   function scheduleCheckpoint(): void {
@@ -117,14 +117,14 @@ export function useDocumentFiles(owner: DocumentOwner) {
     await run('opening', async () => {
       const document = await window.documentBridge.openProject()
       if (!document) return
-      if (await owner.publish(document.source, document.preset, confirmLeaving)) saved(document)
+      if (await owner.publish(document.source, document.edit, confirmLeaving)) saved(document)
     })
   }
   async function saveProject(suggestedName: string): Promise<void> {
-    if (!owner.ready()) return
+    if (!owner.source()) return
     await run('exporting', async () => {
       await saveCurrent(suggestedName)
-    })
+    }, false, true)
   }
   async function loadPreset(): Promise<void> {
     if (!owner.source()) return
@@ -134,14 +134,14 @@ export function useDocumentFiles(owner: DocumentOwner) {
     })
   }
   async function savePreset(suggestedName: string): Promise<void> {
-    if (!owner.ready()) return
+    if (!owner.source()) return
     await run('exporting', async () => {
       const document = current()
       if (!document) return
-      const result = await window.documentBridge.savePreset({ preset: document.preset, suggestedName })
+      const result = await window.documentBridge.savePreset({ preset: document.edit.preset, suggestedName })
       if (result.kind === 'saved') owner.report({ kind: 'success', text: `Saved ${result.name}. This preset contains settings and its saved seed, without the source image.` })
       else owner.report({ kind: 'info', text: 'Preset save canceled. No file was saved.' })
-    })
+    }, false, true)
   }
   async function checkRecovery(): Promise<void> {
     owner.setOperation('opening')
@@ -157,7 +157,7 @@ export function useDocumentFiles(owner: DocumentOwner) {
   async function restoreRecovery(): Promise<void> {
     await run('opening', async () => {
       const document = await window.documentBridge.restoreRecovery()
-      await owner.publish(document.source, document.preset, async () => true)
+      await owner.publish(document.source, document.edit, async () => true)
       baseline.value = { kind: 'unsaved' }
       recoveryOffer.value = null
       scheduleCheckpoint()

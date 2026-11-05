@@ -86,7 +86,7 @@ test('Help tabs, engine-rendered media, reduced motion, focus return and minimum
     await page.emulateMedia({ reducedMotion: 'reduce' })
     await page.getByRole('button', { name: 'Help', exact: true }).click()
     const dialog = page.getByRole('dialog', { name: 'Help', exact: true })
-    await expect(dialog.getByRole('tab')).toHaveCount(5)
+    await expect(dialog.getByRole('tab')).toHaveCount(7)
     await expect(dialog.getByRole('img').first()).toBeVisible()
     await dialog.getByRole('tab', { name: 'Quick start' }).focus()
     await page.keyboard.press('ArrowRight')

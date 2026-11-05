@@ -4,15 +4,15 @@
 
 | File | Contents | Purpose |
 | --- | --- | --- |
-| `.deepfryer` | Original source bytes, source name and type, ordered effects, relative points, and noise seed | Resume an edit |
-| `.frypreset` | Ordered effects, relative points, and seed without an image | Reuse a look on another image |
+| `.deepfryer` | Original source bytes, source name and type, ordered effects, relative points, noise seed, and editable captions | Resume an edit |
+| `.frypreset` | Ordered effects, relative points, and seed without an image or captions | Reuse a look on another image |
 | PNG, JPEG, or WebP | Rendered output pixels | Share a finished image |
 
 Saving always creates a new file. Existing destinations remain protected, including hard links to the original file. Canceling a chooser saves nothing. A failed open leaves the current edit intact.
 
 PNG keeps transparency. JPEG replaces it with the selected background. WebP export uses lossy color compression and supports transparency. JPEG damage inside an effect stack can also replace transparency with its configured background.
 
-Export resizes the decoded source before applying effects. Noise, sharpening, and compression therefore follow the output pixel grid. Final inspection decodes the encoded image, and **Save inspected snapshot** writes those same bytes. Changing the image, effects, or output settings requires a new inspection. Renaming alone preserves the inspection.
+Export resizes the decoded source before applying effects. Noise, sharpening, and compression therefore follow the output pixel grid. Final inspection decodes the encoded image, and **Save inspected snapshot** writes those same bytes. Changing the image, captions, effects, or output settings requires a new inspection. Renaming alone preserves the inspection.
 
 Copy creates a PNG at the source's oriented dimensions. It uses the edited image independently of the selected view and export options.
 
@@ -23,21 +23,30 @@ Current projects have this outer structure:
 ```json
 {
   "format": "deep-fryer-project",
-  "version": 2,
+  "version": 3,
   "source": { "name": "photo.png", "mime": "image/png", "base64": "..." },
-  "preset": { "seed": 123, "effects": [] }
+  "edit": {
+    "preset": { "seed": 123, "effects": [] },
+    "composition": { "captions": null }
+  }
 }
 ```
 
 Current presets use `{ "format": "deep-fryer-preset", "version": 2, "preset": { ... } }`. The in-memory preset has no version field. The source schemas and codecs are in [shared documents](../src/shared/documents.ts) and [document files](../src/main/document-files.ts).
 
-The private [legacy codec](../src/main/legacy-document-codec.ts) reads original v1 projects and recipes with their original parameter meanings. Older applications reject v2 files. [Historical compatibility fixtures](../tests/fixtures/README.md) preserve original files and reference pixels.
+The private [v1 codec](../src/main/legacy-document-codec.ts) and [v2 codec](../src/main/v2-document-codec.ts) read historical files with their original parameter meanings. Both adapt to a null caption composition. Older applications reject v3 projects. Saving a historical project creates a new v3 file and leaves the original unchanged. Presets still write v2 and never include captions. [Historical compatibility fixtures](../tests/fixtures/README.md) preserve original files and reference pixels.
+
+Captions use `{ "kind": "top-bottom-v1", "font": "anton-regular-v1", "top": "Hello", "bottom": "World", "size": 0.1 }`. Each text field accepts at most 512 UTF-16 units; size ranges from 0.04 to 0.16 of the shorter image edge. Whitespace-only caption pairs become `null`. Text remains valid and savable even when it cannot render in three lines or includes unsupported glyphs. Output is blocked with an explanation until the text can render. No font paths or URLs are accepted in a project. The pinned bundled font and full offline Help → Licenses text have [recorded provenance](../src/renderer/src/assets/fonts/provenance.json).
+
+Captions render after effects. Proportional output scales their normalized placement; unlocking the aspect ratio lays them out within the new frame. Caption edits invalidate a previous final inspection. Crop is deferred.
 
 ## Recovery and appearance
 
 The app uses Electron's per-user application data directory. Recovery offers display the actual directory so you can locate your copies without assuming a particular Windows profile path.
 
 Recovery stores `latest.deepfryer` and `previous.deepfryer` under `recovery`. Each contains an embedded source image. Checkpoints older than seven days are removed when examined, rather than by a background deletion timer. A completed clean exit or **Discard recovery** removes both copies. Recovery is for interruptions and does not replace saving a project.
+
+Recovery follows accepted edits after the quiet interval, independently of focus and undo grouping. Effects without captions require the matching full preview. Accepted caption text can checkpoint while font rendering is pending or has failed. Invalid numeric strings and unfinished IME composition remain temporary drafts; recovery retains the last accepted edit. Continuous editing, an unfinished render, an interrupted write, or a crash before the checkpoint can still lose recent changes.
 
 The 0.5.0 source tracks the exact document last saved as a project. Opening a saved project starts clean. Imports, pasted images, and restored recovery start unsaved. Copying, exporting, and saving a preset do not save an editable project. Before replacing or closing unsaved work, the app offers Save project, Discard, or Cancel. A canceled or failed save retains the edit. Closing with an unresolved recovery offer, failed recovery lookup, or failed renderer preserves the existing copies.
 

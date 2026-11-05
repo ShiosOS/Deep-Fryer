@@ -10,7 +10,9 @@ The journeys cover editing, documents, presets, history, appearance restart, Hel
 
 The 0.5.0 journeys also cover unsaved Save, Discard, and Cancel decisions, close during processing, admitted native writes, interrupted demo recovery, live look previews, and proportional export dimensions. Native decision boxes are intercepted with explicit choices in those local journeys. Their control flow is exercised, while actual operating-system interaction remains a separate evidence class. Use the [maintained desktop verification skill](../.agents/skills/verify/SKILL.md) for launch, capture, feature maps, and cleanup.
 
-Original v1 fixtures contain files and pixels captured by the old application. Compatibility journeys compare reopened RGBA pixels against those fixtures. Do not regenerate the baseline using the current renderer. See [fixture provenance](../tests/fixtures/README.md).
+Original v1 fixtures and base-v2 fixtures contain files and pixels captured before migration. The v2 capture is bound to `e2276f3109077299c94698f2f87747a8901c322d`. Compatibility journeys compare reopened RGBA pixels against those fixtures, and frozen readers reject v3 projects. Do not regenerate the baseline using the current renderer. See [fixture provenance](../tests/fixtures/README.md).
+
+`captions.spec.ts` drives text editing and IME completion, native close cancellation, caption-only dirty baselines, failed-layout recovery, look/Fry baseline preservation, and font-failure retention. Its output journey compares copied and exported PNG pixels, exact inspected bytes, transparency, orientation, proportional resize, and unlocked aspect ratios. Font fault injection runs inside the actual rendering worker. `node scripts/verify-caption-font.mjs` checks pinned asset hashes and regenerated Unicode coverage. Local clipboard writes remain intercepted. These source journeys are separate from packaged, installed-offline, native clipboard, and installer-upgrade evidence.
 
 ## Installed and offline behavior
 
@@ -31,3 +33,5 @@ Ordinary copy tests intercept Electron's final clipboard write and compare the p
 ## Alternative executables
 
 Set `DEEP_FRYER_EXECUTABLE` to exercise a packaged executable. Set `ELECTRON_EXECUTABLE_PATH` for an alternative Electron runtime. Record the executable, commit, command, and skipped checks when reporting results. A successful unpacked run does not replace installing and exercising an installer.
+
+For a bounded packaged caption/font/license check, run `node scripts/verify-caption-package.mjs "path/to/Deep Fryer.exe" ".artifacts/caption-package-proof-NEW"`. It verifies package mode, bundled font bytes, rendered captions, complete offline license text, and actual minimum-window dimensions, then records hashes and clean process exit. It does not install the app, enforce network isolation, or access the native clipboard.

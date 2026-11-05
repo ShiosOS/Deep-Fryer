@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { copyImageInput, copyImageResult } from '../src/shared/clipboard'
 import { MAX_EXPORT_BYTES } from '../src/shared/output'
-import { newPreset } from '../src/shared/preset'
+import { newEdit } from '../src/shared/edit'
 import { useImageCopy, type CopySource } from '../src/renderer/src/copy-image'
 import type { OutputJob, OutputResponse } from '../src/renderer/src/output'
 
@@ -42,32 +42,32 @@ test('copy freezes before awaiting, ignores duplicates, settles disposal and per
   }
   const bitmap = { width: 5, height: 7 }
   const source: CopySource = { name: 'source.png', mime: 'image/png', bytes: new Uint8Array([1, 2, 3]), bitmap }
-  const preset = newPreset()
+  const edit = newEdit()
   const owner = useImageCopy()
-  const pending = owner.run({ source, preset })
+  const pending = owner.run({ source, edit })
   assert.equal(owner.phase.value, 'preparing')
   const worker = TestWorker.instances[0]!
   source.bytes.fill(9)
   bitmap.width = 10
-  preset.seed += 1
+  edit.preset.seed += 1
   assert.deepEqual(worker.job?.source.bytes, new Uint8Array([1, 2, 3]))
   assert.deepEqual(worker.job?.options, { format: 'png', width: 5, height: 7 })
-  assert.notEqual(worker.job?.preset.seed, preset.seed)
-  assert.equal(await owner.run({ source, preset }), 'ignored')
+  assert.notEqual(worker.job?.edit.preset.seed, edit.preset.seed)
+  assert.equal(await owner.run({ source, edit }), 'ignored')
   worker.onerror?.()
   await assert.rejects(pending, /Copy preparation stopped/)
   assert.equal(worker.terminated, true)
   assert.equal(owner.phase.value, 'idle')
-  const retry = owner.run({ source, preset })
+  const retry = owner.run({ source, edit })
   const retryWorker = TestWorker.instances[1]!
   owner.dispose()
   assert.equal(await retry, 'ignored')
   assert.equal(retryWorker.terminated, true)
   assert.equal(owner.phase.value, 'idle')
-  assert.equal(await owner.run({ source, preset }), 'ignored')
+  assert.equal(await owner.run({ source, edit }), 'ignored')
   assert.equal(writes, 0)
   const writingOwner = useImageCopy()
-  const writing = writingOwner.run({ source, preset })
+  const writing = writingOwner.run({ source, edit })
   const writingWorker = TestWorker.instances[2]!
   writingWorker.onmessage?.({ data: { kind: 'ready', output: {
     bytes: new Uint8Array([4]), pixels: new Uint8ClampedArray(4),
@@ -78,14 +78,14 @@ test('copy freezes before awaiting, ignores duplicates, settles disposal and per
   assert.equal(writingOwner.phase.value, 'writing')
   writingOwner.cancelPreparation()
   assert.equal(writingOwner.phase.value, 'writing')
-  assert.equal(await writingOwner.run({ source, preset }), 'ignored')
+  assert.equal(await writingOwner.run({ source, edit }), 'ignored')
   writingOwner.dispose()
   acknowledge()
   assert.equal(await writing, 'ignored')
   assert.equal(writes, 1)
-  assert.equal(await writingOwner.run({ source, preset }), 'ignored')
+  assert.equal(await writingOwner.run({ source, edit }), 'ignored')
   const cancellable = useImageCopy()
-  const cancelled = cancellable.run({ source, preset })
+  const cancelled = cancellable.run({ source, edit })
   const cancelledWorker = TestWorker.instances.at(-1)
   assert.ok(cancelledWorker)
   cancellable.cancelPreparation()
@@ -93,7 +93,7 @@ test('copy freezes before awaiting, ignores duplicates, settles disposal and per
   assert.equal(cancelledWorker.terminated, true)
   assert.equal(cancellable.phase.value, 'idle')
   assert.equal(writes, 1)
-  const afterCancel = cancellable.run({ source, preset })
+  const afterCancel = cancellable.run({ source, edit })
   const nextWorker = TestWorker.instances.at(-1)
   assert.ok(nextWorker)
   assert.notEqual(nextWorker, cancelledWorker)

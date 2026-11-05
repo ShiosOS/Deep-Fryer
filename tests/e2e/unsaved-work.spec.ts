@@ -81,12 +81,12 @@ test('cancel a native close keeps the editor and its checkpoint alive', async ()
   const { folder, app, page } = await setup()
   try {
     const checkpoint = join(folder, 'profile', 'recovery', 'latest.deepfryer')
-    await expect.poll(async () => readFile(checkpoint, 'utf8').then((text) => JSON.parse(text).preset.effects[0].value).catch(() => null)).toBe(25)
+    await expect.poll(async () => readFile(checkpoint, 'utf8').then((text) => JSON.parse(text).edit.preset.effects[0].value).catch(() => null)).toBe(25)
     await choose(app, 2)
     await app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0]?.close() }).catch(() => {})
     await page.waitForTimeout(300).catch(() => {})
     expect(page.isClosed(), 'Cancel must keep the unsaved editor open').toBe(false)
-    expect(JSON.parse(await readFile(checkpoint, 'utf8')).preset.effects[0].value).toBe(25)
+    expect(JSON.parse(await readFile(checkpoint, 'utf8')).edit.preset.effects[0].value).toBe(25)
   } finally { await cleanup(app, folder) }
 })
 
@@ -102,7 +102,7 @@ test('save before replacement writes the old editable snapshot, then imports an 
     await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeDisabled()
     const saved = parseProject(await readFile(project, 'utf8'))
     expect(Buffer.from(saved.source.bytes)).toEqual(await readFile(source))
-    expect(saved.preset.effects[0]).toMatchObject({ kind: 'brightness', value: 25 })
+    expect(saved.edit.preset.effects[0]).toMatchObject({ kind: 'brightness', value: 25 })
   } finally { await cleanup(app, folder) }
 })
 
@@ -290,7 +290,7 @@ test('close saves editable values while full rendering is still pending', async 
     await choose(app, 0)
     await nativeClose(app)
     await expect.poll(() => page.isClosed()).toBe(true)
-    expect(parseProject(await readFile(project, 'utf8')).preset.effects[0]).toMatchObject({ kind: 'brightness', value: 67 })
+    expect(parseProject(await readFile(project, 'utf8')).edit.preset.effects[0]).toMatchObject({ kind: 'brightness', value: 67 })
   } finally { await cleanup(app, folder) }
 })
 
@@ -368,8 +368,8 @@ test('a close queued during preset load guards the newly applied settings', asyn
     await expect(page.getByLabel('Unsaved project', { exact: true })).toHaveCount(0)
     const presetPath = join(folder, 'loaded.frypreset')
     const initial = JSON.parse(await readFile(initialProject, 'utf8'))
-    initial.preset.effects[0].value = 72
-    await writeFile(presetPath, JSON.stringify({ format: 'deep-fryer-preset', version: 2, preset: initial.preset }))
+    initial.edit.preset.effects[0].value = 72
+    await writeFile(presetPath, JSON.stringify({ format: 'deep-fryer-preset', version: 2, preset: initial.edit.preset }))
     await app.evaluate(({ dialog }, path) => {
       dialog.showOpenDialog = () => new Promise((resolve) => {
         Reflect.set(globalThis, '__releasePreset', () => resolve({ canceled: false, filePaths: [path] }))
@@ -388,7 +388,7 @@ test('a close queued during preset load guards the newly applied settings', asyn
       release()
     })
     await expect.poll(() => page.isClosed()).toBe(true)
-    expect(parseProject(await readFile(savedOnClose, 'utf8')).preset.effects[0]).toMatchObject({ kind: 'brightness', value: 72 })
+    expect(parseProject(await readFile(savedOnClose, 'utf8')).edit.preset.effects[0]).toMatchObject({ kind: 'brightness', value: 72 })
   } finally { await cleanup(app, folder) }
 })
 

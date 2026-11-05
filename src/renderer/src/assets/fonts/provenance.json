@@ -1,0 +1,14 @@
+{
+  "repository": "https://github.com/google/fonts",
+  "commit": "cee74d7ca45d66d5c1878c828645c862f2788d2d",
+  "fontUrl": "https://raw.githubusercontent.com/google/fonts/cee74d7ca45d66d5c1878c828645c862f2788d2d/ofl/anton/Anton-Regular.ttf",
+  "licenseUrl": "https://raw.githubusercontent.com/google/fonts/cee74d7ca45d66d5c1878c828645c862f2788d2d/ofl/anton/OFL.txt",
+  "metadataUrl": "https://raw.githubusercontent.com/google/fonts/cee74d7ca45d66d5c1878c828645c862f2788d2d/ofl/anton/METADATA.pb",
+  "upstreamCommit": "beb92fcad87808357123bb66881b4032dc96efe7",
+  "modifications": "None. Official TTF and full copyright/license bytes are bundled unchanged.",
+  "sha256": {
+    "Anton-Regular.ttf": "a4ba3a92350ebb031da0cb47630ac49eb265082ca1bc0450442f4a83ab947cab",
+    "OFL.txt": "ee67e6ee22790b7929f1a3769ca2801d565c64b5a9096942c1adf5596de9c9e4",
+    "METADATA.pb": "53e7d98a610693d7163915083540a2400f2663ec775753230d15861087c116e1"
+  }
+}

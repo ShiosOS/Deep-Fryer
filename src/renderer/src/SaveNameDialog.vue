@@ -27,7 +27,7 @@ defineExpose({ open })
   <Modal ref="modal" :title="kind === 'project' ? 'Save project as' : 'Save preset as'">
     <form class="modal-content" @submit.prevent="save">
       <label class="name-field">{{ kind === 'project' ? 'Project name' : 'Preset name' }}<input ref="input" v-model="names[kind]" :aria-label="kind === 'project' ? 'Project name' : 'Preset name'" maxlength="200" required></label>
-      <p>{{ kind === 'project' ? 'Keeps your original image and editable effects.' : 'Keeps effect settings so you can use them on another image.' }}</p>
+      <p>{{ kind === 'project' ? 'Keeps your original image, effects, and editable captions.' : 'Keeps effect settings so you can use them on another image.' }}</p>
       <p v-if="!parsed.success && names[kind]" class="control-error">Use a file name without path separators or reserved characters.</p>
       <div class="modal-actions"><button type="button" @click="modal?.close()">Cancel</button><button type="submit" class="primary" :disabled="!parsed.success">Save as…</button></div>
     </form>

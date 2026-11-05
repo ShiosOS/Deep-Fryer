@@ -54,7 +54,7 @@ async function withRecovery(testInfo: TestInfo, action: (edit: RecoveryEdit) => 
 
 async function brightnessOnDisk(path: string): Promise<number | undefined> {
   try {
-    return parseProject(await readFile(path, 'utf8')).preset.effects.find((effect) => effect.kind === 'brightness')?.value
+    return parseProject(await readFile(path, 'utf8')).edit.preset.effects.find((effect) => effect.kind === 'brightness')?.value
   } catch (error) {
     if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return undefined
     throw error
@@ -67,6 +67,61 @@ async function pixels(page: Page): Promise<number[]> {
     const context = canvas.getContext('2d')
     if (!context) throw new Error('Preview context is missing')
     return Array.from(context.getImageData(0, 0, canvas.width, canvas.height).data)
+  })
+}
+
+async function captionOnDisk(path: string): Promise<string | null> {
+  return parseProject(await readFile(path, 'utf8')).edit.composition.captions?.top ?? null
+}
+
+for (const mode of ['pending', 'failed'] as const) {
+  test(`${mode} caption rendering preserves accepted focused text without persisting IME drafts`, async ({}, testInfo) => {
+    await withRecovery(testInfo, async ({ page, checkpoint }) => {
+      const worker = page.workers().find(worker => worker.url().includes('effects-worker'))
+      if (!worker) throw new Error('Persistent rendering worker is missing')
+      await worker.evaluate(mode => {
+        const original = globalThis.fetch
+        globalThis.fetch = async (input, options) => {
+          if (String(input).endsWith('.ttf')) {
+            Reflect.set(globalThis, '__idleRecoveryFontRequested', true)
+            if (mode === 'failed') return new Response('Missing test font', { status: 404 })
+            await new Promise<void>(resolve => { Reflect.set(globalThis, '__releaseIdleRecoveryFont', resolve) })
+          }
+          return original(input, options)
+        }
+      }, mode)
+      await page.locator('.caption-controls > summary').click()
+      const top = page.getByRole('textbox', { name: 'Top caption', exact: true })
+      await top.fill('GO')
+      await expect.poll(() => worker.evaluate(() => Reflect.get(globalThis, '__idleRecoveryFontRequested') === true)).toBe(true)
+      if (mode === 'failed') await expect(page.locator('.caption-controls [role=alert]')).toContainText('bundled Anton font could not load')
+      await expect(top).toBeFocused()
+      await expect.poll(() => captionOnDisk(checkpoint)).toBe('GO')
+      await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeDisabled()
+      const session = await page.context().newCDPSession(page)
+      await top.press('Control+a')
+      await session.send('Input.imeSetComposition', { text: '草', selectionStart: 1, selectionEnd: 1 })
+      await expect(top).toHaveValue('草')
+      await page.waitForTimeout(1100)
+      expect(await captionOnDisk(checkpoint)).toBe('GO')
+      await session.send('Input.insertText', { text: 'OK' })
+      await expect.poll(() => captionOnDisk(checkpoint)).toBe('OK')
+      await expect(top).toBeFocused()
+      await testInfo.attach(`${mode}-caption-checkpoint`, { path: checkpoint, contentType: 'application/json' })
+      if (mode === 'pending') {
+        await worker.evaluate(() => {
+          const release: unknown = Reflect.get(globalThis, '__releaseIdleRecoveryFont')
+          if (typeof release !== 'function') throw new Error('Pending font request was not held')
+          release()
+        })
+        await ready(page)
+        await page.getByRole('button', { name: 'Undo', exact: true }).click()
+        await ready(page)
+        await expect(top).toHaveValue('')
+        await expect.poll(() => captionOnDisk(checkpoint)).toBe(null)
+      }
+      await session.detach()
+    })
   })
 }
 
@@ -185,7 +240,7 @@ for (const mode of ['pending', 'failed', 'stale'] as const) {
               document.documentElement.dataset.recoveryFault = mode
               if (mode === 'pending') return
               const data: WorkerResponse = mode === 'failed'
-                ? { kind: 'failed', sourceId: result.sourceId, revision: result.revision, quality: 'full', message: 'Injected full render failure' }
+                ? { kind: 'failed', sourceId: result.sourceId, revision: result.revision, quality: 'full', message: 'Injected full render failure', category: 'image' }
                 : { ...result, revision: result.revision - 1 }
               this.dispatchEvent(new MessageEvent('message', { data }))
             })

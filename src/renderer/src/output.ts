@@ -1,21 +1,21 @@
 import { openImageResult, validateDimensions, type OpenImage } from '../../shared/image'
 import { MAX_EXPORT_BYTES, outputFormats, outputOptionsSchema, type OutputOptions } from '../../shared/output'
-import { presetSchema, type Preset } from '../../shared/preset'
-import { renderPreset } from './effects'
+import { editStateSchema, type EditState } from '../../shared/edit'
+import { renderEdit } from './render-edit'
 
-export type OutputJob = { source: OpenImage; preset: Preset; options: OutputOptions }
+export type OutputJob = { source: OpenImage; edit: EditState; options: OutputOptions }
 export type PreparedOutput = { bytes: Uint8Array<ArrayBuffer>; pixels: Uint8ClampedArray<ArrayBuffer>; options: OutputOptions; sourceName: string }
 export type OutputResponse = { kind: 'ready'; output: PreparedOutput } | { kind: 'failed'; message: string }
 
-export function freezeOutput(source: OpenImage, preset: Preset, options: OutputOptions): OutputJob {
-  return { source: { name: source.name, mime: source.mime, bytes: new Uint8Array(source.bytes) }, preset: presetSchema.parse(preset), options: outputOptionsSchema.parse(options) }
+export function freezeOutput(source: OpenImage, edit: EditState, options: OutputOptions): OutputJob {
+  return { source: { name: source.name, mime: source.mime, bytes: new Uint8Array(source.bytes) }, edit: editStateSchema.parse(edit), options: outputOptionsSchema.parse(options) }
 }
 
 export async function prepareOutput(job: OutputJob): Promise<PreparedOutput> {
   const source = openImageResult.parse(job.source)
   if (!source) throw new Error('Open an image before preparing an output.')
   const options = outputOptionsSchema.parse(job.options)
-  const preset = presetSchema.parse(job.preset)
+  const edit = editStateSchema.parse(job.edit)
   const bitmap = await createImageBitmap(new Blob([new Uint8Array(source.bytes).buffer], { type: source.mime }), { imageOrientation: 'from-image' })
   try {
     validateDimensions(bitmap.width, bitmap.height)
@@ -25,7 +25,7 @@ export async function prepareOutput(job: OutputJob): Promise<PreparedOutput> {
     context.imageSmoothingEnabled = true
     context.imageSmoothingQuality = 'high'
     context.drawImage(bitmap, 0, 0, options.width, options.height)
-    const result = await renderPreset(context.getImageData(0, 0, options.width, options.height), preset)
+    const result = await renderEdit(context.getImageData(0, 0, options.width, options.height), edit)
     context.putImageData(result, 0, 0)
     if (options.format === 'jpeg') {
       context.globalCompositeOperation = 'destination-over'
