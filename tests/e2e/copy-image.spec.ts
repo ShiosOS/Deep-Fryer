@@ -123,6 +123,7 @@ test('button and shortcut copy full edited PNG pixels with alpha and orientation
       if (index === 0) expect(Array.from(expected.data).some((value, offset) => offset % 4 === 3 && value > 0 && value < 255)).toBe(true)
       await openOutput(page)
       await page.getByLabel('Output format').selectOption('webp')
+      await page.getByRole('checkbox', { name: 'Lock aspect ratio' }).uncheck()
       await page.getByLabel('Output width', { exact: true }).fill('24')
       await page.getByLabel('Output height', { exact: true }).fill('16')
       await page.getByLabel('Output quality').fill('23')
