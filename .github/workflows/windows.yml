@@ -37,8 +37,7 @@ jobs:
           name: application-check-output
           include-hidden-files: true
           path: |
-            .artifacts/*.png
-            .artifacts/copy-image/
+            .artifacts/
             test-results/
           if-no-files-found: ignore
 
@@ -87,8 +86,7 @@ jobs:
           name: installed-application-check-output
           include-hidden-files: true
           path: |
-            .artifacts/*.png
-            .artifacts/copy-image/
+            .artifacts/
             test-results/
           if-no-files-found: ignore
 

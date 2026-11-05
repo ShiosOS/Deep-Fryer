@@ -24,7 +24,7 @@ Deep Fryer separates desktop file access from image editing. Electron's main pro
 
 [Document actions](../src/main/document-actions.ts) coordinate native selection, validation, and recovery. [Document codecs](../src/main/document-files.ts) own versioned project and preset envelopes. [The legacy codec](../src/main/legacy-document-codec.ts) preserves original v1 semantics without making the in-memory model versioned.
 
-[The renderer document owner](../src/renderer/src/document-files.ts) compares the active document with its last successful project snapshot. It owns replacement decisions and serializes document transitions. Main authenticates a close request and its matching reply before destroying the window. Preparation can be canceled before output is submitted. An admitted native write settles before the close decision continues.
+[The renderer document owner](../src/renderer/src/document-files.ts) compares the active document with its last successful project snapshot. It owns replacement decisions and serializes document transitions. Main authenticates a close request and its matching reply before destroying the window. Preparation can be canceled before output is submitted. An admitted file or clipboard action settles before the close decision continues.
 
 [Image file operations](../src/main/image-files.ts) inspect supported file signatures, enforce bounds, and create output files exclusively. They refuse existing destinations. [RecoveryStore](../src/main/recovery.ts) serializes checkpoints and retains two generations. [AppearanceStore](../src/main/appearance-store.ts) stores theme settings separately and protects unreadable files until reset.
 
