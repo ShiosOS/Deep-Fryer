@@ -13,7 +13,7 @@ Move an editable project without its source, reuse presets, and recover interrup
 
 ## How to get to it (user POV)
 
-Use **File → Open project**, **Save project**, or **Save project as…**. `Ctrl+S` updates an authorized project without another chooser. A targetless first save asks for a new file. Explicit Save As always creates a copy. Use **Preset actions → Load preset** or **Save preset as…**. Replacing unsaved work or closing the native window offers **Save project**, **Discard**, and **Cancel**. A restarted interrupted profile offers **Restore work** and **Discard recovery**. Recovery is local to that profile.
+Use **File → Open project**, **Save project**, or **Save project as…**. `Ctrl+S` updates an authorized project without another chooser. A targetless first save asks for a new file. Explicit Save As always creates a copy. Choose **Look → Preset actions → Load preset** or **Save preset as…**. Replacing unsaved work or closing the native window offers **Save project**, **Discard**, and **Cancel**. A restarted interrupted profile offers **Restore work** and **Discard recovery**. Recovery is local to that profile. Section navigation is never serialized and does not dirty the document.
 
 ## Driving it with Playwright Electron
 

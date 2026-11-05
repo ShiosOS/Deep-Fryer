@@ -20,7 +20,7 @@ Preconditions: Fresh disposable profile; source fixture is supplied where editin
 
 - A1/A2: `node node_modules/@playwright/test/cli.js test redesign.spec.ts --grep 'appearance persists|unreadable settings' --output .artifacts/appearance/test-results`. Drive theme buttons, **Custom colors**, **Accent color**, **Canvas color**, **Panels color**, and **Reset saved settings**. Require the persisted palette JSON after restart, `html[data-appearance]` following System changes, intact unreadable settings until explicit reset, and unchanged edit/recovery checkpoint.
 - A3: `node node_modules/@playwright/test/cli.js test redesign.spec.ts --grep 'Help tabs' --output .artifacts/help/test-results`. It sets a 900 × 620 content viewport, requires seven tabs, uses **Choose an effect**, and checks complete nonzero image dimensions. It checks reduced-motion poster, explicit **Play animation/Pause animation**, nonempty tab panels, Escape closing, and focus returning to Help.
-- A1/A3 actual native size: `node scripts/capture-product.mjs --output .artifacts/appearance-capture` captures both themes and sets BrowserWindow to its true minimum outer size. Require decoded PNG/content dimensions to match the manifest and inspect `05-minimum-light.png` for clipped controls or unwanted overflow.
+- A1/A3 actual native size: `node scripts/capture-product.mjs --output .artifacts/appearance-capture` captures all three editor sections in both themes at 900×620 and 1120×760 outer sizes. Require decoded PNG/content dimensions to match the manifest and inspect the `sections-*.png` files for clipped controls or unwanted overflow. `inspector-sections.spec.ts` maintains the minimum bounds and primary-control geometry assertions.
 
 ## Gotchas
 

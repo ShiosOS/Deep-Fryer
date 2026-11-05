@@ -10,11 +10,13 @@
 
 ## How to get to it (user POV)
 
-Open an image or Try demo, then open **Captions** above the look gallery. Type in **Top** or **Bottom**. **Text size** reveals the size slider. **Clear** removes both fields. Use header Undo/Redo for complete edits; focused fields keep native text undo. Captions remain when selecting a look, changing Fry level, randomizing, or loading a preset. Font/layout errors leave the text editable and project saves available. **Retry preview** retries failed font loading.
+Open an image or Try demo, then choose **Captions** in the **Editor sections** navigation. Both **Top** and **Bottom** are immediately available. **Text size** reveals the size slider. **Clear** removes both fields. Choose **Look** for presets, Fry level, randomization, or preset files; these retain captions. Use header Undo/Redo for complete edits; focused fields keep native text undo. Unfinished IME or invalid drafts refuse section changes with feedback and keep the field visible. Accepted font/layout errors remain savable. **Retry preview** beside the main status retries failed font loading from any section.
 
 ## Driving it with Playwright Electron
 
 Build first, then run `node node_modules/@playwright/test/cli.js test captions.spec.ts --output .artifacts/caption-proof-NEW`. The four journeys cover C1–C5. They intercept native file choices and final clipboard writes, and use Chromium's IME protocol for composition. The minimum-window check sets BrowserWindow outer size to 900×620 and captures the actual viewport. C4 injects failure and delay into the persistent worker's font fetch; window font readiness is insufficient.
+
+Use `section(page, 'Captions')` before text interactions and `section(page, 'Look')` before look/Fry interactions. `inspector-sections.spec.ts` adds refused navigation during real IME composition, physical focus, one completed gesture per Undo, and saved/recovered caption→look→effect flow. It also verifies navigation itself leaves project and recovery bytes unchanged.
 
 Run `node scripts/verify-caption-font.mjs` to verify the official font, license, metadata, and generated cmap coverage. This also runs in the unit suite. With `DEEP_FRYER_EXECUTABLE` set to a built package, the same caption journeys exercise bundled workers/assets and offline license text. Retain the executable hash and package mode separately. This does not install a package or enforce a firewall rule.
 
