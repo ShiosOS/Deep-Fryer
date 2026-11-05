@@ -84,8 +84,8 @@ for (const draft of ['synthetic overlength caption', 'emulated caption compositi
       await page.getByRole('button', { name: 'Place point', exact: true }).click()
       const numeric = draft === 'invalid numeric in Effects'
       if (!numeric) await section(page, 'Captions')
-      const field = numeric ? page.getByRole('spinbutton', { name: 'Brightness value', exact: true })
-        : page.getByRole('textbox', { name: 'Top caption', exact: true })
+      const field = numeric ? page.getByRole('spinbutton', { name: 'Brightness value', exact: true, includeHidden: true })
+        : page.getByRole('textbox', { name: 'Top caption', exact: true, includeHidden: true })
       await field.focus()
       if (numeric) {
         await field.fill('10')
@@ -95,7 +95,6 @@ for (const draft of ['synthetic overlength caption', 'emulated caption compositi
       const saved = await checkpoint(folder)
       await expect.poll(async () => parseProject((await readFile(saved.path)).toString()).edit.preset.effects[0])
         .toMatchObject({ kind: 'brightness', value: numeric ? 20 : 0 })
-      saved.bytes = await readFile(saved.path)
       await expect.poll(async () => parseProject((await readFile(saved.path)).toString()).edit.preset.effects.filter(effect => effect.kind === 'bulge').length).toBe(1)
       saved.bytes = await readFile(saved.path)
       const accepted = parseProject(saved.bytes.toString())
@@ -131,9 +130,14 @@ for (const draft of ['synthetic overlength caption', 'emulated caption compositi
           }
         }, true)
       })
-      for (const action of ['drag', 'placement', 'ArrowRight', 'Delete']) {
+      for (const action of ['drag', 'placement', 'placement control', 'ArrowRight', 'Delete', 'Backspace']) {
         if (action === 'drag') await drag(page, handle)
         else if (action === 'placement') await place(page)
+        else if (action === 'placement control') {
+          const toggle = page.getByRole('button', { name: 'Click image…', exact: true })
+          await toggle.click()
+          await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+        }
         // Route keys to the point while the refusing field remains focused. This emulates
         // event delivery; the valid journey below uses normal focused keyboard input.
         else await handle.dispatchEvent('keydown', { key: action, bubbles: true, cancelable: true })

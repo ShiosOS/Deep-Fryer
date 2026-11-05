@@ -118,12 +118,14 @@ function pointerPosition(event: MouseEvent): Point {
 function pointerDown(event: PointerEvent): void {
   if (!document.value || event.button !== 0 || !stage.value) return
   if (placingPoint.value && !controlsBusy.value && view.value && imageSize.value) {
+    event.preventDefault()
     const relative = pointerPosition(event)
     const point = paneToImage(view.value, relative, pane.value)
     if (point.x >= 0 && point.x <= imageSize.value.width && point.y >= 0 && point.y <= imageSize.value.height) {
+      if (!selectSection('Effects')) return
       const effect = { ...newEffect('bulge'), x: Math.max(0, Math.min(1, point.x / Math.max(1, imageSize.value.width - 1))), y: Math.max(0, Math.min(1, point.y / Math.max(1, imageSize.value.height - 1))) }
       if (!changePreset({ ...preset.value, effects: [...preset.value.effects, effect] })) return
-      selectPoint(effect.id)
+      revealPoint(effect.id)
       placingPoint.value = false
     }
     return
@@ -296,18 +298,27 @@ function guardSectionFocus(event: PointerEvent): void {
   if (!canLeaveSection()) event.preventDefault()
 }
 function selectSection(section: InspectorSection): boolean {
-  if (activeSection.value === section) return true
   if (!canLeaveSection()) return false
+  if (activeSection.value === section) return true
   presetControls.value?.closeMenu()
   for (const menu of window.document.querySelectorAll<HTMLDetailsElement>('.file-menu[open]')) menu.open = false
   activeSection.value = section
   return true
 }
-function selectPoint(id: string): void {
-  if (!selectSection('Effects')) return
+function selectPoint(id: string): boolean {
+  if (!selectSection('Effects')) return false
+  revealPoint(id)
+  return true
+}
+function revealPoint(id: string): void {
   selectedPointId.value = id
   showing.value = 'edited'
   void nextTick(() => effectsPanel.value?.revealPoint(id))
+}
+function togglePointPlacement(): void {
+  if (!canLeaveSection()) return
+  placingPoint.value = !placingPoint.value
+  showing.value = 'edited'
 }
 
 function changeCaptions(composition: Composition): void {
@@ -587,11 +598,11 @@ onUnmounted(() => {
         </div>
         <div class="preview-toolbar">
           <div class="comparison-controls"><button type="button" :disabled="!document" :aria-pressed="showing === 'original'" @click="showing = 'original'">Original</button><button type="button" :disabled="!document" :aria-pressed="showing === 'edited'" @click="showing = 'edited'">Edited</button><span class="original-badge">{{ !document ? 'Preview' : operation.kind === 'processing' ? 'Processing' : presetNeutral ? 'Unchanged' : 'Edited' }}</span></div>
-          <div class="inspection-controls" aria-label="Image inspection controls"><button type="button" :aria-pressed="placingPoint" :disabled="!document || controlsBusy" @click="placingPoint = !placingPoint; showing = 'edited'">{{ placingPoint ? 'Click image…' : 'Place point' }}</button><button type="button" :disabled="!document" @click="fit">Fit</button><button type="button" :disabled="!document" @click="oneToOne">100%</button><button type="button" :disabled="!document" aria-label="Zoom out" @click="zoomAt(-1)">−</button><span class="preview-scale">{{ zoomLabel }}</span><button type="button" :disabled="!document" aria-label="Zoom in" @click="zoomAt(1)">+</button></div>
+          <div class="inspection-controls" aria-label="Image inspection controls"><button type="button" :aria-pressed="placingPoint" :disabled="!document || controlsBusy" @pointerdown="guardSectionFocus" @click="togglePointPlacement">{{ placingPoint ? 'Click image…' : 'Place point' }}</button><button type="button" :disabled="!document" @click="fit">Fit</button><button type="button" :disabled="!document" @click="oneToOne">100%</button><button type="button" :disabled="!document" aria-label="Zoom out" @click="zoomAt(-1)">−</button><span class="preview-scale">{{ zoomLabel }}</span><button type="button" :disabled="!document" aria-label="Zoom in" @click="zoomAt(1)">+</button></div>
         </div>
         <section ref="stage" :aria-busy="operation.kind === 'processing'" class="preview-stage" :class="{ 'has-image': document }" aria-label="Image preview" :tabindex="document ? 0 : -1" @keydown="stageKeydown" @pointerdown="pointerDown" @pointermove="pointerMove" @pointerup="endDrag" @pointercancel="endDrag" @lostpointercapture="endDrag" @dblclick="zoomAt($event.shiftKey ? -1 : 1, pointerPosition($event))">
           <div class="image-plane" v-show="document" :style="imageStyle"><canvas ref="canvas" v-show="showing === 'edited'" aria-label="Edited full resolution image canvas"></canvas><canvas ref="originalCanvas" v-show="showing === 'original'" aria-label="Original full resolution image canvas"></canvas></div>
-          <BulgeOverlay v-if="document && view && imageSize && showing === 'edited'" :points="bulgePoints" :selected-id="selectedPointId" :view="view" :pane="pane" :image="imageSize" @select="selectPoint" @change="movePoint" @delete="deletePoint" @gesture-begin="beginGesture" @gesture-end="endGesture" />
+          <BulgeOverlay v-if="document && view && imageSize && showing === 'edited'" :points="bulgePoints" :selected-id="selectedPointId" :view="view" :pane="pane" :image="imageSize" :select-point="selectPoint" @change="movePoint" @delete="deletePoint" @gesture-begin="beginGesture" @gesture-end="endGesture" />
           <div class="empty-state" v-if="!document"><img :src="appIcon" alt=""><h1>Open your first image.</h1><p>Choose a PNG or JPEG, paste an image, or drop a file here.</p><div class="empty-actions"><button class="primary" :disabled="busy" @click="openImage">Choose an image</button><button type="button" :disabled="busy" @click="tryDemo">Try demo</button></div></div>
         </section>
       </main>
