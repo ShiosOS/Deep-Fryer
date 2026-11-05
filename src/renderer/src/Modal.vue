@@ -13,6 +13,8 @@ function close(): void { dialog.value?.close() }
 async function closed(): Promise<void> {
   emit('closed')
   await nextTick()
+  const focused = document.activeElement
+  if (focused instanceof HTMLElement && focused !== document.body && !dialog.value?.contains(focused) && focused.getClientRects().length) return
   if (opener?.isConnected && opener.getClientRects().length) opener.focus()
   else document.querySelector<HTMLElement>('[data-dialog-fallback]')?.focus()
 }
