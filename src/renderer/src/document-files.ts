@@ -13,7 +13,6 @@ type DocumentOwner = {
   source: () => OpenImage | null
   edit: () => EditState
   ready: () => boolean
-  gestureActive: () => boolean
   finishGesture: () => void
   cancelPreparation: () => void
   setOperation: (operation: FileOperation | 'idle') => void
@@ -101,10 +100,10 @@ export function useDocumentFiles(owner: DocumentOwner) {
   }
   function scheduleCheckpoint(): void {
     cancelCheckpoint()
-    if (locked.value || recoveryState.value !== 'ready' || !owner.ready() || owner.gestureActive() || recoveryOffer.value) return
+    if (locked.value || recoveryState.value !== 'ready' || !owner.ready() || recoveryOffer.value) return
     checkpointTimer = setTimeout(() => {
       checkpointTimer = null
-      if (locked.value || recoveryState.value !== 'ready' || recoveryOffer.value || !owner.ready() || owner.gestureActive()) return
+      if (locked.value || recoveryState.value !== 'ready' || recoveryOffer.value || !owner.ready()) return
       const document = current()
       if (!document) return
       void window.documentBridge.checkpoint(document).then(() => {

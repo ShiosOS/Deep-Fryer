@@ -260,7 +260,6 @@ const files = useDocumentFiles({
   busy, fileBusy: computed(() => fileBusy.value || outputPanel.value?.busy === true),
   source: () => document.value, edit: () => snapshotEdit(edit.value),
   ready: () => document.value !== null && (readyRevision.value === renderRevision || edit.value.composition.captions !== null),
-  gestureActive: () => gestureActive.value,
   finishGesture,
   cancelPreparation: () => { copy.cancelPreparation(); outputPanel.value?.cancelPreparation() },
   setOperation: (kind) => { operation.value = { kind } },
@@ -277,7 +276,7 @@ function tryDemo(): void {
   })
 }
 
-function beginGesture(): void { if (controlsBusy.value) return; gestureActive.value = true; files.cancelCheckpoint(); history.begin() }
+function beginGesture(): void { if (controlsBusy.value) return; gestureActive.value = true; history.begin() }
 function endGesture(): void { if (controlsBusy.value) return; history.end(); gestureActive.value = false; files.scheduleCheckpoint() }
 function finishGesture(): void { captionControls.value?.finish(); history.end(); gestureActive.value = false }
 
