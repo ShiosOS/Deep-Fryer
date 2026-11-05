@@ -2,7 +2,7 @@ import { _electron as electron, expect, test, type ElectronApplication, type Pag
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { traceElectron, fileOperationComplete, chooseUnsaved, closeDiscardingChanges, fileAction, interruptForRecovery, openOutput, ready } from './ui'
+import { section, traceElectron, fileOperationComplete, chooseUnsaved, closeDiscardingChanges, fileAction, interruptForRecovery, openOutput, ready } from './ui'
 import { PNG } from 'pngjs'
 
 async function launch(folder: string): Promise<ElectronApplication> {
@@ -16,7 +16,7 @@ async function demo(page: Page): Promise<void> {
   await ready(page)
 }
 async function captions(page: Page): Promise<void> {
-  if (await page.locator('.caption-controls').getAttribute('open') === null) await page.locator('.caption-controls > summary').click()
+  await section(page, 'Captions')
 }
 async function pixels(page: Page): Promise<string> {
   return page.getByLabel('Edited full resolution image canvas').evaluate(async canvas => {
@@ -51,22 +51,27 @@ test('caption typing, native text undo, clear, document undo/redo and minimum wi
     await bottom.blur()
     await ready(page)
     await expect(page.getByRole('button', { name: 'Edited', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    await section(page, 'Look')
     await expect(page.locator('.look-gallery')).toContainText('Crispy color')
     await expect(page.getByRole('slider', { name: 'Fry level', exact: true })).toHaveValue('100')
     await page.getByRole('button', { name: 'Undo', exact: true }).click()
+    await section(page, 'Captions')
     await expect(bottom).toHaveValue('')
     await ready(page)
     await expect(page.locator('.look-gallery')).toContainText('Crispy color')
     await page.getByRole('button', { name: 'Redo', exact: true }).click()
     await ready(page)
     const baseline = await pixels(page)
+    await section(page, 'Look')
     const level = page.getByRole('slider', { name: 'Fry level', exact: true })
     await level.fill('60')
     await level.dispatchEvent('change')
     await ready(page)
+    await section(page, 'Captions')
     await top.fill('Café TOAST')
     await top.blur()
     await ready(page)
+    await section(page, 'Look')
     await expect(level).toHaveValue('60')
     await page.getByRole('button', { name: 'Undo', exact: true }).click()
     await ready(page)
@@ -75,6 +80,7 @@ test('caption typing, native text undo, clear, document undo/redo and minimum wi
     await level.dispatchEvent('change')
     await ready(page)
     expect(await pixels(page)).toEqual(baseline)
+    await section(page, 'Captions')
     await top.click()
     await top.press('End')
     await top.pressSequentially('!')
@@ -91,7 +97,7 @@ test('caption typing, native text undo, clear, document undo/redo and minimum wi
     expect(await pixels(page)).toEqual(baseline)
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(900, 620))
     await mkdir('.artifacts/captions', { recursive: true })
-    await page.locator('.sidebar').evaluate(element => { element.scrollTop = 0 })
+    await page.locator('.inspector-section:visible').evaluate(element => { element.scrollTop = 0 })
     await page.screenshot({ path: '.artifacts/captions/minimum-window.png' })
     expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.getSize())).toEqual([900, 620])
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
@@ -239,14 +245,16 @@ test('caption output scales across alpha, portrait and orientation; copied/expor
       await ready(page)
       await expect(page.locator('.output-inspection-state')).toContainText('Out of date.')
       await expect(page.getByRole('button', { name: 'Save inspected snapshot', includeHidden: true })).toBeDisabled()
+      await section(page, 'Look')
       await page.getByRole('button', { name: 'Randomize', exact: true }).click()
       await ready(page)
-      await page.locator('.look-gallery > summary').click()
+      if (await page.locator('.look-gallery').getAttribute('open') === null) await page.locator('.look-gallery > summary').click()
       await page.getByRole('button', { name: 'Crispy color', exact: true }).click()
       await ready(page)
       await app.evaluate(({ dialog }, path) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] }) }, resolve('tests/fixtures/v2/baseline.frypreset'))
       await fileAction(page, 'Load preset')
       await ready(page)
+      await section(page, 'Captions')
       await expect(page.getByRole('textbox', { name: 'Top caption', exact: true })).toHaveValue('Changed caption')
       await expect(page.getByRole('textbox', { name: 'Bottom caption', exact: true })).toHaveValue('Bottom\nline')
       expect(await readFile(source)).toEqual(bytes)

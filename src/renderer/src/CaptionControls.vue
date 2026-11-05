@@ -3,13 +3,14 @@ import { computed, ref, watch } from 'vue'
 import { compositionSchema, DEFAULT_CAPTION_SIZE, MAX_CAPTION_UNITS, type Composition } from '../../shared/composition'
 
 const props = defineProps<{ composition: Composition; disabled: boolean; renderError: string }>()
-const emit = defineEmits<{ change: [composition: Composition]; gestureBegin: []; gestureEnd: []; opened: []; error: [message: string] }>()
+const emit = defineEmits<{ change: [composition: Composition]; gestureBegin: []; gestureEnd: []; error: [message: string] }>()
 const top = ref('')
 const bottom = ref('')
 const size = ref(DEFAULT_CAPTION_SIZE)
 const composing = ref(false)
 const error = ref('')
-const expanded = ref(false)
+const fields = ref<HTMLElement | null>(null)
+let composingField: HTMLTextAreaElement | null = null
 const hasText = computed(() => !!(top.value || bottom.value))
 let published = ''
 watch(() => JSON.stringify(props.composition), serialized => {
@@ -18,7 +19,6 @@ watch(() => JSON.stringify(props.composition), serialized => {
   bottom.value = props.composition.captions?.bottom ?? ''
   size.value = props.composition.captions?.size ?? DEFAULT_CAPTION_SIZE
   error.value = ''
-  if (props.composition.captions) expanded.value = true
 }, { immediate: true, flush: 'sync' })
 
 function publishDraft(): boolean {
@@ -33,8 +33,15 @@ function publishDraft(): boolean {
   return true
 }
 function finish(): void {
-  if (composing.value) throw new Error('Finish composing the caption before saving or leaving. Your draft is still here.')
-  if (!publishDraft()) throw new Error(error.value)
+  if (composing.value) {
+    error.value = 'Finish composing the caption before saving or leaving. Your draft is still here.'
+    composingField?.focus()
+    throw new Error(error.value)
+  }
+  if (!publishDraft()) {
+    fields.value?.querySelector<HTMLTextAreaElement>(top.value.length > MAX_CAPTION_UNITS ? '[aria-label="Top caption"]' : '[aria-label="Bottom caption"]')?.focus()
+    throw new Error(error.value)
+  }
 }
 function input(anchor: 'top' | 'bottom', event: Event): void {
   if (!(event.target instanceof HTMLTextAreaElement)) return
@@ -50,31 +57,29 @@ function clear(): void {
   finish()
   emit('gestureEnd')
 }
-function toggle(event: Event): void {
-  if (!(event.target instanceof HTMLDetailsElement)) return
-  expanded.value = event.target.open
-  if (expanded.value) emit('opened')
+function startComposition(event: CompositionEvent): void {
+  if (!(event.target instanceof HTMLTextAreaElement)) return
+  composingField = event.target
+  composing.value = true
 }
 defineExpose({ finish })
 </script>
 
 <template>
-  <details class="caption-controls" :open="expanded" @toggle="toggle">
-    <summary>Captions<span v-if="composition.captions" class="caption-present" aria-label="Captions added">2</span></summary>
+  <section ref="fields" class="caption-controls" aria-label="Captions">
+    <div class="controls-heading"><h2 class="eyebrow">Captions</h2></div>
     <div class="caption-fields">
-      <label>Top<textarea aria-label="Top caption" :value="top" :maxlength="MAX_CAPTION_UNITS" rows="2" placeholder="Add a top caption" :disabled="disabled" spellcheck="false" @focus="$emit('gestureBegin')" @blur="end" @input="input('top', $event)" @compositionstart="composing = true" @compositionend="composing = false; input('top', $event)" /></label>
-      <label>Bottom<textarea aria-label="Bottom caption" :value="bottom" :maxlength="MAX_CAPTION_UNITS" rows="2" placeholder="Add a bottom caption" :disabled="disabled" spellcheck="false" @focus="$emit('gestureBegin')" @blur="end" @input="input('bottom', $event)" @compositionstart="composing = true" @compositionend="composing = false; input('bottom', $event)" /></label>
+      <label>Top<textarea aria-label="Top caption" :value="top" :maxlength="MAX_CAPTION_UNITS" rows="2" placeholder="Add a top caption" :disabled="disabled" spellcheck="false" @focus="$emit('gestureBegin')" @blur="end" @input="input('top', $event)" @compositionstart="startComposition" @compositionend="composing = false; input('top', $event)" /></label>
+      <label>Bottom<textarea aria-label="Bottom caption" :value="bottom" :maxlength="MAX_CAPTION_UNITS" rows="2" placeholder="Add a bottom caption" :disabled="disabled" spellcheck="false" @focus="$emit('gestureBegin')" @blur="end" @input="input('bottom', $event)" @compositionstart="startComposition" @compositionend="composing = false; input('bottom', $event)" /></label>
       <p v-if="error || renderError" class="control-error" role="alert">{{ error || renderError }}</p>
       <div class="caption-options"><details><summary>Text size</summary><label class="caption-size">{{ Math.round(size * 100) }}%<input v-model.number="size" aria-label="Caption size" type="range" min="0.04" max="0.16" step="0.01" :disabled="disabled || !hasText" @pointerdown="$emit('gestureBegin')" @keydown="$emit('gestureBegin')" @input="finish" @change="end" /></label><p>Fits up to three lines per caption.</p></details><button type="button" :disabled="disabled || !hasText" @click="clear">Clear</button></div>
     </div>
-  </details>
+  </section>
 </template>
 
 <style scoped>
-.caption-controls { border-bottom: 1px solid var(--line); padding-bottom: 16px; margin-bottom: 20px; }
-.caption-controls > summary { font-size: 13px; font-weight: 600; }
-.caption-present { float: right; font-size: 0; width: 6px; height: 6px; margin: 6px 2px; background: var(--control); border-radius: 50%; }
-.caption-fields { padding-top: 14px; }
+.caption-controls { min-width: 0; }
+.caption-fields { padding-top: 4px; }
 .caption-fields > label { display: block; font-size: 12px; margin-bottom: 10px; }
 textarea { display: block; width: 100%; min-height: 52px; resize: vertical; margin-top: 5px; padding: 8px 10px; font: inherit; line-height: 1.4; background: var(--paper); color: var(--text); border: 1px solid var(--line); border-radius: 8px; }
 textarea::placeholder { color: var(--muted); }

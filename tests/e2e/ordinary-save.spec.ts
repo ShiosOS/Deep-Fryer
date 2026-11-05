@@ -8,7 +8,7 @@ import { newPreset } from '../../src/shared/preset'
 import { newEdit } from '../../src/shared/edit'
 import { projectTargetIdSchema } from '../../src/shared/documents'
 import { randomUUID } from 'node:crypto'
-import { PROJECT_FILE_OPERATION_MS, projectSaved, traceElectron, finishElectronTrace, fileOperationComplete, chooseUnsaved, controls, fileAction, ready } from './ui'
+import { section, PROJECT_FILE_OPERATION_MS, projectSaved, traceElectron, finishElectronTrace, fileOperationComplete, chooseUnsaved, controls, fileAction, ready } from './ui'
 import { aclFixture } from '../windows-acl-fixture'
 import type { FileHandle } from 'node:fs/promises'
 
@@ -74,7 +74,7 @@ async function save(page: Page): Promise<void> {
 }
 
 async function caption(page: Page, top: string): Promise<void> {
-  if (await page.locator('.caption-controls').getAttribute('open') === null) await page.locator('.caption-controls > summary').click()
+  await section(page, 'Captions')
   await page.getByRole('textbox', { name: 'Top caption', exact: true }).fill(top)
   await page.getByRole('textbox', { name: 'Bottom caption', exact: true }).fill('BOTTOM')
   await page.getByRole('textbox', { name: 'Bottom caption', exact: true }).blur()
@@ -194,6 +194,7 @@ test('caption-only ordinary Save is clean, reopens exact text, and keeps caption
     await ready(page)
     await expect(page.getByLabel('Unsaved project', { exact: true })).toHaveCount(0)
     await openProject(app, page, a)
+    await section(page, 'Captions')
     await expect(page.getByRole('textbox', { name: 'Top caption', exact: true })).toHaveValue('CAPTION ONLY')
     await expect(page.getByRole('textbox', { name: 'Bottom caption', exact: true })).toHaveValue('BOTTOM')
     expect(parseProject(await readFile(a, 'utf8'))).toEqual(saved)

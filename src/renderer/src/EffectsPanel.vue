@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { nextTick, reactive, ref, watch } from 'vue'
 import { intensityFromSlider, intensityToSlider, isMultiplier } from './effect-controls'
 import { effectOptions, moveEffect, newEffect, presetSchema, replaceEffect, type Effect, type EffectKind, type Preset } from '../../shared/preset'
 
@@ -7,7 +7,12 @@ const props = defineProps<{ preset: Preset; disabled: boolean; restoreVersion: n
 const emit = defineEmits<{ change: [preset: Preset]; gestureBegin: []; gestureEnd: []; selectPoint: [id: string] }>()
 const drafts = reactive<Record<string, string>>({})
 const panelError = ref('')
+const panel = ref<HTMLElement | null>(null)
+let composingInput: HTMLInputElement | null = null
 const expanded = ref(new Set(props.preset.effects[0] ? [props.preset.effects[0].id] : []))
+watch(() => props.preset.effects, (effects, previous) => {
+  if (effects[0] && !effects.some(effect => previous.some(prior => prior.id === effect.id))) expanded.value = new Set([effects[0].id])
+})
 watch(() => props.selectedPointId, (id) => { if (id) expanded.value.add(id) })
 function toggle(id: string, event: Event): void {
   if (!(event.target instanceof HTMLDetailsElement)) return
@@ -28,10 +33,44 @@ function endInput(event: Event): void {
   const target = event.target
   if (event.type.startsWith('pointer') && (!(target instanceof HTMLInputElement) || target.type !== 'range')) return
   if (target instanceof HTMLInputElement && (target.type === 'number' || target.type === 'range' || target.type === 'color')) {
-    emit('gestureEnd')
-    for (const key of Object.keys(drafts)) delete drafts[key]
+    try { finish(false); emit('gestureEnd') } catch (error) {
+      panelError.value = error instanceof Error ? error.message : 'Check the effect settings.'
+    }
   }
 }
+function reveal(input: HTMLElement): void {
+  for (let ancestor = input.parentElement; ancestor && ancestor !== panel.value; ancestor = ancestor.parentElement) {
+    if (ancestor instanceof HTMLDetailsElement) ancestor.open = true
+  }
+  input.focus()
+}
+function finish(focus = true): void {
+  const invalidInput = panel.value?.querySelector<HTMLInputElement>('input[aria-invalid="true"]')
+  const unfinished = composingInput ?? invalidInput
+  if (unfinished) {
+    const label = unfinished.getAttribute('aria-label') ?? 'effect value'
+    panelError.value = composingInput ? `Finish composing ${label} before leaving. Your draft is still here.`
+      : `Enter a valid ${label} (${unfinished.min} to ${unfinished.max}) before leaving. Your draft is still here.`
+    if (focus) reveal(unfinished)
+    throw new Error(panelError.value)
+  }
+  for (const key of Object.keys(drafts)) delete drafts[key]
+  panelError.value = ''
+}
+async function revealPoint(id: string): Promise<void> {
+  expanded.value.add(id)
+  await nextTick()
+  const card = [...(panel.value?.querySelectorAll<HTMLElement>('[data-effect-id]') ?? [])].find(element => element.dataset.effectId === id)
+  card?.querySelector('.point-select')?.scrollIntoView({ block: 'nearest' })
+}
+function compositionStart(event: CompositionEvent): void {
+  if (event.target instanceof HTMLInputElement) composingInput = event.target
+}
+function compositionEnd(event: CompositionEvent): void {
+  composingInput = null
+  if (event.target instanceof HTMLInputElement) event.target.dispatchEvent(new Event('input', { bubbles: true }))
+}
+defineExpose({ finish, revealPoint })
 function accept(next: Preset): void {
   const parsed = presetSchema.safeParse(next)
   if (parsed.success) { panelError.value = ''; emit('change', parsed.data) }
@@ -48,12 +87,16 @@ function raw(effect: Effect, key: string, value: number): string { return drafts
 function invalid(effect: Effect, key: string, value: number, min: number, max: number): boolean {
   const text = raw(effect, key, value)
   const number = Number(text) * (key === 'value' && isMultiplier(effect.kind) ? 100 : 1)
-  return text.trim() === '' || !Number.isFinite(number) || Math.abs(number - Math.round(number)) > 0.0000001 || number < min || number > max
+  if (text.trim() === '' || !Number.isFinite(number) || Math.abs(number - Math.round(number)) > 0.0000001 || number < min || number > max) return true
+  const acceptedValue = effect.kind === 'bulge' && (key === 'x' || key === 'y' || key === 'radius') ? number / 100 : Math.round(number)
+  return !presetSchema.safeParse(replaceEffect(props.preset, { ...effect, [key]: acceptedValue })).success
 }
 function changeNumber(effect: Effect, key: 'value' | 'mix' | 'quality' | 'passes' | 'x' | 'y' | 'radius' | 'strength', event: Event, min: number, max: number): void {
   const target = event.target
   if (!(target instanceof HTMLInputElement)) return
   if (target.type !== 'range') drafts[`${effect.id}:${key}`] = target.value
+  else delete drafts[`${effect.id}:${key}`]
+  if (composingInput) return
   const numeric = Number(target.value)
   if (key === 'value' && isMultiplier(effect.kind) && target.type !== 'range' && Math.abs(numeric * 100 - Math.round(numeric * 100)) > 0.0000001) return
   const value = key === 'value' && isMultiplier(effect.kind) ? (target.type === 'range' ? intensityFromSlider(numeric) : Math.round(numeric * 100)) : numeric
@@ -108,11 +151,14 @@ function selectEffect(event: Event): void {
 function changeSeed(event: Event): void {
   const target = event.target
   if (!(target instanceof HTMLInputElement)) return
-  const seed = Number(target.value)
-  if (Number.isInteger(seed) && seed >= 0 && seed <= 0xffffffff) emit('change', { ...props.preset, seed })
+  drafts.seed = target.value
+  if (!composingInput && validSeed(target.value)) accept({ ...props.preset, seed: Number(target.value) })
 }
+function validSeed(value: string): boolean { return value.trim() !== '' && Number.isInteger(Number(value)) && Number(value) >= 0 && Number(value) <= 0xffffffff }
 function resetColor(): void {
-  for (const key of Object.keys(drafts)) delete drafts[key]
+  for (const effect of props.preset.effects) {
+    if (effect.kind === 'brightness' || effect.kind === 'contrast' || effect.kind === 'saturation' || effect.kind === 'levels') delete drafts[`${effect.id}:value`]
+  }
   emit('change', { ...props.preset, effects: props.preset.effects.map((effect) => {
     switch (effect.kind) {
       case 'brightness': return { ...effect, value: 0 }
@@ -125,8 +171,8 @@ function resetColor(): void {
 </script>
 
 <template>
-  <section class="effects-panel" aria-label="Effects" @focusin="beginInput" @focusout="endInput" @pointerdown="beginInput" @pointerup="endInput" @pointercancel="endInput" @change.capture="endInput">
-    <div class="controls-heading"><span class="eyebrow">Effects</span><button type="button" class="reset-button" :disabled="disabled" @click="resetColor">Reset color</button></div>
+  <section ref="panel" class="effects-panel" aria-label="Effects" @focusin="beginInput" @focusout="endInput" @pointerdown="beginInput" @pointerup="endInput" @pointercancel="endInput" @change="endInput" @compositionstart="compositionStart" @compositionend="compositionEnd">
+    <div class="controls-heading"><h2 class="eyebrow">Effects</h2><button type="button" class="reset-button" :disabled="disabled" @click="resetColor">Reset color</button></div>
     <details v-for="(effect, index) in preset.effects" :open="expanded.has(effect.id)" @toggle="toggle(effect.id, $event)" :key="effect.id" class="effect-card" :class="{ 'selected-point-card': effect.kind === 'bulge' && selectedPointId === effect.id }" :data-effect-id="effect.id" :data-effect-kind="effect.kind">
       <summary class="effect-heading">
         <input type="checkbox" :checked="effect.enabled" :disabled="disabled" :aria-label="`Enable ${label(effect.kind)} ${index + 1}`" @change="changeEnabled(effect, $event)"><span class="effect-enabled">{{ label(effect.kind) }}</span>
@@ -151,7 +197,7 @@ function resetColor(): void {
           <label :for="`${effect.id}-${field}`">{{ field === 'x' ? 'X position %' : field === 'y' ? 'Y position %' : field === 'radius' ? 'Radius %' : 'Bulge / pinch amount' }}</label>
           <div class="color-inputs">
             <input :id="`${effect.id}-${field}`" type="range" :aria-label="`Bulge ${field} slider`" :min="field === 'strength' ? -100 : field === 'radius' ? 1 : 0" max="100" :value="field === 'strength' ? effect.strength : Math.round(effect[field] * 100)" :disabled="disabled" @input="changeNumber(effect, field, $event, field === 'strength' ? -100 : field === 'radius' ? 1 : 0, 100)">
-            <input type="number" :aria-label="`Bulge ${field} value`" :min="field === 'strength' ? -100 : field === 'radius' ? 1 : 0" max="100" :value="raw(effect, field, field === 'strength' ? effect.strength : Math.round(effect[field] * 100))" :disabled="disabled" @input="changeNumber(effect, field, $event, field === 'strength' ? -100 : field === 'radius' ? 1 : 0, 100)" @keydown.enter="($event.target as HTMLInputElement).blur()">
+            <input type="number" :aria-label="`Bulge ${field} value`" :min="field === 'strength' ? -100 : field === 'radius' ? 1 : 0" max="100" :value="raw(effect, field, field === 'strength' ? effect.strength : Math.round(effect[field] * 100))" :aria-invalid="invalid(effect, field, field === 'strength' ? effect.strength : Math.round(effect[field] * 100), field === 'strength' ? -100 : field === 'radius' ? 1 : 0, 100)" :disabled="disabled" @input="changeNumber(effect, field, $event, field === 'strength' ? -100 : field === 'radius' ? 1 : 0, 100)" @keydown.enter="($event.target as HTMLInputElement).blur()">
           </div>
         </div>
       </template>
@@ -162,7 +208,7 @@ function resetColor(): void {
       </div>
     </details>
     <div class="add-effect"><label for="effect-kind">Add effect</label><select id="effect-kind" :disabled="disabled" @change="selectEffect"><option value="">Choose an effect…</option><option v-for="option in effectOptions" :key="option.kind" :value="option.kind">{{ option.label }}</option></select></div>
-    <label class="seed-control">Noise pattern <input type="number" aria-label="Noise pattern" min="0" max="4294967295" :value="preset.seed" :disabled="disabled" @change="changeSeed"></label>
+    <label class="seed-control">Noise pattern <input type="number" aria-label="Noise pattern" min="0" max="4294967295" :value="drafts.seed ?? String(preset.seed)" :aria-invalid="!validSeed(drafts.seed ?? String(preset.seed))" :disabled="disabled" @input="changeSeed"></label>
     <p v-if="panelError" class="control-error" role="alert">{{ panelError }}</p>
   </section>
 </template>

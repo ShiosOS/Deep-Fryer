@@ -1,4 +1,4 @@
-import { closeDiscardingChanges, fileAction, controls, exportImage } from './ui'
+import { closeDiscardingChanges, fileAction, controls, exportImage, section } from './ui'
 import { _electron as electron, expect, test } from '@playwright/test'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -36,6 +36,7 @@ test('named looks, locked randomization and five candidates commit complete repr
     await contrast.blur()
     await ready()
     const preceding = await pixels()
+    await section(page, 'Look')
     const gallery = page.locator('.look-grid')
     await expect(gallery).toHaveAttribute('aria-busy', 'false')
     const thumbnailPixels = await page.getByRole('button', { name: 'Crispy color', exact: true }).locator('img').evaluate(async (image) => {
@@ -65,12 +66,14 @@ test('named looks, locked randomization and five candidates commit complete repr
     await saturation.blur()
     await ready()
     await expect(page.getByRole('button', { name: 'Crispy color', exact: true, includeHidden: true })).toHaveAttribute('aria-pressed', 'false')
+    await section(page, 'Look')
     await page.getByText('Randomization locks', { exact: true }).click()
     await page.getByRole('checkbox', { name: 'Lock Saturation 3', exact: true }).check()
     await page.getByRole('checkbox', { name: 'Lock JPEG quality 7', exact: true }).check()
     const quality = await (await controls(page)).getByRole('spinbutton', { name: 'JPEG quality value' }).inputValue()
     const seed = await (await controls(page)).getByRole('spinbutton', { name: 'Noise pattern' }).inputValue()
     const beforeRandom = await pixels()
+    await section(page, 'Look')
     await page.getByRole('button', { name: 'Randomize' }).click()
     await ready()
     await expect(saturation).toHaveValue('0.55')
@@ -90,12 +93,14 @@ test('named looks, locked randomization and five candidates commit complete repr
     await (await controls(page)).getByRole('spinbutton', { name: 'JPEG passes value' }).fill('3')
     await (await controls(page)).getByRole('spinbutton', { name: 'JPEG passes value' }).blur()
     await ready()
+    await section(page, 'Look')
     const amount = page.getByRole('slider', { name: 'Fry level', exact: true })
     const bounds = await amount.boundingBox()
     if (!bounds) throw new Error('Fry slider missing')
     await amount.click({ position: { x: bounds.width / 2, y: bounds.height / 2 } })
     await ready()
     const starting = await pixels()
+    await section(page, 'Look')
     const compare = page.getByRole('button', { name: 'Compare 5' })
     await compare.click()
     const panel = page.getByRole('dialog', { name: 'Choose a fry level' })

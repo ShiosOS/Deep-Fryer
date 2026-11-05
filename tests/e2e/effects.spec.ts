@@ -1,4 +1,4 @@
-import { closeDiscardingChanges, fileAction, controls, exportImage } from './ui'
+import { section, closeDiscardingChanges, fileAction, controls, exportImage } from './ui'
 import { _electron as electron, expect, test } from '@playwright/test'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -29,6 +29,7 @@ test('ordered texture and real JPEG damage export the current pixels', async () 
     await fileAction(page, 'Open image')
     await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeEnabled()
 
+    await section(page, 'Effects')
     await page.getByLabel('Add effect').selectOption('noise')
     await (await controls(page)).getByRole('spinbutton', { name: 'Noise value' }).fill('70')
     await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeEnabled()
@@ -55,7 +56,7 @@ test('ordered texture and real JPEG damage export the current pixels', async () 
     await page.setViewportSize({ width: 1244, height: 950 })
     await page.evaluate(() => {
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
-      document.querySelector('.sidebar')?.scrollTo(0, 10000)
+      document.querySelector('.inspector-section:not([style*="display: none"])')?.scrollTo(0, 10000)
     })
     await mkdir('.artifacts', { recursive: true })
     await page.screenshot({ path: '.artifacts/ordered-effects.png' })
@@ -156,7 +157,7 @@ test('maximum supported image finishes the latest full resolution edit', async (
     await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeEnabled({ timeout: 90_000 })
     const afterCancel = await page.getByLabel('Edited full resolution image canvas').evaluate((element) => Array.from((element as HTMLCanvasElement).getContext('2d')!.getImageData(3000, 2000, 1, 1).data))
     expect(afterCancel).toEqual([128, 128, 128, 255])
-    await page.locator('.caption-controls > summary').click()
+    await section(page, 'Captions')
     const caption = page.getByRole('textbox', { name: 'Top caption', exact: true })
     await caption.fill('FIRST')
     await caption.fill('LATEST')

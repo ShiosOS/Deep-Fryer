@@ -1,4 +1,4 @@
-import { closeDiscardingChanges, controls, fileAction, traceElectron } from './ui'
+import { section, closeDiscardingChanges, controls, fileAction, traceElectron } from './ui'
 import { legacyAction, legacyExportAction, legacyPresetFilename } from '../fixtures/legacy-ui'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
 import { createHash } from 'node:crypto'
@@ -123,7 +123,7 @@ test('installed packages preserve prior projects and presets across upgrade, res
         await (await visibleControls(page)).getByRole('spinbutton', { name: 'Brightness value' }).fill('25')
         await (await visibleControls(page)).getByRole('spinbutton', { name: 'Brightness value' }).blur()
         await ready(page)
-        await page.locator('.caption-controls > summary').click()
+        await section(page, 'Captions')
         await page.getByRole('textbox', { name: 'Top caption', exact: true }).fill('UPGRADE')
         await page.getByRole('textbox', { name: 'Top caption', exact: true }).blur()
         await ready(page)
@@ -141,6 +141,7 @@ test('installed packages preserve prior projects and presets across upgrade, res
         await expectSavedSettings(page)
         await expect((await visibleControls(page)).getByRole('spinbutton', { name: 'Brightness value' })).toHaveValue('25')
         expect(await pixels(page)).toEqual(continuedPixels)
+        await section(page, 'Captions')
         await expect(page.getByRole('textbox', { name: 'Top caption', exact: true })).toHaveValue('UPGRADE')
         for (const [name, document, filename] of [['Open project', project, 'future.deepfryer'], ['Load preset', preset, 'future.frypreset']] as const) {
           const futurePath = join(folder, filename)

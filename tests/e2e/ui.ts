@@ -93,14 +93,22 @@ async function stopForRecovery(app: ElectronApplication): Promise<void> {
 }
 
 export async function fileAction(page: Page, name: string): Promise<void> {
+  if (name.includes('preset')) await section(page, 'Look')
   const menu = page.locator(name.includes('preset') ? '.preset-menu' : '.file-menu')
   if (!await menu.getAttribute('open').then((value) => value !== null)) await menu.locator('summary').first().click()
   await page.getByRole('button', { name, exact: name !== 'Open image' }).click()
   if (name.endsWith(' as…')) await page.getByRole('button', { name: 'Save as…', exact: true }).click()
 }
 
+export async function section(page: Page, name: 'Look' | 'Effects' | 'Captions'): Promise<void> {
+  const button = page.getByRole('navigation', { name: 'Editor sections' }).getByRole('button', { name, exact: true })
+  if (await button.getAttribute('aria-pressed') !== 'true') await button.click()
+  await expect(button).toHaveAttribute('aria-pressed', 'true')
+}
+
 export async function controls(page: Page): Promise<Page> {
   await ready(page)
+  await section(page, 'Effects')
   await expect(page.locator('.effect-card').first()).toBeVisible()
   for (const selector of ['.effect-card', '.more-controls']) {
     for (const details of await page.locator(selector).all()) {

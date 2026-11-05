@@ -185,7 +185,7 @@ test('independent color controls preview and export combined settings while pres
     await page.setViewportSize({ width: 1244, height: 950 })
     await page.evaluate(() => {
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
-      document.querySelector('.sidebar')?.scrollTo(0, 0)
+      document.querySelector('.inspector-section:not([style*="display: none"])')?.scrollTo(0, 0)
     })
     await mkdir('.artifacts', { recursive: true })
     await page.screenshot({ path: '.artifacts/color-controls.png' })

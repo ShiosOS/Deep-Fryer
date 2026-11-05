@@ -144,7 +144,7 @@ test('portable project moves without its source, preset scales to another image,
     expect([exported.width, exported.height]).toEqual([240, 160])
     expect(Array.from(exported.data)).toEqual(largerPixels)
     await page.setViewportSize({ width: 1260, height: 950 })
-    await page.locator('.sidebar').evaluate((element) => { element.scrollTop = 0 })
+    await page.locator('.inspector-section:visible').evaluate((element) => { element.scrollTop = 0 })
     await mkdir('.artifacts', { recursive: true })
     await page.screenshot({ path: '.artifacts/portable-project.png' })
     expect(errors).toEqual([])
