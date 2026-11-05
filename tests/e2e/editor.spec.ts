@@ -1,3 +1,4 @@
+import { openImageWithShortcut } from './open-image-shortcut'
 import { chooseUnsaved, closeDiscardingChanges, fileAction, controls, exportImage } from './ui'
 import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test'
 import { createHash } from 'node:crypto'
@@ -66,7 +67,7 @@ test('open, cancel, reject replacement, protect originals, and export real canva
     expect(await page.evaluate(() => typeof Reflect.get(window, 'require'))).toBe('undefined')
     expect(await page.evaluate(() => typeof Reflect.get(window, 'process'))).toBe('undefined')
     await selectOpen(app, source)
-    await page.keyboard.press('Control+o')
+    await openImageWithShortcut(page)
     await expect(page.locator('.filename')).toHaveText('sunset.png')
     await expect(page.getByRole('status')).toContainText('sunset.png is ready')
     await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeEnabled()

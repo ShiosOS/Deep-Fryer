@@ -1,3 +1,4 @@
+import { prepareMissingCaptionFont } from './save-font-fault'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -202,13 +203,7 @@ for (const missingFont of [false, true]) {
       await ready(page)
       if (missingFont) {
         await expect(page.locator('.look-grid')).toHaveAttribute('aria-busy', 'false')
-        const worker = page.workers().find(worker => worker.url().includes('effects-worker'))
-        if (!worker) throw new Error('Rendering worker missing')
-        await worker.evaluate(() => {
-          const original = globalThis.fetch
-          globalThis.fetch = async (input, options) => String(input).endsWith('.ttf')
-            ? new Response('Missing test font', { status: 404 }) : original(input, options)
-        })
+        await prepareMissingCaptionFont(page)
         await section(page, 'Captions')
         const top = page.getByRole('textbox', { name: 'Top caption', exact: true })
         await top.fill('Keep these words')
