@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { PNG } from 'pngjs'
-import { chooseUnsaved, controls, exportImage, fileAction, ready, interruptForRecovery } from './ui'
+import { chooseUnsaved, closeDiscardingChanges, controls, exportImage, fileAction, ready, interruptForRecovery } from './ui'
 import { parseProject } from '../../src/main/document-files'
 
 async function launch(profile: string): Promise<ElectronApplication> {
@@ -61,8 +61,7 @@ async function pixels(page: Page): Promise<string> {
 }
 
 async function cleanup(app: ElectronApplication, folder: string): Promise<void> {
-  await choose(app, 1).catch(() => {})
-  await app.close().catch(() => {})
+  await closeDiscardingChanges(app)
   await rm(folder, { recursive: true, force: true })
 }
 
