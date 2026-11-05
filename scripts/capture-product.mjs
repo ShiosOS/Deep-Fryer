@@ -14,7 +14,7 @@ const args = process.argv.slice(2)
 assert.ok(args.length === 0 || (args.length === 2 && args[0] === '--output'), 'Usage: node scripts/capture-product.mjs [--output NEW_DIRECTORY]')
 const output = resolve(args[1] ?? join(root, '.artifacts', `product-${new Date().toISOString().replaceAll(':', '-')}`))
 await mkdir(dirname(output), { recursive: true })
-await mkdir(output) // A fresh directory keeps every previous receipt and help asset intact.
+await mkdir(output)
 const demo = join(root, 'src/renderer/src/assets/demo/toast-cat.png')
 const source = existsSync(demo) ? demo : join(root, 'src/renderer/src/assets/help/source.jpg')
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex')
@@ -144,7 +144,6 @@ try {
   if (app) {
     try {
       ownedPids.push(...await app.evaluate(({ app }) => app.getAppMetrics().map(({ pid }) => pid)))
-      // Installed only after the journey: discard the disposable edit if a close guard asks.
       await app.evaluate(({ dialog }) => {
         const chooseDiscard = (options) => {
           const response = options.buttons?.findIndex((button) => /^(discard(?: changes)?|don['’]t save)$/i.test(button.replaceAll('&', '')))
